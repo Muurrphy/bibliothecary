@@ -113,6 +113,12 @@ robot-lipsync compile examples/good_evening.alignment.json \
 # Summarize physical response latency from JSONL traces
 robot-lipsync report examples/reference_traces.jsonl \
   --mark physical_audio_start
+
+# Prove the 100-turn harness with a clearly labeled simulated adapter
+robot-lipsync benchmark-run \
+  --adapter-command "python benchmarks/stub_agent.py" \
+  --output build/stub-100.jsonl
+robot-lipsync benchmark-report build/stub-100.jsonl
 ```
 
 ## Optional ElevenLabs same-stream example
@@ -140,12 +146,30 @@ It writes raw 24 kHz signed-16-bit mono PCM, versioned Articulation IR, and a br
 
 We do not claim to have invented visemes, coarticulation, real-time voice agents, or learned robot lips. See [Third-party systems and research boundary](docs/third-party.md).
 
+## ESP32/OLED reference firmware
+
+[`firmware/esp32_oled`](firmware/esp32_oled) is a reproducible ESP32-C3 build for SH1106/SSD1306-class 128×64 displays. Unlike the Lilyput art renderer, it does not embed project-specific mouth frames: it draws directly from the eight continuous articulation channels. Commands and replies use a complete `LIP/` namespace, bounded integer fields, session checks, queue limits, and a `VISIBLE_START` hardware event.
+
+```bash
+arduino-cli compile --profile esp32c3 firmware/esp32_oled
+```
+
+The firmware compiles in CI. Wiring integrity and physical synchronization still require board validation.
+
+## Controlled 100-turn harness
+
+[`benchmarks/english_v1.json`](benchmarks/english_v1.json) defines 20 fixed English cases repeated five times. `benchmark-run` keeps one adapter process alive, performs warmups, checkpoints each result, supports resume, and preserves failed trials. `benchmark-report` separates every timing stage, quality counter, and audio/visible start offset.
+
+The included stub is only a deterministic test instrument: all its traces say `simulated=true` and must never be presented as performance evidence. A publishable result requires a real long-lived voice adapter, the raw 100-turn JSONL, exact hardware/provider configuration, and physical playback marks. See the [benchmark protocol](benchmarks/README.md).
+
 ## Repository map
 
 ```text
 src/robot_lipsync/       versioned core, providers, renderers, serial backend
 schemas/                 Articulation IR and latency-trace JSON Schemas
 examples/                no-key fixtures and reference traces
+firmware/                reproducible ESP32-C3/OLED reference firmware
+benchmarks/              controlled suite, persistent adapter protocol, CI stub
 docs/                    architecture, biomechanics, latency, research boundary
 tests/                   deterministic tests with no paid calls
 ```
@@ -165,9 +189,11 @@ See [Physical latency benchmark](docs/latency-benchmark.md).
 
 ## Status
 
-`v0.1.0` is an alpha extraction from a working dual-ESP32 robot prototype. The core, offline demo, schemas, tests, and optional ElevenLabs timestamp adapter are present. The generic OLED firmware, Pipecat/LiveKit adapters, 1/3/4/6-DoF benchmark suite, and LeRobot silicone-mouth plugin remain roadmap work.
+`v0.1.0` is an alpha extraction from a working dual-ESP32 robot prototype. The core, offline demo, schemas, tests, optional ElevenLabs timestamp adapter, generic OLED firmware, and controlled benchmark runner are present. Physical validation of the generic renderer, a controlled real 100-turn result, Pipecat/LiveKit adapters, the 1/3/4/6-DoF evaluation suite, and the LeRobot silicone-mouth plugin remain roadmap work.
 
 See [Roadmap and release gates](docs/roadmap.md). Issues and evidence-backed pull requests are welcome.
+
+For public launch recording, keep a breadboard engineering take and a separate installed-robot hero clip; see the [demo video capture guide](docs/demo-video-guide.md).
 
 ## License
 

@@ -35,5 +35,36 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: python -m pip install -e ".[dev]"
-      - run: ruff check src tests examples
-      - run: ruff format --check src tests examples
+      - run: ruff check src tests examples benchmarks
+      - run: ruff format --check src tests examples benchmarks
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "1.5.1"
+      - name: Compile reproducible ESP32-C3 OLED firmware
+        run: |
+          arduino-cli compile --profile esp32c3 firmware/esp32_oled
+          arduino-cli compile --profile esp32c3 \
+            --build-property compiler.cpp.extra_flags=-DROBOT_LIPSYNC_OLED_SH1106=0 \
+            firmware/esp32_oled
+
+  benchmark-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -e ".[dev]"
+      - name: Exercise persistent adapter, checkpoint, and report
+        run: |
+          robot-lipsync benchmark-run \
+            --adapter-command "python benchmarks/stub_agent.py" \
+            --output build/stub.jsonl --limit 5 --warmups 1 --timeout 5
+          robot-lipsync benchmark-report build/stub.jsonl

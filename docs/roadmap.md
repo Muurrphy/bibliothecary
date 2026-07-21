@@ -10,7 +10,9 @@
 - [x] optional ElevenLabs HTTP timestamp provider;
 - [x] latency trace schema and summary CLI;
 - [x] deterministic tests and CI;
-- [ ] generic ESP32/OLED reference firmware;
+- [x] generic ESP32/OLED reference firmware with reproducible CI compile;
+- [x] namespaced serial scheduler with acknowledgements and queue budget;
+- [x] persistent 100-turn benchmark runner and fixed English v1 suite;
 - [ ] recorded demo video and hardware timing diagram;
 - [ ] controlled 100-turn reference benchmark.
 
@@ -20,7 +22,6 @@ Release gate: one new user can run the demo in five minutes without credentials,
 
 - Pipecat frame processor;
 - LiveKit Agents adapter;
-- generic serial scheduler with acknowledgements and queue budget;
 - optional Rhubarb offline provider;
 - Canvas/SVG embedding API;
 - OpenTelemetry-compatible trace export.

@@ -8,4 +8,6 @@
 - Added dependency-free animated HTML demo and compact serial JSON backend.
 - Added optional ElevenLabs same-stream audio/alignment provider.
 - Added physical latency trace schema, report CLI, benchmark rules, and uncontrolled reference samples.
+- Added a persistent 100-turn benchmark runner, fixed English v1 suite, checkpoint/resume, detailed stage report, and clearly labeled CI stub.
+- Added reproducibly compiled ESP32-C3 OLED firmware, a namespaced bounded serial protocol, and a host timeline uploader.
 - Added tests, CI, schemas, architecture, research boundaries, and LeRobot mouth-lab roadmap.

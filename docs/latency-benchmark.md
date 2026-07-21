@@ -54,6 +54,8 @@ Latency purchased by making speech crackle is a failed optimization.
 6. Report both physical audio start and visible-motion offset.
 7. Keep provider cost and voice-quality settings in the result metadata.
 
+The executable harness, fixed English v1 suite, adapter protocol, checkpoint/resume behavior, and simulated CI adapter are documented in [`benchmarks/README.md`](../benchmarks/README.md). The simulated adapter validates the tool only; it is not a latency result.
+
 ## Reference result versus guarantee
 
 The original Lilyput integration observed endpoint samples of 1.969, 1.966, 2.588, 2.247, 4.573, 1.908, 1.992, and 2.674 seconds during one real conversation run. This is a useful engineering record, not a controlled public benchmark: prompts differed, network conditions were not held constant, and the sample is small.

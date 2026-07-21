@@ -27,6 +27,7 @@ dependencies = []
 [project.optional-dependencies]
 english = ["cmudict>=1.0.32"]
 elevenlabs = ["requests>=2.32", "cmudict>=1.0.32"]
+serial = ["pyserial>=3.5"]
 dev = ["pytest>=8.3", "ruff>=0.9", "jsonschema>=4.23"]
 
 [project.urls]
@@ -39,6 +40,9 @@ robot-lipsync = "robot_lipsync.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+robot_lipsync = ["data/*.json"]
 
 [tool.ruff]
 line-length = 120

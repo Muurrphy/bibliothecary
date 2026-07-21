@@ -1,0 +1,27 @@
+{
+  "suite_id": "robot-lipsync-english-v1",
+  "language": "en",
+  "measurement_scope": "transcript_commit_to_physical_output",
+  "cases": [
+    {"id": "short-greeting", "user_text": "Reply with one short greeting.", "tags": ["short", "warm-start"]},
+    {"id": "short-confirmation", "user_text": "Confirm in one brief sentence that you can hear me.", "tags": ["short"]},
+    {"id": "bilabial", "user_text": "Reply with one sentence containing many B, M, and P sounds.", "tags": ["landmark", "bilabial"]},
+    {"id": "labiodental", "user_text": "Reply with one sentence containing several F and V sounds.", "tags": ["landmark", "labiodental"]},
+    {"id": "rounded", "user_text": "Reply with one sentence containing several O, U, and W sounds.", "tags": ["landmark", "rounded"]},
+    {"id": "wide-vowels", "user_text": "Reply with one sentence containing bright E and I vowel sounds.", "tags": ["landmark", "wide"]},
+    {"id": "open-vowels", "user_text": "Reply with one dramatic sentence containing open A and AH sounds.", "tags": ["landmark", "open"]},
+    {"id": "diphthongs", "user_text": "Reply with one sentence using words like time, voice, away, and slowly.", "tags": ["landmark", "diphthong"]},
+    {"id": "numbers", "user_text": "State the numbers 17, 42, and 128 in one natural sentence.", "tags": ["normalization"]},
+    {"id": "abbreviation", "user_text": "Explain OLED and ESP32 in one concise sentence.", "tags": ["normalization"]},
+    {"id": "question", "user_text": "Ask me one concise but dramatic question.", "tags": ["prosody", "punctuation"]},
+    {"id": "exclamation", "user_text": "Give one theatrical warning ending with an exclamation mark.", "tags": ["prosody", "punctuation"]},
+    {"id": "comma-clause", "user_text": "Reply with a sentence that has an early natural comma, then a second clause.", "tags": ["phrase-release"]},
+    {"id": "unpunctuated", "user_text": "Reply in twelve simple English words without punctuation.", "tags": ["phrase-release", "timeout-fuse"]},
+    {"id": "long-two-sentence", "user_text": "Reply in exactly two sentences, each between twelve and eighteen words.", "tags": ["long", "streaming"]},
+    {"id": "long-clause", "user_text": "Reply with one sentence of at least thirty words containing three clauses.", "tags": ["long", "streaming"]},
+    {"id": "quiet-tone", "user_text": "Reply with one restrained, quiet-sounding sentence.", "tags": ["prosody", "low-energy"]},
+    {"id": "dramatic-tone", "user_text": "Reply with one vivid, theatrical sentence without shouting.", "tags": ["prosody", "high-energy"]},
+    {"id": "fast-list", "user_text": "Name four blue objects in one quick sentence.", "tags": ["rate", "list"]},
+    {"id": "closing", "user_text": "End the exchange with one elegant sentence.", "tags": ["short", "turn-end"]}
+  ]
+}

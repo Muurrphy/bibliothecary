@@ -9,8 +9,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,english]"
 pytest
-ruff check src tests examples
-ruff format --check src tests examples
+ruff check src tests examples benchmarks
+ruff format --check src tests examples benchmarks
 ```
 
 ## Design rules

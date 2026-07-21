@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 
 from . import __version__
+from .benchmark import benchmark_report, load_suite, run_jsonl_adapter
 from .metrics import summarize_traces
 from .phonemes import alignment_to_phonemes
 from .planner import phonemes_to_articulation
@@ -55,6 +57,28 @@ def command_report(args) -> int:
     return 0
 
 
+def command_benchmark_run(args) -> int:
+    suite = load_suite(args.suite)
+    result = run_jsonl_adapter(
+        shlex.split(args.adapter_command),
+        suite,
+        args.output,
+        repeats=args.repeats,
+        warmups=args.warmups,
+        limit=args.limit,
+        timeout_s=args.timeout,
+        resume=args.resume,
+    )
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["failures"] == 0 else 2
+
+
+def command_benchmark_report(args) -> int:
+    records = [json.loads(line) for line in Path(args.input).read_text(encoding="utf-8").splitlines() if line.strip()]
+    print(json.dumps(benchmark_report(records), indent=2, sort_keys=True))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="robot-lipsync", description=__doc__)
     parser.add_argument("--version", action="version", version=__version__)
@@ -75,6 +99,23 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("input")
     report.add_argument("--mark", default="physical_audio_start")
     report.set_defaults(func=command_report)
+
+    benchmark_run = subparsers.add_parser("benchmark-run", help="run a persistent JSONL adapter over a fixed suite")
+    benchmark_run.add_argument("--suite", help="suite JSON; defaults to the packaged English v1 suite")
+    benchmark_run.add_argument("--adapter-command", required=True)
+    benchmark_run.add_argument("--output", default="build/benchmark.jsonl")
+    benchmark_run.add_argument("--repeats", type=int, default=5)
+    benchmark_run.add_argument("--warmups", type=int, default=3)
+    benchmark_run.add_argument("--limit", type=int)
+    benchmark_run.add_argument("--timeout", type=float, default=45.0)
+    benchmark_run.add_argument("--resume", action="store_true")
+    benchmark_run.set_defaults(func=command_benchmark_run)
+
+    benchmark_report_parser = subparsers.add_parser(
+        "benchmark-report", help="summarize stages, failures, quality, and A/V offset"
+    )
+    benchmark_report_parser.add_argument("input")
+    benchmark_report_parser.set_defaults(func=command_benchmark_report)
     return parser
 
 

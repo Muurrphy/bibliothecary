@@ -14,7 +14,15 @@ from robot_lipsync import (
     spans_from_elevenlabs,
     summarize_traces,
 )
-from robot_lipsync.backends import encode_event
+from robot_lipsync.backends import (
+    SerialTimelineClient,
+    encode_count,
+    encode_event,
+    encode_json_event,
+    encode_reset,
+    encode_start,
+    parse_reply,
+)
 
 
 def test_articulation_rejects_out_of_range_channel():
@@ -92,11 +100,45 @@ def test_incremental_compiler_withholds_partial_word():
 
 def test_compact_serial_backend_is_newline_delimited():
     event = phonemes_to_articulation("turn", [TimedPhoneme("M", 0, 70, "en")])[0]
-    payload = encode_event(event)
+    payload = encode_json_event(event)
     assert payload.endswith(b"\n")
     decoded = json.loads(payload)
     assert decoded["v"] == 1
     assert len(decoded["a"]) == 8
+
+
+def test_namespaced_serial_protocol_is_bounded_and_parseable():
+    event = phonemes_to_articulation("turn-42", [TimedPhoneme("M", 0, 70, "en")])[0]
+    assert encode_reset("turn-42") == b"LIP/RESET turn-42\n"
+    assert encode_event(event).startswith(b"LIP/EVENT turn-42 ")
+    assert encode_count("turn-42") == b"LIP/COUNT turn-42\n"
+    assert encode_start("turn-42", delay_ms=120) == b"LIP/START turn-42 120 0\n"
+    assert parse_reply("ERR head_not_armed") is None
+    reply = parse_reply("LIP/OK COUNT sid=turn-42 events=9 capacity=256")
+    assert reply is not None
+    assert reply.name == "COUNT"
+    assert reply.fields["events"] == "9"
+
+
+def test_serial_client_ignores_unrelated_shared_link_errors():
+    class FakeStream:
+        def __init__(self):
+            self.writes = []
+            self.replies = [b"ERR head_not_armed\n", b"LIP/OK RESET sid=turn-42 capacity=256\n"]
+
+        def write(self, payload):
+            self.writes.append(payload)
+
+        def flush(self):
+            pass
+
+        def readline(self):
+            return self.replies.pop(0) if self.replies else b""
+
+    stream = FakeStream()
+    client = SerialTimelineClient(stream, timeout_s=0.1)
+    assert client.reset("turn-42") == 256
+    assert stream.writes == [b"LIP/RESET turn-42\n"]
 
 
 def test_latency_trace_preserves_first_mark_and_counters():
