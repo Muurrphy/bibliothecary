@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+  <title id="title">Robot LipSync</title>
+  <desc id="desc">Streaming text and audio alignment become muscle-aware mouth motion on one physical clock.</desc>
+  <defs>
+    <radialGradient id="bg"><stop stop-color="#102554"/><stop offset="1" stop-color="#03060d"/></radialGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <linearGradient id="line"><stop stop-color="#75a8ff"/><stop offset="1" stop-color="#075dff"/></linearGradient>
+  </defs>
+  <rect width="1200" height="420" rx="28" fill="url(#bg)"/>
+  <g fill="none" stroke="#214e9f" stroke-width="2" opacity=".7">
+    <path d="M90 118H340"/><path d="M90 178H340"/><path d="M90 238H340"/><path d="M850 148h250"/><path d="M850 208h250"/><path d="M850 268h250"/>
+  </g>
+  <g fill="#8eb5ff" font-family="ui-monospace,monospace" font-size="18">
+    <text x="90" y="102">STREAMING TEXT</text><text x="90" y="162">TTS ALIGNMENT</text><text x="90" y="222">PHYSICAL CLOCK</text>
+    <text x="875" y="138">OLED / CANVAS</text><text x="875" y="198">AVATAR RIG</text><text x="875" y="258">SOFT ROBOT MOUTH</text>
+  </g>
+  <g stroke="url(#line)" stroke-width="4" fill="none" opacity=".9"><path d="M350 180h105"/><path d="M745 180h95"/></g>
+  <g transform="translate(600 205)" fill="#075dff" filter="url(#glow)">
+    <path d="M-170 0C-112-45-52-80 0-35C52-80 112-45 170 0C104-14 50-11 0 0C-50-11-104-14-170 0Z"/>
+    <path d="M-170 13C-105 30-50 21 0 16C50 21 105 30 170 13C114 80 54 96 0 96C-54 96-114 80-170 13Z"/>
+  </g>
+  <text x="600" y="350" text-anchor="middle" fill="#dce8ff" font-family="ui-monospace,monospace" font-size="30" font-weight="700">MUSCLE-AWARE ARTICULATION IR</text>
+  <text x="600" y="382" text-anchor="middle" fill="#79a6f7" font-family="ui-monospace,monospace" font-size="17">causal · append-only · measurable · hardware-constrained</text>
+</svg>
