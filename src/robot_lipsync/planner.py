@@ -25,6 +25,27 @@ SHAPES: dict[str, Articulation] = {
     "BREATH_H": Articulation(0.48, 0.52, 0.55, 0.10, 0.00, asymmetry=0.04),
     "SIDE_L": Articulation(0.26, 0.18, 0.68, 0.04, 0.04, asymmetry=-0.34),
     "SIDE_SH": Articulation(0.29, 0.22, 0.48, 0.34, 0.03, asymmetry=0.20),
+    # Spanish's stable five-vowel system benefits from dedicated targets rather
+    # than forcing its vowels through English CMU categories.
+    "ES_OPEN_A": Articulation(0.84, 0.86, 0.46, 0.02, 0.00),
+    "ES_MID_E": Articulation(0.40, 0.34, 0.78, 0.02, 0.00),
+    "ES_WIDE_I": Articulation(0.20, 0.14, 0.94, 0.01, 0.00),
+    "ES_ROUND_O": Articulation(0.48, 0.44, 0.34, 0.84, 0.00, lip_protrusion=0.60),
+    "ES_PUCKER_U": Articulation(0.20, 0.13, 0.18, 0.98, 0.00, lip_protrusion=0.96),
+    "ES_ALVEOLAR": Articulation(0.20, 0.14, 0.66, 0.02, 0.03),
+    # Mandarin targets follow visible initial/final groupings. Tongue-only
+    # contrasts are intentionally compressed for an eight-channel mouth.
+    "ZH_APICAL": Articulation(0.16, 0.10, 0.66, 0.02, 0.04),
+    "ZH_VELAR": Articulation(0.25, 0.20, 0.52, 0.05, 0.02),
+    "ZH_PALATAL": Articulation(0.23, 0.16, 0.72, 0.02, 0.02),
+    "ZH_DENTAL_SIBILANT": Articulation(0.16, 0.10, 0.80, 0.02, 0.03),
+    "ZH_RETROFLEX": Articulation(0.22, 0.15, 0.45, 0.38, 0.02, lip_protrusion=0.30),
+    "ZH_OPEN_A": Articulation(0.88, 0.90, 0.44, 0.02, 0.00),
+    "ZH_ROUND_O": Articulation(0.48, 0.44, 0.32, 0.86, 0.00, lip_protrusion=0.64),
+    "ZH_MID_E": Articulation(0.40, 0.34, 0.72, 0.03, 0.00),
+    "ZH_WIDE_I": Articulation(0.18, 0.12, 0.93, 0.01, 0.00),
+    "ZH_TIGHT_U": Articulation(0.17, 0.10, 0.18, 1.00, 0.00, lip_protrusion=0.96),
+    "ZH_FRONT_ROUND_V": Articulation(0.16, 0.10, 0.25, 1.00, 0.00, lip_protrusion=0.92),
 }
 
 
@@ -70,6 +91,47 @@ def _blend(a: Articulation, b: Articulation, amount: float) -> Articulation:
 
 def _targets(phone: str) -> list[str]:
     symbol = _bare(phone)
+    multilingual = {
+        "ES_A": "ES_OPEN_A",
+        "ES_E": "ES_MID_E",
+        "ES_I": "ES_WIDE_I",
+        "ES_O": "ES_ROUND_O",
+        "ES_U": "ES_PUCKER_U",
+        "ES_W": "ES_PUCKER_U",
+        "ES_B": "PRESS",
+        "ES_P": "PRESS",
+        "ES_M": "PRESS",
+        "ES_F": "FV",
+        "ES_TH": "TH",
+        "ES_CH": "SIDE_SH",
+        "ES_Y": "ES_WIDE_I",
+        "ES_D": "ES_ALVEOLAR",
+        "ES_T": "ES_ALVEOLAR",
+        "ES_N": "ES_ALVEOLAR",
+        "ES_NY": "ES_ALVEOLAR",
+        "ES_L": "ES_ALVEOLAR",
+        "ES_R": "ES_ALVEOLAR",
+        "ES_RR": "ES_ALVEOLAR",
+        "ES_S": "ES_ALVEOLAR",
+        "ES_K": "SOFT",
+        "ES_G": "SOFT",
+        "ES_X": "SOFT",
+        "ZH_BPM": "PRESS",
+        "ZH_F": "FV",
+        "ZH_D": "ZH_APICAL",
+        "ZH_GKH": "ZH_VELAR",
+        "ZH_JQX": "ZH_PALATAL",
+        "ZH_ZCS": "ZH_DENTAL_SIBILANT",
+        "ZH_RETROFLEX": "ZH_RETROFLEX",
+        "ZH_A": "ZH_OPEN_A",
+        "ZH_O": "ZH_ROUND_O",
+        "ZH_E": "ZH_MID_E",
+        "ZH_I": "ZH_WIDE_I",
+        "ZH_U": "ZH_TIGHT_U",
+        "ZH_V": "ZH_FRONT_ROUND_V",
+    }
+    if symbol in multilingual:
+        return [multilingual[symbol]]
     diphthongs = {
         "AY": ["OPEN_AH", "WIDE_I"],
         "AW": ["OPEN_AH", "ROUND_OW"],
@@ -141,8 +203,15 @@ def phonemes_to_articulation(
         else:
             shape = enforce_constraints(shape)
         match = re.search(r"([012])$", phoneme.symbol)
-        stress = int(match.group(1)) if match else -1
-        intensity = 1.0 if stress == 1 else (0.82 if stress == 2 else 0.70)
+        family = phoneme.language.lower().replace("_", "-").split("-", 1)[0]
+        if family in {"zh", "cmn"}:
+            intensity = 0.68 if phoneme.tone == 5 else 0.84
+        else:
+            stress = int(match.group(1)) if match else -1
+            intensity = 1.0 if stress == 1 else (0.82 if stress == 2 else 0.70)
+        metadata = {"phoneme": phoneme.symbol, "audio_start_ms": round(float(audio_start), 3)}
+        if phoneme.tone is not None:
+            metadata["tone"] = phoneme.tone
         events.append(
             ArticulationEvent(
                 session_id=session_id,
@@ -153,7 +222,7 @@ def phonemes_to_articulation(
                 intensity=intensity,
                 language=phoneme.language,
                 confidence=phoneme.confidence,
-                metadata={"phoneme": phoneme.symbol},
+                metadata=metadata,
             )
         )
     return events

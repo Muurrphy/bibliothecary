@@ -2,7 +2,14 @@
 
 from .events import AlignmentSpan, Articulation, ArticulationEvent, PlaybackEvent
 from .metrics import LatencyTrace, summarize_traces
-from .phonemes import AlignmentBuffer, TimedPhoneme, alignment_to_phonemes, spans_from_elevenlabs
+from .phonemes import (
+    AlignmentBuffer,
+    TimedPhoneme,
+    alignment_to_phonemes,
+    mandarin_syllable_phones,
+    spanish_phones,
+    spans_from_elevenlabs,
+)
 from .planner import enforce_constraints, phonemes_to_articulation
 from .streaming import IncrementalArticulationCompiler
 
@@ -18,6 +25,8 @@ __all__ = [
     "alignment_to_phonemes",
     "enforce_constraints",
     "phonemes_to_articulation",
+    "mandarin_syllable_phones",
+    "spanish_phones",
     "spans_from_elevenlabs",
     "summarize_traces",
 ]

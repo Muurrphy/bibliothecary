@@ -41,7 +41,8 @@ def main() -> int:
 
     trace = LatencyTrace()
     compiler = IncrementalArticulationCompiler(trace.session_id)
-    provider = ElevenLabsHttpProvider(api_key=api_key, voice_id=voice_id)
+    language = os.environ.get("ELEVENLABS_LANGUAGE", "en").strip() or "en"
+    provider = ElevenLabsHttpProvider(api_key=api_key, voice_id=voice_id, language=language)
     connection_ms = prewarm(api_key)
 
     events = []

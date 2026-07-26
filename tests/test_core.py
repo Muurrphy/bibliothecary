@@ -10,7 +10,9 @@ from robot_lipsync import (
     TimedPhoneme,
     alignment_to_phonemes,
     enforce_constraints,
+    mandarin_syllable_phones,
     phonemes_to_articulation,
+    spanish_phones,
     spans_from_elevenlabs,
     summarize_traces,
 )
@@ -83,6 +85,57 @@ def test_english_letters_group_into_one_word_timeline():
     assert sum(phone.duration_ms for phone in phones) == pytest.approx(120)
 
 
+def test_spanish_uses_bilabial_b_for_b_and_v():
+    phones = spanish_phones("vivir", "es")
+    assert phones[:3] == ("ES_B", "ES_I", "ES_B")
+    assert "ES_F" not in phones
+
+
+def test_spanish_dialect_tag_controls_seseo_distinction():
+    assert spanish_phones("zapato", "es")[0] == "ES_S"
+    assert spanish_phones("zapato", "es-ES")[0] == "ES_TH"
+
+
+def test_spanish_vowels_have_language_specific_targets():
+    phones = alignment_to_phonemes(
+        [AlignmentSpan(character, index * 60, 60, "es") for index, character in enumerate("puro ")]
+    )
+    events = phonemes_to_articulation("es-turn", phones)
+    assert any(event.viseme == "ES_PUCKER_U" for event in events)
+    assert all(event.language == "es" for event in events)
+
+
+def test_mandarin_syllable_separates_initial_final_and_tone():
+    symbols, tone = mandarin_syllable_phones("lü4")
+    assert symbols == ("ZH_D", "ZH_V")
+    assert tone == 4
+
+
+def test_mandarin_apical_i_does_not_create_false_wide_vowel():
+    symbols, tone = mandarin_syllable_phones("shi1")
+    assert symbols == ("ZH_RETROFLEX",)
+    assert tone == 1
+
+
+def test_mandarin_phrase_uses_contextual_pinyin():
+    phones = alignment_to_phonemes(
+        [
+            AlignmentSpan("银", 0, 120, "zh-CN"),
+            AlignmentSpan("行", 120, 120, "zh-CN"),
+        ]
+    )
+    second_syllable = [phone for phone in phones if phone.start_ms >= 120]
+    assert [phone.symbol for phone in second_syllable] == ["ZH_GKH", "ZH_A"]
+    assert all(phone.tone == 2 for phone in second_syllable)
+
+
+def test_mandarin_token_span_is_split_across_characters():
+    phones = alignment_to_phonemes([AlignmentSpan("你好", 0, 300, "zh-CN")])
+    assert phones
+    assert any(phone.start_ms >= 150 for phone in phones)
+    assert max(phone.start_ms + phone.duration_ms for phone in phones) == pytest.approx(300)
+
+
 def test_incremental_compiler_does_not_repeat_events():
     compiler = IncrementalArticulationCompiler("turn")
     first = compiler.append([AlignmentSpan(char, index * 50, 50, "en") for index, char in enumerate("Good ")])
@@ -96,6 +149,17 @@ def test_incremental_compiler_does_not_repeat_events():
 def test_incremental_compiler_withholds_partial_word():
     compiler = IncrementalArticulationCompiler("turn")
     assert compiler.append([AlignmentSpan(char, index * 50, 50, "en") for index, char in enumerate("charmin")]) == []
+
+
+def test_incremental_mandarin_keeps_two_character_context():
+    compiler = IncrementalArticulationCompiler("zh-turn")
+    assert compiler.append([AlignmentSpan("银", 0, 120, "zh-CN")]) == []
+    assert compiler.append([AlignmentSpan("行", 120, 120, "zh-CN")]) == []
+    first = compiler.append([AlignmentSpan("家", 240, 120, "zh-CN")])
+    final = compiler.finish()
+    assert first
+    assert final
+    assert all(event.language == "zh-CN" for event in first + final)
 
 
 def test_compact_serial_backend_is_newline_delimited():

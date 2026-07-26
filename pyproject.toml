@@ -26,9 +26,11 @@ dependencies = []
 
 [project.optional-dependencies]
 english = ["cmudict>=1.0.32"]
+mandarin = ["pypinyin>=0.55"]
+multilingual = ["cmudict>=1.0.32", "pypinyin>=0.55"]
 elevenlabs = ["requests>=2.32", "cmudict>=1.0.32"]
 serial = ["pyserial>=3.5"]
-dev = ["pytest>=8.3", "ruff>=0.9", "jsonschema>=4.23"]
+dev = ["pytest>=8.3", "ruff>=0.9", "jsonschema>=4.23", "pypinyin>=0.55"]
 
 [project.urls]
 Homepage = "https://github.com/Muurrphy/robot-lipsync"

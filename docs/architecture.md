@@ -34,13 +34,20 @@ When a TTS service can return audio and alignment together, that path is preferr
 Physical event queues cannot revise the past. `IncrementalArticulationCompiler` therefore:
 
 1. appends character alignment as it arrives;
-2. withholds an incomplete final English word;
+2. withholds an incomplete final English/Spanish word, or two trailing Han
+   characters for phrase-aware Mandarin readings;
 3. compiles the stable prefix;
 4. keeps one event as coarticulation look-ahead;
 5. emits only events that were never emitted before;
 6. flushes the final look-ahead event when the stream ends.
 
 If a provider edits timestamps already declared stable, the provider is violating this contract. The compiler intentionally raises instead of silently rewriting hardware motion.
+
+Language tags select the English CMU, deterministic Spanish, or phrase-aware
+Mandarin front end. Universal visible landmarks can share articulation targets,
+while vowel systems and language-specific rounding/coarticulation retain
+separate targets. See [Mandarin and Spanish articulation
+profiles](multilingual.md).
 
 ## Articulation IR v1
 

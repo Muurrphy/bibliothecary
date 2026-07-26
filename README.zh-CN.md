@@ -21,9 +21,28 @@ robot-lipsync demo
 
 打开 `build/demo.html` 即可看到浏览器动画，同时会生成显示无关的 `build/demo.timeline.json`。
 
-如需接入 ElevenLabs，可安装 `.[elevenlabs]` 并运行 `examples/elevenlabs_http.py`。该示例从同一条 HTTP 响应同时取得音频与字符时间戳，不会为了计算口型把已生成的声音再上传给第二个模型；密钥只从环境变量读取。
+## 英语、普通话和西班牙语
 
-仓库现已包含可复现编译的 ESP32-C3 + 128×64 OLED 通用固件，以及“20 个固定英文场景 × 5 次”的 100 轮 benchmark runner。固件直接消费八个连续肌肉通道，不依赖 Lilyput 的项目位图；benchmark 使用长期存活的适配器连接、逐轮落盘、断点续跑，并分别报告物理声音、第一帧嘴型、失败和欠载。仓库内模拟器只用于验证工具，所有记录明确标记 `simulated=true`，不能当作真实性能数据。
+语言标签现在会选择不同的“文字→音素→可视嘴型”管线，不再把所有拉丁字母都当英语，也不再把每个汉字压成同一个中性嘴型。
+
+```bash
+# 西班牙语：核心安装即可使用
+robot-lipsync demo --text "Hola, mundo." --language es \
+  --output build/spanish.html
+
+# 普通话：安装带词组消歧的拼音支持
+pip install -e ".[mandarin]"
+robot-lipsync demo --text "你好，世界。" --language zh-CN \
+  --output build/mandarin.html
+```
+
+西语使用独立的五元音目标，并处理 `b/v` 同属双唇音、`h` 不发音、`ñ/ll/rr`、`que/gui` 等规则；默认 `es` 使用 seseo，`es-ES` 保留卡斯蒂利亚西语的齿音区别。普通话按声母和韵母拆分，保留 `u/ü`、卷舌/舌面/齿音类别、复韵母运动路径与声调元数据；流式输入会保留两个汉字的右侧上下文，以减少多音字读音在发送到硬件后被改写。
+
+论文依据、方言选择和仍需真人/实体机器人验证的限制见 [多语言发音说明](docs/multilingual.md)。
+
+如需接入 ElevenLabs，可安装 `.[elevenlabs]` 并运行 `examples/elevenlabs_http.py`；普通话同时安装 `.[elevenlabs,mandarin]`。设置 `ELEVENLABS_LANGUAGE=es` 或 `zh-CN` 后，字符时间戳会进入对应语言管线。该示例从同一条 HTTP 响应同时取得音频与字符时间戳，不会为了计算口型把已生成的声音再上传给第二个模型；密钥只从环境变量读取。
+
+仓库现已包含可复现编译的 ESP32-C3 + 128×64 OLED 通用固件，以及“20 个固定英文场景 × 5 次”的 100 轮 benchmark runner。固件直接消费八个连续肌肉通道，不依赖 Lilyput 的项目位图；benchmark 使用长期存活的适配器连接、逐轮落盘、断点续跑，并分别报告物理声音、第一帧嘴型、失败和欠载。仓库内模拟器只用于验证工具，所有记录明确标记 `simulated=true`，不能当作真实性能数据。中文和西语目前已有确定性测试与示例，但还没有可发布的真人/实体机器人感知基准。
 
 ## 核心差异
 

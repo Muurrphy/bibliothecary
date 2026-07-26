@@ -32,7 +32,7 @@ def _write_timeline(events, output: Path) -> None:
 
 
 def command_demo(args) -> int:
-    spans = synthetic_alignment(args.text)
+    spans = synthetic_alignment(args.text, language=args.language)
     events = compile_spans(spans)
     output = render_html(events, args.output, title="Robot LipSync — no-key demo")
     timeline = output.with_suffix(".timeline.json")
@@ -86,6 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     demo = subparsers.add_parser("demo", help="create a no-key animated HTML preview")
     demo.add_argument("--text", default=DEMO_TEXT)
+    demo.add_argument("--language", default="en", help="BCP-47 language tag, for example en, es, es-ES, or zh-CN")
     demo.add_argument("--output", default="build/demo.html")
     demo.set_defaults(func=command_demo)
 

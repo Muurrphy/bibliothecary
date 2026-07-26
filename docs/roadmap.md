@@ -13,6 +13,7 @@
 - [x] generic ESP32/OLED reference firmware with reproducible CI compile;
 - [x] namespaced serial scheduler with acknowledgements and queue budget;
 - [x] persistent 100-turn benchmark runner and fixed English v1 suite;
+- [x] deterministic Mandarin and Spanish articulation profiles and fixtures;
 - [ ] recorded demo video and hardware timing diagram;
 - [ ] controlled 100-turn reference benchmark.
 
@@ -31,6 +32,7 @@ Release gate: at least two provider paths and two backends pass the same fixture
 ## v0.3 — constrained articulation benchmark
 
 - fixed English landmark-balanced corpus;
+- fixed Mandarin and Spanish landmark-balanced corpora with dialect tags;
 - 1/3/4/6-DoF software projections;
 - closure, labiodental, rounding, opening, jerk, dwell, event-rate, and sync metrics;
 - amplitude-only and discrete-viseme baselines;

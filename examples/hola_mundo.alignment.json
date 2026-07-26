@@ -1,0 +1,19 @@
+{
+  "text": "Hola, mundo.",
+  "language": "es",
+  "note": "Synthetic character timing for deterministic multilingual tests, not a provider benchmark.",
+  "spans": [
+    {"token": "H", "start_ms": 0, "duration_ms": 72},
+    {"token": "o", "start_ms": 72, "duration_ms": 72},
+    {"token": "l", "start_ms": 144, "duration_ms": 72},
+    {"token": "a", "start_ms": 216, "duration_ms": 72},
+    {"token": ",", "start_ms": 288, "duration_ms": 50},
+    {"token": " ", "start_ms": 338, "duration_ms": 32},
+    {"token": "m", "start_ms": 370, "duration_ms": 72},
+    {"token": "u", "start_ms": 442, "duration_ms": 72},
+    {"token": "n", "start_ms": 514, "duration_ms": 72},
+    {"token": "d", "start_ms": 586, "duration_ms": 72},
+    {"token": "o", "start_ms": 658, "duration_ms": 72},
+    {"token": ".", "start_ms": 730, "duration_ms": 50}
+  ]
+}

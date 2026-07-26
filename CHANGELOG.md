@@ -11,3 +11,8 @@
 - Added a persistent 100-turn benchmark runner, fixed English v1 suite, checkpoint/resume, detailed stage report, and clearly labeled CI stub.
 - Added reproducibly compiled ESP32-C3 OLED firmware, a namespaced bounded serial protocol, and a host timeline uploader.
 - Added tests, CI, schemas, architecture, research boundaries, and LeRobot mouth-lab roadmap.
+- Added language-tagged Spanish G2P with five-vowel articulation, seseo and
+  `es-ES` dialect handling.
+- Added optional phrase-aware Mandarin pinyin, initial/final articulation,
+  compound-final paths, tone metadata, and a two-character streaming horizon.
+- Added Mandarin and Spanish demos, fixtures, research notes, and tests.

@@ -64,6 +64,7 @@ class ElevenLabsHttpProvider:
         model_id: str = "eleven_flash_v2_5",
         output_format: str = "pcm_24000",
         reuse_session: bool = True,
+        language: str = "en",
     ) -> None:
         if not api_key or not voice_id:
             raise ValueError("api_key and voice_id are required")
@@ -72,6 +73,7 @@ class ElevenLabsHttpProvider:
         self.model_id = model_id
         self.output_format = output_format
         self.reuse_session = reuse_session
+        self.language = language
 
     def stream(self, text: str, *, trace=None):
         if not text.strip():
@@ -113,7 +115,7 @@ class ElevenLabsHttpProvider:
                     or message.get("normalized_alignment")
                     or message.get("normalizedAlignment")
                 )
-                spans = tuple(spans_from_elevenlabs(alignment_data)) if alignment_data else ()
+                spans = tuple(spans_from_elevenlabs(alignment_data, self.language)) if alignment_data else ()
                 if audio or spans:
                     yield AlignedAudioChunk(audio, 24_000, spans)
         yield AlignedAudioChunk(b"", 24_000, (), True)

@@ -17,6 +17,22 @@ def test_demo_writes_html_and_timeline(tmp_path):
     assert "articulation" in output.read_text(encoding="utf-8")
 
 
+def test_spanish_demo_uses_spanish_profile(tmp_path):
+    output = tmp_path / "spanish.html"
+    assert main(["demo", "--text", "Hola, mundo.", "--language", "es", "--output", str(output)]) == 0
+    events = json.loads(output.with_suffix(".timeline.json").read_text(encoding="utf-8"))
+    assert any(event["viseme"] == "ES_ROUND_O" for event in events)
+    assert {event["language"] for event in events} == {"es"}
+
+
+def test_mandarin_demo_uses_mandarin_profile(tmp_path):
+    output = tmp_path / "mandarin.html"
+    assert main(["demo", "--text", "你好，世界。", "--language", "zh-CN", "--output", str(output)]) == 0
+    events = json.loads(output.with_suffix(".timeline.json").read_text(encoding="utf-8"))
+    assert any(event["viseme"].startswith("ZH_") for event in events)
+    assert {event["language"] for event in events} == {"zh-CN"}
+
+
 def test_compile_fixture_validates_against_schema(tmp_path):
     output = tmp_path / "timeline.json"
     fixture = ROOT / "examples" / "good_evening.alignment.json"

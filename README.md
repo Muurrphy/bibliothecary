@@ -32,6 +32,30 @@ Open `build/demo.html`. The command also writes the exact device-independent tim
 
 The built-in demo uses synthetic character timing only to make CI and first use deterministic. Real integrations should consume TTS alignment, forced alignment, or another timestamp provider.
 
+## English, Mandarin, and Spanish
+
+Language tags select different phonetic front ends and visible articulation
+profiles; non-English text is no longer forced through English CMU phones.
+
+```bash
+# Spanish: dependency-free rule-based G2P; generic `es` uses seseo
+robot-lipsync demo --text "Hola, mundo." --language es \
+  --output build/spanish.html
+
+# Mandarin: install phrase-aware pinyin support
+pip install -e ".[mandarin]"
+robot-lipsync demo --text "你好，世界。" --language zh-CN \
+  --output build/mandarin.html
+```
+
+Spanish has dedicated `/a e i o u/` targets and handles visible distinctions
+such as `b/v` as bilabial, silent `h`, `ñ`, `ll`, `rr`, and the optional
+Castilian `es-ES` dental target. Mandarin separates initials and finals,
+preserves `u/ü`, compound-final paths, retroflex/palatal/dental families, tone
+metadata, and two-character streaming look-ahead for phrase-aware polyphonic
+readings. See [Multilingual articulation profiles](docs/multilingual.md) for
+the research basis, dialect choices, and validation limits.
+
 ## What is different here?
 
 ### 1. Mouth motion is articulation, not loudness
@@ -133,6 +157,10 @@ python examples/elevenlabs_http.py "Good evening. How charming."
 ```
 
 It writes raw 24 kHz signed-16-bit mono PCM, versioned Articulation IR, and a browser preview under `build/`. Credentials are read only from the environment. See the official [ElevenLabs stream-with-timestamps reference](https://elevenlabs.io/docs/api-reference/text-to-speech/stream-with-timestamps).
+
+Set `ELEVENLABS_LANGUAGE=es` or `ELEVENLABS_LANGUAGE=zh-CN` so returned
+character alignment is routed to the matching articulation profile. For
+Mandarin, install both extras with `pip install -e ".[elevenlabs,mandarin]"`.
 
 ## Existing systems and project boundary
 

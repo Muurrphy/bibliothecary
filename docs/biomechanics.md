@@ -45,4 +45,5 @@ A future benchmark should include:
 - width/open antagonism violations;
 - jerk and minimum readable dwell;
 - paired human preference tests with sample size and protocol;
-- separate English and Mandarin profiles rather than one averaged map.
+- separate English, Mandarin, and Spanish profiles rather than one averaged
+  map, with Spanish dialect tags reported.
