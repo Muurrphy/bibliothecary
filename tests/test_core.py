@@ -107,14 +107,22 @@ def test_spanish_vowels_have_language_specific_targets():
 
 def test_mandarin_syllable_separates_initial_final_and_tone():
     symbols, tone = mandarin_syllable_phones("lü4")
-    assert symbols == ("ZH_D", "ZH_V")
+    assert symbols == ("ZH_APICAL", "ZH_V")
     assert tone == 4
 
 
 def test_mandarin_apical_i_does_not_create_false_wide_vowel():
     symbols, tone = mandarin_syllable_phones("shi1")
-    assert symbols == ("ZH_RETROFLEX",)
+    assert symbols == ("ZH_RETROFLEX", "ZH_IR")
     assert tone == 1
+    symbols, _ = mandarin_syllable_phones("si4")
+    assert symbols == ("ZH_DENTAL", "ZH_IZ")
+    from robot_lipsync.planner import SHAPES
+    # The apical vowel stays visible but narrower than the true /i/.
+    for name in ("ZH_IZ", "ZH_IR"):
+        assert SHAPES[name].mouth_width < SHAPES["ZH_I"].mouth_width
+    # zh/ch/sh/r and their apical vowel pout forward (吃, 是).
+    assert SHAPES["ZH_IR"].lip_protrusion > 0.3 and SHAPES["ZH_RETROFLEX"].lip_protrusion > 0.3
 
 
 def test_mandarin_phrase_uses_contextual_pinyin():
@@ -125,7 +133,7 @@ def test_mandarin_phrase_uses_contextual_pinyin():
         ]
     )
     second_syllable = [phone for phone in phones if phone.start_ms >= 120]
-    assert [phone.symbol for phone in second_syllable] == ["ZH_GKH", "ZH_A"]
+    assert [phone.symbol for phone in second_syllable] == ["ZH_VELAR", "ZH_A", "ZH_NG"]
     assert all(phone.tone == 2 for phone in second_syllable)
 
 
@@ -219,3 +227,38 @@ def test_latency_summary_reports_long_tail():
     summary = summarize_traces(records)
     assert summary["samples"] == 4
     assert summary["p95_ms"] > 4000
+
+
+def test_mandarin_finals_follow_surface_pronunciation():
+    # "tian" is [tʰiɛn]: mid-open front vowel, then the jaw closes for -n.
+    symbols, _ = mandarin_syllable_phones("tian1")
+    assert symbols == ("ZH_APICAL", "ZH_YI", "ZH_EH", "ZH_N")
+    symbols, _ = mandarin_syllable_phones("hao3")
+    assert symbols == ("ZH_VELAR", "ZH_AO")
+    symbols, _ = mandarin_syllable_phones("gei3")
+    assert symbols == ("ZH_VELAR", "ZH_EI")
+    from robot_lipsync.planner import SHAPES
+    assert SHAPES["ZH_N"].lip_separation < SHAPES["ZH_EH"].lip_separation
+
+
+def test_mandarin_initial_keeps_lead_and_final_starts_at_onset():
+    from robot_lipsync.planner import phonemes_to_articulation
+
+    phones = alignment_to_phonemes([AlignmentSpan("爸", 1000, 200, "zh-CN")])
+    events = phonemes_to_articulation("ba", phones)
+    initial, final = events[0], events[1]
+    assert initial.viseme == "ZH_BPM" and initial.metadata["syllable_role"] == "initial"
+    # initial: 28% of the syllable, shown 42 ms early; final: at its acoustic onset
+    assert abs(phones[0].duration_ms - 56.0) < 1e-6
+    assert abs(initial.start_ms - (1000 - 42)) < 1e-6
+    assert abs(final.start_ms - (1000 + 56)) < 1e-6
+    assert initial.articulation.lip_press > 0.9          # closure is never averaged away
+
+
+def test_mandarin_non_closing_initial_anticipates_rounded_final():
+    from robot_lipsync.planner import SHAPES, phonemes_to_articulation
+
+    phones = alignment_to_phonemes([AlignmentSpan("都", 0, 220, "zh-CN")])
+    events = phonemes_to_articulation("du", phones)
+    assert events[0].viseme == "ZH_APICAL"
+    assert events[0].articulation.lip_round > SHAPES["ZH_APICAL"].lip_round + 0.3

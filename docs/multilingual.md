@@ -21,18 +21,44 @@ robot-lipsync demo --text "你好，世界。" --language zh-CN \
   --output build/mandarin.html
 ```
 
-The compiler:
+The compiler merges two designs: the Lilyput Mandarin v1 spec (17 semantic
+targets, written for the chest OLED) and a surface-phonetics pass. Nothing was
+dropped from either.
 
-1. converts a Han phrase to tone-numbered pinyin with `pypinyin`;
-2. separates each syllable into an initial and a visible final trajectory;
-3. maps bilabial, labiodental, apical, velar, palatal, dental-sibilant, and
-   retroflex initials separately;
-4. preserves open, rounded, spread, tight-rounded, and front-rounded (`ü`)
-   finals;
-5. treats compound finals as motion paths rather than one neutral pose;
-6. withholds two trailing Han characters while streaming so common polyphonic
-   phrase readings can use right context without rewriting events already sent
-   to hardware.
+1. Han phrases become tone-numbered pinyin with `pypinyin`; j/q/x/y + written
+   `u` is read as `ü`.
+2. Every character is one syllable: the initial takes 28% of it, the final
+   72% (a stated prior, not acoustic truth). Inside the final the nucleus
+   weighs 2.1, a medial or off-glide 0.9 and a nasal coda 0.8.
+3. Seven initial classes: `ZH_BPM` b/p/m (closure), `ZH_F` f, `ZH_APICAL`
+   d/t/n/l, `ZH_VELAR` g/k/h, `ZH_PALATAL` j/q/x, `ZH_DENTAL` z/c/s and
+   `ZH_RETROFLEX` zh/ch/sh/r.
+4. A non-closing initial already carries part of its final (CV co-onset):
+   42% toward a rounded final, 30% toward a spread one, 20% toward /a/.
+   b/p/m and f are landmarks and are never averaged away.
+5. The initial keeps a 42 ms visual lead; the final takes over at its own
+   acoustic onset, so a 180 ms "爸" still shows its closure for a frame.
+6. Finals follow the surface pronunciation: `ian/üan/ie/üe` use the mid-open
+   front vowel ê (`ZH_EH`), not /a/; `-n` closes the jaw (`ZH_N`) and `-ng`
+   half-closes it (`ZH_NG`), so every character opens and closes; `ai/ao/ei/ou`
+   are one moving target each (`ZH_AI` = a→i …), which reads better on a 20 fps
+   OLED than two flashes, while the tablet renderer shows the motion.
+7. The apical vowel of `zi/ci/si` (`ZH_IZ`) and `zhi/chi/shi/ri` (`ZH_IR`) is
+   kept out of the wide /i/ class.
+8. zh/ch/sh/r, u, ü and o pout forward and slightly evert the upper lip
+   ("吃", "谱").
+9. Tongue-only consonants move the jaw but leave the lip shape to the
+   neighbouring vowels (JALI, Edwards et al. 2016); rounded sounds start early.
+10. For the OLED, `robot_lipsync.monroe.oled_frame` maps the targets onto the
+    chest frame bank, and changes closer than 55 ms keep the previous frame
+    unless a landmark is involved.
+11. While streaming, two trailing Han characters are withheld so polyphonic
+    phrase readings can use right context without rewriting events already
+    sent to hardware.
+
+Status: software-tested only. The Mandarin rules have not yet been judged on
+the physical chest OLED against the English profile, nor scored with native
+speakers or video ground truth.
 
 Tones are retained in event metadata. They are not turned into five different
 mouth shapes because lexical tone is primarily an F0/prosody distinction. A
@@ -65,6 +91,17 @@ remain outside the current low-DOF model unless they produce a dependable
 external lip or jaw difference.
 
 ## Research basis and limits
+
+- Edwards, Landreth, Fiume and Singh, [*JALI: an animator-centric viseme model
+  for expressive lip synchronization*](https://dgp.toronto.edu/~elf/JALISIG16.pdf)
+  (SIGGRAPH 2016): separate jaw and lip control, mandatory closures, and
+  tongue-only consonants that leave the lips to the surrounding vowels.
+- Cohen and Massaro (1993), dominance-function coarticulation, used by the
+  tablet renderer to blend neighbouring targets.
+- The Lilyput Mandarin v1 spec cites Tsinghua's text-to-visual-speech study
+  (2002), the ISCSLP 2000 Standard Chinese viseme system, synchronised CV
+  co-onset (Journal of Phonetics, 2022) and evidence that visual cues affect
+  Mandarin vowels but not tones (Frontiers, 2023).
 
 - Li, Huang, and Li, [*Realistic Lip Motion Generation Based on 3D Dynamic
   Viseme and Coarticulation Modeling for Human-Robot

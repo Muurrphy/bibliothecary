@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include "config.h"
+#include "monroe_frames.h"   // 44 Monroe lip bitmaps (tools/monroe/build_bank.py)
+#include "monroe_select.h"   // nearest-frame choice from articulation channels
 
 #if ROBOT_LIPSYNC_OLED_SH1106
 #include <Adafruit_SH110X.h>
@@ -32,6 +34,7 @@ struct TimelineEvent {
   uint32_t atMs;
   uint16_t durationMs;
   int16_t channels[9];
+  int8_t frame;  // Monroe frame hint from the host, or -1
 };
 
 TimelineEvent timeline[ROBOT_LIPSYNC_QUEUE_CAPACITY];
@@ -84,10 +87,6 @@ bool validSession(const char *session) {
   return true;
 }
 
-Articulation restShape() {
-  return {0.0f, 0.01f, 0.48f, 0.05f, 0.18f, 0.0f, 0.0f, 0.0f, 0.7f};
-}
-
 Articulation decode(const TimelineEvent &event) {
   Articulation result;
   result.jaw = clamp01(event.channels[0] / 1000.0f);
@@ -102,28 +101,14 @@ Articulation decode(const TimelineEvent &event) {
   return result;
 }
 
-Articulation mixShape(const Articulation &from, const Articulation &to, float amount) {
-  amount = clamp01(amount);
-  const float keep = 1.0f - amount;
-  return {
-      from.jaw * keep + to.jaw * amount,
-      from.separation * keep + to.separation * amount,
-      from.width * keep + to.width * amount,
-      from.roundness * keep + to.roundness * amount,
-      from.press * keep + to.press * amount,
-      from.protrusion * keep + to.protrusion * amount,
-      from.tuck * keep + to.tuck * amount,
-      from.asymmetry * keep + to.asymmetry * amount,
-      from.intensity * keep + to.intensity * amount,
-  };
-}
-
-bool currentShape(uint32_t now, Articulation &shape) {
+// Which Monroe frame to show now. Like the Lilyput chest board, the OLED shows
+// one designed bitmap per event (no cross-fades): in-betweens are separate
+// frames, and short gaps hold the previous pose instead of flashing rest.
+int currentFrame(uint32_t now, bool &active) {
+  active = false;
   if (!timelineRunning || timelineCount == 0 || (int32_t)(now - timelineStartedMs) < 0) {
-    shape = restShape();
-    return false;
+    return MONROE_V2_REST;
   }
-
   const uint32_t elapsed = now - timelineStartedMs;
   while (timelineIndex + 1 < timelineCount && elapsed >= timeline[timelineIndex + 1].atMs) {
     ++timelineIndex;
@@ -136,66 +121,28 @@ bool currentShape(uint32_t now, Articulation &shape) {
     holdForNext = nextAt >= eventEnd && nextAt - eventEnd <= ROBOT_LIPSYNC_SHORT_GAP_HOLD_MS;
   }
   if (elapsed < event.atMs || (elapsed >= eventEnd && !holdForNext)) {
-    shape = restShape();
-    return false;
+    return MONROE_V2_REST;
   }
-
-  const Articulation target = decode(event);
-  const Articulation previous = timelineIndex == 0 ? restShape() : decode(timeline[timelineIndex - 1]);
-  const uint16_t halfDuration = (uint16_t)(event.durationMs / 2);
-  const uint16_t transitionMs = min((uint16_t)70, max((uint16_t)35, halfDuration));
-  const float amount = clamp01((elapsed - event.atMs) / (float)transitionMs);
-  shape = mixShape(previous, target, amount);
-  return true;
-}
-
-float gaussian(float x, float center, float width) {
-  const float z = (x - center) / width;
-  return expf(-z * z);
-}
-
-void drawDotLips(const Articulation &a) {
-  const float vertical = max(a.separation, a.jaw * 0.92f);
-  const float halfWidth = (40.0f + 19.0f * a.width) * (1.0f - 0.40f * a.roundness);
-  const float gap = (1.0f + 15.0f * vertical) * (1.0f - 0.92f * a.press);
-  const float upperThickness = 6.0f + 4.0f * a.protrusion + 2.0f * a.intensity;
-  const float lowerThickness = (8.0f + 5.0f * a.protrusion + 2.0f * a.intensity) * (1.0f - 0.42f * a.tuck);
-  const float centerX = 64.0f + 4.0f * a.asymmetry;
-  const float centerY = 32.0f;
-
-  for (int y = 2; y < 63; y += 3) {
-    for (int x = 2; x < 127; x += 3) {
-      const float nx = (x - centerX) / halfWidth;
-      if (fabsf(nx) > 1.0f) continue;
-      const float edge = sqrtf(max(0.0f, 1.0f - nx * nx));
-      const float peaks = gaussian(nx, -0.26f, 0.20f) + gaussian(nx, 0.26f, 0.20f);
-      const float center = gaussian(nx, 0.0f, 0.17f);
-      const float cornerLift = (1.0f - edge) * 2.2f;
-
-      const float upperInner = centerY - gap * 0.5f + cornerLift + center * (2.4f * (1.0f - vertical));
-      const float upperOuter = upperInner - upperThickness * (0.32f + 0.68f * edge) - peaks * 2.6f + center * 1.8f;
-      const float lowerInner = centerY + gap * 0.5f - cornerLift * 0.55f;
-      const float lowerOuter = lowerInner + lowerThickness * (0.28f + 0.72f * edge) + center * 1.4f;
-
-      if ((y >= upperOuter && y <= upperInner) || (y >= lowerInner && y <= lowerOuter)) {
-        display.fillRect(x, y, 2, 2, ROBOT_LIPSYNC_WHITE);
-      }
-    }
-  }
+  active = true;
+  if (event.frame >= 0 && event.frame < MONROE_FRAME_COUNT) return event.frame;
+  const Articulation a = decode(event);
+  float muscles[MONROE_CHANNELS];
+  monroeMuscles(a.jaw, a.separation, a.width, a.roundness, a.press, a.protrusion, a.tuck, a.asymmetry, muscles);
+  return monroeNearestFrame(muscles);
 }
 
 void renderFrame() {
   if (!oledReady) return;
   const uint32_t now = millis();
-  Articulation shape;
-  const bool active = currentShape(now, shape);
+  bool active = false;
+  const int frame = currentFrame(now, active);
   display.clearDisplay();
-  drawDotLips(shape);
+  display.drawBitmap(0, 0, MONROE_FRAMES[frame], 128, 64, ROBOT_LIPSYNC_WHITE);
   display.display();
   if (active && !visibleStartReported) {
     visibleStartReported = true;
-    reply("LIP/EVENT VISIBLE_START sid=%s board_ms=%lu index=%u",
-          timelineSession, (unsigned long)now, (unsigned)timelineIndex);
+    reply("LIP/EVENT VISIBLE_START sid=%s board_ms=%lu index=%u frame=%d",
+          timelineSession, (unsigned long)now, (unsigned)timelineIndex, frame);
   }
 }
 
@@ -215,12 +162,14 @@ void handleLine(char *line) {
   unsigned long atMs = 0;
   unsigned int durationMs = 0;
   int values[9] = {0};
+  int frameHint = -1;
+  int fieldCount = 0;
   int delayMs = 0;
   unsigned long offsetMs = 0;
 
   if (strcmp(line, "LIP/HELLO") == 0) {
-    reply("LIP/OK HELLO protocol=1 device=esp32_oled capacity=%u channels=8",
-          (unsigned)ROBOT_LIPSYNC_QUEUE_CAPACITY);
+    reply("LIP/OK HELLO protocol=1 device=esp32_oled capacity=%u channels=8 lips=monroe frames=%d",
+          (unsigned)ROBOT_LIPSYNC_QUEUE_CAPACITY, MONROE_FRAME_COUNT);
   } else if (strcmp(line, "LIP/DIAG") == 0) {
     Wire.beginTransmission(ROBOT_LIPSYNC_OLED_ADDRESS);
     const uint8_t i2cError = Wire.endTransmission();
@@ -235,12 +184,13 @@ void handleLine(char *line) {
       reply("LIP/OK RESET sid=%s capacity=%u", timelineSession,
             (unsigned)ROBOT_LIPSYNC_QUEUE_CAPACITY);
     }
-  } else if (sscanf(
-                 line,
-                 "LIP/EVENT %16s %lu %u %d %d %d %d %d %d %d %d %d",
-                 session, &atMs, &durationMs, &values[0], &values[1], &values[2],
-                 &values[3], &values[4], &values[5], &values[6], &values[7],
-                 &values[8]) == 12) {
+  } else if ((fieldCount = sscanf(
+                  line,
+                  "LIP/EVENT %16s %lu %u %d %d %d %d %d %d %d %d %d %d",
+                  session, &atMs, &durationMs, &values[0], &values[1], &values[2],
+                  &values[3], &values[4], &values[5], &values[6], &values[7],
+                  &values[8], &frameHint)) >= 12) {
+    if (fieldCount == 12) frameHint = -1;  // no frame hint: pick from channels
     if (!sameSession(session)) {
       emitReply("LIP/ERR EVENT reason=session_mismatch");
     } else if (timelineCount >= ROBOT_LIPSYNC_QUEUE_CAPACITY) {
@@ -261,6 +211,7 @@ void handleLine(char *line) {
         event.atMs = (uint32_t)atMs;
         event.durationMs = (uint16_t)durationMs;
         for (int i = 0; i < 9; ++i) event.channels[i] = (int16_t)values[i];
+        event.frame = (frameHint >= 0 && frameHint < MONROE_FRAME_COUNT) ? (int8_t)frameHint : (int8_t)-1;
       }
     }
   } else if (sscanf(line, "LIP/START %16s %d %lu", session, &delayMs, &offsetMs) == 3) {

@@ -16,3 +16,10 @@
 - Added optional phrase-aware Mandarin pinyin, initial/final articulation,
   compound-final paths, tone metadata, and a two-character streaming horizon.
 - Added Mandarin and Spanish demos, fixtures, research notes, and tests.
+- Replaced the generic dot-matrix mouth with the Monroe lips from the Lilyput
+  chest OLED: the 44-frame bank in the firmware and the `oled` preview, and the
+  same geometry rebuilt at 2x for the `screen` (tablet) preview.
+- Added an optional Monroe frame hint to `LIP/EVENT`; older boards ignore it.
+- Merged the Lilyput Mandarin v1 rules (17 semantic targets, CV co-onset,
+  initial lead, OLED de-flicker) with surface finals (ê, nasal codas, glide
+  timing), pouting rounded initials and JALI-style jaw/lip separation.

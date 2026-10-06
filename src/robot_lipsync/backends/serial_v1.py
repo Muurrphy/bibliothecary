@@ -40,6 +40,9 @@ def encode_event(event: ArticulationEvent) -> bytes:
         _unit(event.intensity),
     )
     fields = " ".join(str(value) for value in values)
+    frame = event.metadata.get("oled_frame") if event.metadata else None
+    if isinstance(frame, int) and 0 <= frame < 64:
+        fields += f" {frame}"  # optional Monroe frame hint; older boards ignore it
     return (
         f"LIP/EVENT {_session(event.session_id)} {round(event.start_ms)} {max(1, round(event.duration_ms))} {fields}\n"
     ).encode()

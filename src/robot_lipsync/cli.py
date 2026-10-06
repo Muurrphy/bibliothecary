@@ -34,7 +34,9 @@ def _write_timeline(events, output: Path) -> None:
 def command_demo(args) -> int:
     spans = synthetic_alignment(args.text, language=args.language)
     events = compile_spans(spans)
-    output = render_html(events, args.output, title="Robot LipSync — no-key demo")
+    output = render_html(
+        events, args.output, title="Robot LipSync — no-key demo", profile=args.profile, palette=args.palette
+    )
     timeline = output.with_suffix(".timeline.json")
     _write_timeline(events, timeline)
     print(f"HTML preview: {output.resolve()}")
@@ -88,6 +90,9 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--text", default=DEMO_TEXT)
     demo.add_argument("--language", default="en", help="BCP-47 language tag, for example en, es, es-ES, or zh-CN")
     demo.add_argument("--output", default="build/demo.html")
+    demo.add_argument("--profile", choices=["screen", "oled"], default="screen",
+                      help="screen = tablet/monitor mouth; oled = preview of the 128x64 firmware mouth")
+    demo.add_argument("--palette", choices=["red", "blue"], default="red")
     demo.set_defaults(func=command_demo)
 
     compile_parser = subparsers.add_parser("compile", help="compile an alignment fixture to Articulation IR")

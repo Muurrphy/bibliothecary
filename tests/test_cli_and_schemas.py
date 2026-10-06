@@ -15,6 +15,17 @@ def test_demo_writes_html_and_timeline(tmp_path):
     assert output.with_suffix(".timeline.json").exists()
     assert "MUSCLE" not in output.read_text(encoding="utf-8")
     assert "articulation" in output.read_text(encoding="utf-8")
+    assert "DotLips" in output.read_text(encoding="utf-8")
+
+
+def test_demo_profiles_and_palettes(tmp_path):
+    for profile in ("screen", "oled"):
+        for palette in ("red", "blue"):
+            output = tmp_path / f"{profile}-{palette}.html"
+            args = ["demo", "--output", str(output), "--profile", profile, "--palette", palette]
+            assert main(args) == 0
+            html = output.read_text(encoding="utf-8")
+            assert f"prof.value='{profile}'" in html and f"pal.value='{palette}'" in html
 
 
 def test_spanish_demo_uses_spanish_profile(tmp_path):

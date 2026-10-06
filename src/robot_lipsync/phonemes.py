@@ -372,16 +372,35 @@ def _normalize_mandarin_final(initial: str, final: str) -> str:
 
 
 def _mandarin_final_phones(final: str, initial: str) -> list[str]:
-    if final == "i" and initial in {"z", "c", "s", "zh", "ch", "sh", "r"}:
-        return []
-    if final == "er":
-        return ["ZH_RETROFLEX"]
+    """Visible path of a Mandarin final: medial glide -> nucleus -> coda.
 
-    # Nasal codas are primarily tongue/velum gestures and are not directly
-    # observable on the low-DOF mouth. Preserve the visible vowel trajectory.
+    Merges two designs. From the Lilyput Mandarin v1 spec: the 17 semantic
+    targets, dynamic ``ai/ao/ei/ou`` primitives (one target that moves, rather
+    than two flashes), j/q/x/y + u read as ü, and apical ``i`` kept out of the
+    wide /i/ class. From the surface-phonetics pass: ``ian/üan/ie/üe`` use the
+    mid-open front vowel ê, and nasal codas close the jaw again (-n tight,
+    -ng half), so every character opens and closes.
+    YI / WU / YU are short glides with the same lip targets as i / u / ü.
+    """
+    if final == "i" and initial in {"z", "c", "s"}:
+        return ["ZH_IZ"]
+    if final == "i" and initial in {"zh", "ch", "sh", "r"}:
+        return ["ZH_IR"]
+    if final == "er":
+        return ["ZH_ER"]
+    table = {
+        "a": "A", "o": "O", "e": "E", "ê": "EH", "i": "I", "u": "U", "v": "V",
+        "ai": "AI", "ei": "EI", "ao": "AO", "ou": "OU",
+        "an": "A N", "en": "E N", "ang": "A NG", "eng": "E NG", "ong": "WU O NG",
+        "ia": "YI A", "ie": "YI EH", "iao": "YI AO", "iou": "YI OU", "ian": "YI EH N",
+        "in": "I N", "iang": "YI A NG", "ing": "I NG", "iong": "YU O NG",
+        "ua": "WU A", "uo": "WU O", "uai": "WU AI", "uei": "WU EI", "uan": "WU A N",
+        "uen": "WU E N", "uang": "WU A NG", "ueng": "WU E NG",
+        "ve": "YU EH", "van": "YU EH N", "vn": "V N",
+    }
+    if final in table:
+        return ["ZH_" + part for part in table[final].split()]
     nucleus = re.sub(r"(ng|n)$", "", final)
-    if not nucleus:
-        return ["ZH_E"]
     values = {"a": "ZH_A", "o": "ZH_O", "e": "ZH_E", "i": "ZH_I", "u": "ZH_U", "v": "ZH_V"}
     phones = [values[character] for character in nucleus if character in values]
     return phones or ["ZH_E"]
@@ -398,19 +417,19 @@ def mandarin_syllable_phones(pinyin: str) -> tuple[tuple[str, ...], int | None]:
         "p": "ZH_BPM",
         "m": "ZH_BPM",
         "f": "ZH_F",
-        "d": "ZH_D",
-        "t": "ZH_D",
-        "n": "ZH_D",
-        "l": "ZH_D",
-        "g": "ZH_GKH",
-        "k": "ZH_GKH",
-        "h": "ZH_GKH",
-        "j": "ZH_JQX",
-        "q": "ZH_JQX",
-        "x": "ZH_JQX",
-        "z": "ZH_ZCS",
-        "c": "ZH_ZCS",
-        "s": "ZH_ZCS",
+        "d": "ZH_APICAL",
+        "t": "ZH_APICAL",
+        "n": "ZH_APICAL",
+        "l": "ZH_APICAL",
+        "g": "ZH_VELAR",
+        "k": "ZH_VELAR",
+        "h": "ZH_VELAR",
+        "j": "ZH_PALATAL",
+        "q": "ZH_PALATAL",
+        "x": "ZH_PALATAL",
+        "z": "ZH_DENTAL",
+        "c": "ZH_DENTAL",
+        "s": "ZH_DENTAL",
         "zh": "ZH_RETROFLEX",
         "ch": "ZH_RETROFLEX",
         "sh": "ZH_RETROFLEX",
@@ -452,11 +471,48 @@ def _phone_weight(symbol: str, language: str) -> float:
     bare = re.sub(r"[012]$", "", symbol)
     family = _language_family(language)
     if family == "zh":
-        return 2.1 if bare in {"ZH_A", "ZH_O", "ZH_E", "ZH_I", "ZH_U", "ZH_V"} else 0.45
+        # Inside the final: nucleus 2.1, glide 0.9, nasal coda 0.8. The initial
+        # gets a fixed 28% of the syllable (see ``_allocate_mandarin``).
+        if bare in {"ZH_N", "ZH_NG"}:
+            return 0.8
+        if bare in {"ZH_YI", "ZH_WU", "ZH_YU"}:
+            return 0.9
+        return 2.1 if bare in MANDARIN_FINALS else 0.45
     if family == "es":
         return 2.1 if bare in {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"} else 0.8
     vowel_bases = {"AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"}
     return 2.1 if bare in vowel_bases else 0.8
+
+
+MANDARIN_INITIALS = {"ZH_BPM", "ZH_F", "ZH_APICAL", "ZH_VELAR", "ZH_PALATAL", "ZH_DENTAL", "ZH_RETROFLEX"}
+MANDARIN_FINALS = {
+    "ZH_A", "ZH_O", "ZH_E", "ZH_EH", "ZH_I", "ZH_U", "ZH_V", "ZH_AI", "ZH_EI", "ZH_AO", "ZH_OU",
+    "ZH_IZ", "ZH_IR", "ZH_ER",
+}
+
+
+def _allocate_mandarin(symbols, start_ms, duration_ms, language, *, confidence=1.0, tone=None):
+    """Initial 28% / final 72% (Lilyput v1 prior); the final is split by weight."""
+    if not symbols:
+        return []
+    # "er" alone is a final; zh/ch/sh/r followed by a final is an initial.
+    has_initial = len(symbols) > 1 and symbols[0] in MANDARIN_INITIALS
+    result = []
+    cursor = start_ms
+    finals = symbols
+    if has_initial:
+        length = duration_ms * 0.28
+        result.append(TimedPhoneme(symbols[0], cursor, length, language, confidence, tone))
+        cursor += length
+        finals = symbols[1:]
+        duration_ms *= 0.72
+    weights = [_phone_weight(symbol, language) for symbol in finals]
+    total = sum(weights)
+    for symbol, weight in zip(finals, weights, strict=False):
+        length = duration_ms * weight / total
+        result.append(TimedPhoneme(symbol, cursor, length, language, confidence, tone))
+        cursor += length
+    return result
 
 
 def _allocate(
@@ -532,7 +588,7 @@ def alignment_to_phonemes(spans: Iterable[AlignmentSpan]) -> list[TimedPhoneme]:
             for item, (symbols, tone, confidence) in zip(han_spans, readings, strict=False):
                 language = item.language if _language_family(item.language) == "zh" else "zh-CN"
                 result.extend(
-                    _allocate(
+                    _allocate_mandarin(
                         list(symbols),
                         item.start_ms,
                         max(1.0, item.duration_ms),

@@ -44,11 +44,13 @@ robot-lipsync = "robot_lipsync.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-robot_lipsync = ["data/*.json"]
+robot_lipsync = ["data/*.json", "renderers/*.js"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# The original Lilyput generators are kept verbatim.
+extend-exclude = ["tools/monroe/make_lips.py", "tools/monroe/make_v2.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

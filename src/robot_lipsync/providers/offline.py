@@ -30,7 +30,15 @@ def synthetic_alignment(text: str, *, char_ms: float = 72.0, language: str = "en
     cursor = 0.0
     spans: list[AlignmentSpan] = []
     for character in text:
-        duration = char_ms * (0.45 if character.isspace() else (0.70 if character in ".,!?" else 1.0))
+        if "\u4e00" <= character <= "\u9fff":
+            # One Han character is a whole syllable (~200-250 ms in natural
+            # Mandarin), not one letter; letter-rate timing made Chinese demos
+            # flicker through shapes three times too fast.
+            duration = char_ms * 3.0
+        elif character in "，。！？、；：":
+            duration = char_ms * 2.0
+        else:
+            duration = char_ms * (0.45 if character.isspace() else (0.70 if character in ".,!?" else 1.0))
         spans.append(AlignmentSpan(character, cursor, duration, language))
         cursor += duration
     return spans
