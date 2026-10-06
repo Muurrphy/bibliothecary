@@ -24,7 +24,7 @@ package; the earlier generic dot-matrix geometry was removed.
 | Profile | Where | What it draws |
 |---|---|---|
 | `oled` | 128×64 one-bit OLED (firmware, preview) | The 44 designed frames: Monroe v1 (0–26) and the muscle-channel targets (27–43). Clean 2×2 cells with 1 px gutters, one frame per event. |
-| `screen` | tablets, monitors | The same landmark contours rebuilt every frame at twice the resolution from blended muscle poses, drawn as flat pixel art: lip liner, upper and lower body, shadowed parting and hard highlight blocks. |
+| `screen` | tablets, monitors | The same landmark contours rebuilt every frame at twice the resolution from blended muscle poses, drawn as a flat, saturated LED fill like the OLED: a quiet lip line, a dimmer parting and one small gloss mark. The Cupid's bow and tubercle are relaxed 60% toward the gentler tension outline so the peaks read soft on a large screen. |
 
 ## Files
 

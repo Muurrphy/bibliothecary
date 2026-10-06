@@ -24,8 +24,8 @@
     lip_protrusion: 0, lower_lip_tuck: 0, asymmetry: 0};
   const KEYS = Object.keys(REST);
   const PALETTES = {
-    red:  {glow: "255,42,74",  core: "255,214,222", off: "255,42,74"},
-    blue: {glow: "40,100,255", core: "190,215,255", off: "40,100,255"},     // electric blue
+    red:  {glow: "255,18,58",  core: "255,140,165", off: "255,18,58"},
+    blue: {glow: "30,76,255",  core: "140,175,255", off: "30,76,255"},     // electric blue
   };
   const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
   const av = (a, k) => (a && a[k] != null ? a[k] : REST[k]);
@@ -100,7 +100,7 @@
     }
     return c;
   }
-  function contours(P, connected) {
+  function contours(P, connected, soft = 0) {
     const half = HALF * P.width;
     const stretch = clamp((P.width - 1) / 0.18), mass = 1 - 0.22 * stretch;
     const upperH = 24.5 * mass + P.upperBias + P.openness, lowerH = 29.0 * mass + P.lowerBias + 1.2 * P.openness;
@@ -108,10 +108,11 @@
     const openF = clamp((P.openness - 0.55) / 0.65), narrowF = clamp((1.08 - P.width) / 0.28);
     const c = (connected ? 0 : 4.0 * openF * narrowF) / lowerH;
     const ot = clamp(P.openness / 1.40), lt = clamp((P.width - 1) / 0.18), pr = clamp(P.pucker / 1.30);
-    const bead = 0.055 + 0.185 * Math.min(1.08, Math.max(0.12, 1 - 0.72 * ot - 0.55 * lt + 0.35 * pr));
+    const bead = (0.055 + 0.185 * Math.min(1.08, Math.max(0.12, 1 - 0.72 * ot - 0.55 * lt + 0.35 * pr))) * (1 - 0.35 * soft);
     const arch = -0.075 * Math.min(1.05, Math.max(0.28, 1 - 0.55 * ot - 0.42 * lt + 0.28 * pr));
     const sculpt = Math.min(1.06, Math.max(0.58, 1 - 0.34 * ot - 0.25 * lt + 0.18 * pr));
-    const uo = UO_REST.map(([u, r], i) => [u, UO_TENSE[i][1] + sculpt * (r - UO_TENSE[i][1])]);
+    // soft > 0 relaxes the Cupid's bow toward the gentler tension outline (tablet profile)
+    const uo = UO_REST.map(([u, r], i) => [u, UO_TENSE[i][1] + sculpt * (1 - soft) * (r - UO_TENSE[i][1])]);
     const ui = [[-1, 0], [-0.82, -0.035], [-0.62, -0.015], [-0.48, -0.010], [-0.38, arch * 0.68], [-0.30, arch], [-0.22, arch * 0.62],
       [-0.14, bead * 0.23], [-0.07, bead * 0.72], [0, bead], [0.07, bead * 0.72], [0.14, bead * 0.23], [0.22, arch * 0.62],
       [0.30, arch], [0.38, arch * 0.68], [0.48, -0.010], [0.62, -0.015], [0.82, -0.035], [1, 0]];
@@ -148,7 +149,7 @@
   function screenDots(m) {
     const P = legacyPose(m);
     const connected = P.width > 1.02 || Math.abs(P.tilt) > 0.3;
-    const [uo, ui, li, lo] = contours(P, connected);
+    const [uo, ui, li, lo] = contours(P, connected, 0.6);
     const up = Math.round((-2.4 * m.upper_lip_raise + 1.8 * m.lip_press) * S);
     const down = Math.round((2.4 * m.lower_lip_depress + 1.6 * m.jaw_open - 2.4 * m.lip_press) * S);
     const cv = layer("geom", GW, GH), g = cv.getContext("2d", {willReadFrequently: true});
@@ -198,15 +199,14 @@
       const xn = (x + 1 - cxPx) / halfPx, ax = Math.abs(xn);
       const [top, bot] = ext[k - 1][c];
       const t = bot > top ? (r - top) / (bot - top) : 0.5;
-      let kind = 1, level = k === 1 ? 0.74 : 0.88;
+      let kind = 1, level = 0.94;                     // flat LED fill, like the OLED
       const rim = k === 1 ? at(r - 1, c) === 0 : at(r + 1, c) === 0;
       const side = at(r, c - 1) === 0 || at(r, c + 1) === 0;
       const part = k === 1 ? at(r + 1, c) !== 1 : at(r - 1, c) !== 2;
-      if (rim || side) level = 0.52;
-      if (part) level = 0.40;
+      if (rim || side) level = 0.80;                // a quiet lip line
+      if (part) level = 0.62;
       if (!rim && !side && !part) {
-        if (k === 2 && t > 0.16 && t < 0.42 && ax > 0.10 && ax < 0.46) { kind = 3; level = 1; }          // lower-lip gloss
-        if (k === 1 && t > 0.22 && t < 0.52 && Math.abs(ax - 0.27) < 0.075) { kind = 3; level = 0.9; }   // under the peaks
+        if (k === 2 && t > 0.20 && t < 0.36 && ax > 0.16 && ax < 0.36) { kind = 3; level = 1; }          // one small gloss mark
       }
       dots.push([x, y, kind, level]);
     }
@@ -280,7 +280,7 @@
     for (const [b, list] of buckets) {                    // hot cores: bright cells glow toward white
       const l = b / 16;
       for (const d of list) {
-        const a = d[2] === 3 ? 0.55 + 0.45 * l : (prof === "oled" ? 0.30 : Math.max(0, (l - 0.58) / 0.42) * 0.8);
+        const a = d[2] === 3 ? 0.45 : (prof === "oled" ? 0.22 : 0);
         if (a <= 0.03) continue;
         lc.fillStyle = `rgba(${pal.core},${a * flick})`;
         const s = size * (d[2] === 3 ? 0.78 : 0.6), ins = (size - s) / 2;
@@ -298,7 +298,7 @@
     ctx.drawImage(base, x0, y0);
     ctx.globalCompositeOperation = "lighter";
     ctx.imageSmoothingEnabled = true;
-    ctx.globalAlpha = 0.85; ctx.drawImage(src, x0, y0, W, H);
+    ctx.globalAlpha = 0.6; ctx.drawImage(src, x0, y0, W, H);
     ctx.globalAlpha = 1; ctx.drawImage(lit, x0, y0);
     ctx.restore();
   }
