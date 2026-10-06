@@ -70,11 +70,45 @@ def _is_han(token: str) -> bool:
     return bool(token and any("\u3400" <= character <= "\u9fff" for character in token))
 
 
+# Apostrophes stay: they belong inside words such as "don't".
+_EDGE_PUNCTUATION = ".,;:!?¡¿\"«»“”()[]…—"
+
+
+def _latin_core(token: str) -> str:
+    """A word token without the punctuation word-level aligners leave on it."""
+
+    return unicodedata.normalize("NFC", token).strip(_EDGE_PUNCTUATION + " ")
+
+
 def _is_latin_word_token(token: str) -> bool:
-    if not token:
+    normalized = _latin_core(token)
+    if not normalized:
         return False
-    normalized = unicodedata.normalize("NFC", token)
     return all(character.lower() in _SPANISH_LETTERS or character in {"'", "’"} for character in normalized)
+
+
+_WORD_GAP_MS = 40.0
+
+
+def _continues_latin_word(previous: AlignmentSpan, current: AlignmentSpan) -> bool:
+    """True when ``current`` is the next character of the same written word.
+
+    Character-level aligners (ElevenLabs) send one letter per span and a
+    space span between words, so letters are glued back into a word. Word-level
+    aligners (edge-tts, Azure, Whisper) already send whole words: each keeps its
+    own timestamp, and is never glued to its neighbour. Gluing them spread a
+    whole phrase evenly over its first and last word, ignoring the real word
+    timings and pauses, so the mouth drifted away from the voice.
+    """
+
+    if not (_is_latin_word_token(previous.token) and _is_latin_word_token(current.token)):
+        return False
+    if _language_family(previous.language) != _language_family(current.language):
+        return False
+    if len(_latin_core(previous.token)) != 1 or len(_latin_core(current.token)) != 1:
+        return False
+    gap = current.start_ms - (previous.start_ms + previous.duration_ms)
+    return gap <= _WORD_GAP_MS
 
 
 class AlignmentBuffer:
@@ -112,12 +146,10 @@ class AlignmentBuffer:
             return spans
         end = len(spans)
         if _is_latin_word_token(spans[-1].token):
-            language = _language_family(spans[-1].language)
-            while (
-                end
-                and _is_latin_word_token(spans[end - 1].token)
-                and _language_family(spans[end - 1].language) == language
-            ):
+            # Withhold the trailing Latin word: one whole-word token, or the
+            # run of character tokens that may still be growing.
+            end -= 1
+            while end and _continues_latin_word(spans[end - 1], spans[end]):
                 end -= 1
         elif _is_han(spans[-1].token) and _language_family(spans[-1].language) in {"zh", "und"}:
             # Two following characters give phrase-aware pinyin enough context
@@ -326,7 +358,7 @@ def spanish_phones(word: str, language: str = "es") -> tuple[str, ...]:
             if symbol:
                 result.append(symbol)
         index += 1
-    if not explicit_stress:
+    if not explicit_stress and normalized not in _SPANISH_CLITICS:
         # Default Spanish stress: the penultimate syllable when the word ends in a
         # vowel, n or s, otherwise the last one. Diphthongs (weak i/u next to a
         # vowel) count as one syllable, so stress the strong vowel.
@@ -342,7 +374,38 @@ def spanish_phones(word: str, language: str = "es") -> tuple[str, ...]:
             target = nuclei[-2] if len(nuclei) > 1 and last in set("aeiouns") else nuclei[-1]
             strong = [i for i in target if result[i] not in {"ES_I", "ES_U"}] or target
             result[strong[0]] = result[strong[0]] + "1"
+    _spanish_glides(result)
     return tuple(result or ["ES_E"])
+
+
+_ES_VOWELS = {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"}
+# Unaccented function words lean on the next word and carry no stress of their
+# own, so "la vida" opens big on "vi", not on "la".
+_SPANISH_CLITICS = frozenset(
+    "el la lo los las un una unos unas de del al a en con por para sin y e o u ni que "
+    "me te se le les nos os mi mis tu tus su sus si pero como cuando donde mas".split()
+)
+
+
+def _spanish_glides(result: list[str]) -> None:
+    """Unstressed i/u next to another vowel is a glide, not a syllable.
+
+    "bueno", "quieres", "hoy", "aire": the weak vowel is a quick [j]/[w] on the
+    way into or out of the strong one, so it gets a consonant-length slot
+    instead of a full vowel's (written i/u with an accent, as in "día", stays a
+    vowel). In "ui"/"iu" with no accent the first one glides ("muy", "ciudad").
+    """
+
+    def vowel(i: int) -> bool:
+        return 0 <= i < len(result) and re.sub(r"1$", "", result[i]) in _ES_VOWELS
+
+    for i, phone in enumerate(result):
+        if phone not in {"ES_I", "ES_U"}:
+            continue
+        before = vowel(i - 1) and result[i - 1] not in {"ES_I", "ES_U"}  # still a vowel (not yet a glide)
+        after = vowel(i + 1)
+        if before or after:
+            result[i] = "ES_J" if phone == "ES_I" else "ES_W"
 
 
 def _split_tone(pinyin: str) -> tuple[str, int | None]:
@@ -495,7 +558,11 @@ def _phone_weight(symbol: str, language: str) -> float:
             return 0.9
         return 2.1 if bare in MANDARIN_FINALS else 0.45
     if family == "es":
-        return 2.1 if bare in {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"} else 0.8
+        # Syllable-timed: every vowel keeps a full slot (no reduction), the
+        # stressed one is about a quarter longer; glides and consonants are short.
+        if bare in _ES_VOWELS:
+            return 2.5 if symbol.endswith("1") else 2.0
+        return 0.7 if bare in {"ES_J", "ES_W"} else 0.8
     vowel_bases = {"AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"}
     return 2.1 if bare in vowel_bases else 0.8
 
@@ -566,12 +633,10 @@ def alignment_to_phonemes(spans: Iterable[AlignmentSpan]) -> list[TimedPhoneme]:
             chars: list[str] = []
             language = span.language
             family = _language_family(language)
-            while (
-                index < len(spans)
-                and _is_latin_word_token(spans[index].token)
-                and _language_family(spans[index].language) == family
-            ):
-                chars.append(spans[index].token)
+            chars.append(_latin_core(span.token))
+            index += 1
+            while index < len(spans) and _continues_latin_word(spans[index - 1], spans[index]):
+                chars.append(_latin_core(spans[index].token))
                 index += 1
             start = spans[first].start_ms
             end = spans[index - 1].start_ms + spans[index - 1].duration_ms
@@ -615,4 +680,23 @@ def alignment_to_phonemes(spans: Iterable[AlignmentSpan]) -> list[TimedPhoneme]:
                 )
             continue
         index += 1
+    _spanish_approximants(result)
     return result
+
+
+def _spanish_approximants(phones: list[TimedPhoneme]) -> None:
+    """Spanish b/v is a stop only after a pause or m/n; elsewhere ("la vida",
+    "Cuba", "sabe") it is the approximant [β]: the lips come close but do not
+    seal, so it must not show a full press. Runs across word boundaries."""
+
+    for i, phone in enumerate(phones):
+        if phone.symbol != "ES_B" or i == 0:
+            continue
+        previous = phones[i - 1]
+        if _language_family(previous.language) != "es":
+            continue
+        gap = phone.start_ms - (previous.start_ms + previous.duration_ms)
+        if gap <= _WORD_GAP_MS and previous.symbol not in {"ES_M", "ES_N"}:
+            phones[i] = TimedPhoneme(
+                "ES_BH", phone.start_ms, phone.duration_ms, phone.language, phone.confidence, phone.tone
+            )

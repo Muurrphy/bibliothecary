@@ -25,13 +25,8 @@ SHAPES: dict[str, Articulation] = {
     "BREATH_H": Articulation(0.48, 0.52, 0.55, 0.10, 0.00, asymmetry=0.04),
     "SIDE_L": Articulation(0.26, 0.18, 0.68, 0.04, 0.04, asymmetry=-0.34),
     "SIDE_SH": Articulation(0.29, 0.22, 0.48, 0.34, 0.03, asymmetry=0.20),
-    # Spanish's stable five-vowel system benefits from dedicated targets rather
-    # than forcing its vowels through English CMU categories.
-    "ES_OPEN_A": Articulation(0.84, 0.86, 0.46, 0.02, 0.00),
-    "ES_MID_E": Articulation(0.40, 0.34, 0.78, 0.02, 0.00),
-    "ES_WIDE_I": Articulation(0.20, 0.14, 0.94, 0.01, 0.00),
-    "ES_ROUND_O": Articulation(0.48, 0.44, 0.34, 0.84, 0.00, lip_protrusion=0.60),
-    "ES_PUCKER_U": Articulation(0.20, 0.13, 0.18, 0.98, 0.00, lip_protrusion=0.96),
+    # Spanish's five pure vowels, b/v approximant and ch come from the muscle
+    # targets in ``monroe.LANG_TARGETS`` (added by ``_add_language_shapes``).
     "ES_ALVEOLAR": Articulation(0.20, 0.14, 0.66, 0.02, 0.03),
     # Mandarin: the 17 semantic targets of the Lilyput Mandarin v1 spec plus ê,
     # the apical vowels and the two nasal codas. Values are the eight-channel
@@ -63,6 +58,7 @@ SHAPES: dict[str, Articulation] = {
 
 
 MANDARIN_LANDMARKS = {"ZH_BPM", "ZH_F"}
+_ES_NUCLEI = {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"}
 _MANDARIN_INITIAL_TARGETS = {"ZH_BPM", "ZH_F", "ZH_APICAL", "ZH_VELAR", "ZH_PALATAL", "ZH_DENTAL", "ZH_RETROFLEX"}
 
 
@@ -136,12 +132,14 @@ def _targets(phone: str) -> list[str]:
         "ES_O": "ES_ROUND_O",
         "ES_U": "ES_PUCKER_U",
         "ES_W": "ES_PUCKER_U",
+        "ES_J": "ES_WIDE_I",
         "ES_B": "PRESS",
+        "ES_BH": "ES_BH",
         "ES_P": "PRESS",
         "ES_M": "PRESS",
         "ES_F": "FV",
         "ES_TH": "TH",
-        "ES_CH": "EN_SH",
+        "ES_CH": "ES_CH",
         "ES_Y": "ES_WIDE_I",
         "ES_D": "ES_ALVEOLAR",
         "ES_T": "ES_ALVEOLAR",
@@ -233,12 +231,22 @@ def phonemes_to_articulation(
         shape = SHAPES[name]
         next_shape = SHAPES[expanded[index + 1][1]] if index + 1 < len(expanded) else SHAPES["REST"]
         role = _mandarin_role(name) if mandarin else ""
+        spanish = family == "es"
+        es_vowel = spanish and _bare(phoneme.symbol) in _ES_NUCLEI
         if mandarin and role == "initial" and name not in MANDARIN_LANDMARKS:
             # Mandarin CV co-onset: a non-closing initial already takes on part
             # of the following final's rounding or spreading. Rounded finals
             # anticipate most, spread ones less, open /a/ least (20-42%).
             nxt = next_shape
             amount = 0.42 if nxt.lip_round >= 0.80 else (0.30 if nxt.mouth_width >= 0.78 else 0.20)
+            shape = _blend(shape, nxt, amount)
+        elif spanish and not es_vowel and name not in {"PRESS", "FV", "ES_BH"} and _bare(
+            expanded[index + 1][0].symbol if index + 1 < len(expanded) else ""
+        ) in _ES_NUCLEI:
+            # Spanish is CV-timed like Mandarin: a consonant already shows the
+            # rounding or spreading of its vowel (o/u most, i/e less, a least).
+            nxt = next_shape
+            amount = 0.36 if nxt.lip_round >= 0.80 else (0.26 if nxt.mouth_width >= 0.74 else 0.18)
             shape = _blend(shape, nxt, amount)
         elif name not in {"PRESS", "FV", "TH"} | MANDARIN_LANDMARKS:
             shape = _blend(shape, next_shape, 0.20 if mandarin else 0.14)
@@ -252,8 +260,10 @@ def phonemes_to_articulation(
         else:
             stress = int(match.group(1)) if match else -1
             if family == "es":
-                # Spanish vowels are never reduced; the stressed syllable opens most.
-                intensity = 1.0 if stress == 1 else 0.84
+                # Spanish vowels are never reduced; the stressed syllable opens most,
+                # glides (the i/u of "bueno", "hoy") only pass through.
+                bare = _bare(phoneme.symbol)
+                intensity = 1.0 if stress == 1 else (0.76 if bare in {"ES_J", "ES_W"} else 0.84)
             else:
                 intensity = 1.0 if stress == 1 else (0.82 if stress == 2 else 0.70)
         metadata = {"phoneme": phoneme.symbol, "audio_start_ms": round(float(audio_start), 3)}
@@ -263,7 +273,9 @@ def phonemes_to_articulation(
             metadata["syllable_role"] = role
         # A Mandarin final takes over at its acoustic onset; only the initial
         # keeps the visual lead, so b/p/m and f stay readable for a frame.
-        lead = 0.0 if role == "final" else visual_lead_ms
+        # Spanish vowels do the same: the consonant before them leads, the vowel
+        # lands on its sound, so fast syllables do not run ahead of the voice.
+        lead = 0.0 if role == "final" or es_vowel else visual_lead_ms
         events.append(
             ArticulationEvent(
                 session_id=session_id,

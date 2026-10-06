@@ -324,7 +324,7 @@
 
   // ---- timeline: blended muscle poses (screen) and one frame per event (oled) ----------
   const CLOSE = new Set(["PRESS", "FV", "ZH_BPM", "ZH_F"]);
-  const LIP = new Set(["ROUND_OW", "PUCKER_UW", "RHOTIC_ER", "SIDE_SH", "ES_ROUND_O", "ES_PUCKER_U", "ZH_RETROFLEX",
+  const LIP = new Set(["ROUND_OW", "PUCKER_UW", "RHOTIC_ER", "SIDE_SH", "ES_ROUND_O", "ES_PUCKER_U", "ES_BH", "ES_CH", "ZH_RETROFLEX",
     "ZH_IR", "ZH_ER", "ZH_O", "ZH_U", "ZH_V", "ZH_OU", "ZH_AO", "EN_SH", "EN_LAX_U", "EN_OW", "EN_AW"]);
   const TONGUE = new Set(["SOFT", "TH", "SIDE_L", "ES_ALVEOLAR", "ZH_APICAL", "ZH_VELAR", "ZH_N", "ZH_NG", "EN_L"]);
   const SIB = new Set(["ZH_PALATAL", "ZH_DENTAL", "ZH_IZ", "EN_S"]);

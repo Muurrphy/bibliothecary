@@ -88,6 +88,48 @@ and the targets differ where the mouth really differs.
   unstressed vowels keep 84% of the stressed opening, while English unstressed
   vowels keep 70%.
 
+## Word timing and Spanish pass (2026-10-06)
+
+Spanish looked "detached from the voice", and kept moving after a phrase had
+ended. Two causes, both in timing rather than in mouth shapes:
+
+1. **Word-level alignments were glued into one word.** The compiler joined
+   every consecutive Latin-script token into a single word. That is right for
+   character-level aligners (ElevenLabs sends one letter per span), but
+   word-level aligners (edge-tts, Azure, Whisper) send whole words. A whole
+   phrase, pause included, became one "word" whose phones were spread evenly
+   from its first word to its last: the mouth kept talking through the pause
+   and drifted up to a second away from the voice. English was hit too (the
+   glued string is not in CMUdict, so it fell back to spelling). Now only
+   single-character tokens closer than 40 ms are joined; every word token keeps
+   its own timestamp. Edge punctuation (`¿Qué`, `Lilith.`) is stripped.
+2. **Some voices report words early.** `robot_lipsync.calibrate.estimate_offset_ms`
+   compares where the alignment says someone speaks with where the audio is
+   loud. The edge-tts Mandarin and English voices run about 60 ms early, the
+   Spanish ones about 90 ms. The demos keep the 60 ms lead the Mandarin look
+   was tuned with and remove only the extra, so all languages lead the voice by
+   the same amount (Spanish syllables are short, so an extra 30 ms is a lot).
+
+Measured on the demo lines (correlation between mouth opening and loudness,
+higher is better): Spanish 0.37 / 0.40 / 0.15 → 0.63 / 0.47 / 0.64, English
+0.16 / 0.31 / 0.22 → 0.49 / 0.33 / 0.54; Mandarin unchanged at 0.55.
+
+Spanish articulation, in the same pass:
+
+- Vowels land on their sound; only the consonant before them leads (as with
+  Mandarin finals), and a consonant already shows its vowel's rounding or
+  spreading (o/u 36%, i/e 26%, a 18%): Spanish is CV-timed.
+- Own muscle targets for the five pure vowels: central /a/, a true mid /e/,
+  /o/ and /u/ rounded more tightly than English.
+- Syllable-timed allocation: every vowel keeps a full slot, the stressed one is
+  about a quarter longer and opens widest; unaccented function words (`la`,
+  `de`, `mi`, `que`, `un`…) carry no stress.
+- Unstressed `i/u` next to a vowel is a glide (`bueno`, `quieres`, `hoy`), a
+  quick pass rather than a syllable; accented `í/ú` stays a vowel (`día`).
+- `b/v` is a full closure only after a pause or `m/n`; between sounds it is the
+  approximant [β] (`la vida`, `Cuba`): lips nearly meet without sealing.
+- Spanish `ch` rounds less than English `ch/sh`.
+
 ## Spanish (`es`, `es-419`, or `es-ES`)
 
 Spanish support has no runtime dependency:
@@ -100,7 +142,8 @@ robot-lipsync demo --text "Hola, mundo." --language es \
 The deterministic orthographic front end covers the productive rules needed by
 the lip planner, including `ch`, `ll`, `rr`, `ñ`, silent `h`, soft `c/g`,
 `que/qui`, `gue/gui`, `güe/güi`, and final `y`. Spanish `b` and `v` both map to
-the bilabial target rather than incorrectly using the English labiodental `/v/`.
+the bilabial target rather than incorrectly using the English labiodental `/v/`
+(a full closure after a pause or `m/n`, the approximant [β] elsewhere).
 The five stable vowel targets `/a e i o u/` are distinct from the English CMU
 vowel inventory, and adjacent vowels naturally create visible diphthong paths.
 

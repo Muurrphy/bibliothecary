@@ -337,6 +337,18 @@ LANG_TARGETS = {
         MusclePose("EN_L", jaw_open=0.26, lip_separation=0.34, mouth_width=0.58, upper_lip_raise=0.08),
         MusclePose("EN_S", jaw_open=0.12, lip_separation=0.20, mouth_width=0.74, upper_lip_raise=0.10, corner_raise=0.10),
         MusclePose("EN_SH", jaw_open=0.22, lip_separation=0.30, mouth_width=0.38, lip_round=0.56, lip_protrusion=0.72, upper_lip_raise=0.24),
+        # Spanish: five pure, tense vowels (no diphthongisation, no reduction).
+        # /a/ is central (narrower than English "ah"), /e/ a true mid vowel
+        # between e and ê, /o/ and /u/ rounded more tightly than English.
+        MusclePose("ES_OPEN_A", jaw_open=0.72, lip_separation=0.80, mouth_width=0.55, upper_lip_raise=0.30, lower_lip_depress=0.64),
+        MusclePose("ES_MID_E", jaw_open=0.40, lip_separation=0.49, mouth_width=0.78, upper_lip_raise=0.18, lower_lip_depress=0.14, corner_raise=0.08),
+        MusclePose("ES_WIDE_I", jaw_open=0.22, lip_separation=0.30, mouth_width=0.90, upper_lip_raise=0.12, corner_raise=0.18),
+        MusclePose("ES_ROUND_O", jaw_open=0.50, lip_separation=0.58, mouth_width=0.32, lip_round=0.92, lip_protrusion=0.62, upper_lip_raise=0.16, lower_lip_depress=0.36),
+        MusclePose("ES_PUCKER_U", jaw_open=0.24, lip_separation=0.34, mouth_width=0.18, lip_round=1.00, lip_protrusion=1.00, upper_lip_raise=0.18),
+        # b/v between sounds is [β]: lips nearly meet, no seal, no squeeze.
+        MusclePose("ES_BH", jaw_open=0.06, lip_separation=0.06, mouth_width=0.48, lip_round=0.12, lip_protrusion=0.08, lip_press=0.25),
+        # Spanish ch rounds less than English ch/sh.
+        MusclePose("ES_CH", jaw_open=0.20, lip_separation=0.28, mouth_width=0.44, lip_round=0.40, lip_protrusion=0.50, upper_lip_raise=0.20),
     )
 }
 
@@ -352,8 +364,7 @@ VISEME_TARGETS = {
     "WIDE_I": "WIDE_I", "MID_E": "MID_E", "OPEN_AE": "OPEN_AE", "OPEN_AH": "OPEN_AH", "DEEP_AA": "DEEP_AA",
     "ROUND_AO": "ROUND_AO", "ROUND_OW": "ROUND_OW", "PUCKER_UW": "PUCKER_UW", "RHOTIC_ER": "RHOTIC_ER",
     "BREATH_H": "BREATH_H", "SIDE_L": "SIDE_L", "SIDE_SH": "SIDE_SH",
-    "ES_OPEN_A": "OPEN_AH", "ES_MID_E": "MID_E", "ES_WIDE_I": "WIDE_I", "ES_ROUND_O": "ROUND_OW",
-    "ES_PUCKER_U": "PUCKER_UW", "ES_ALVEOLAR": "SOFT",
+    "ES_ALVEOLAR": "SOFT",
     **{name: name for name in ZH_TARGETS},
     **{name: name for name in LANG_TARGETS},
     **{name: start for name, (start, _) in EN_GLIDES.items()},
@@ -428,6 +439,23 @@ def oled_frame(viseme: str, articulation=None, *, intensity: float = 1.0, durati
             "EN_SH": "SIDE_SH", "EN_OY": "ROUND_AO", "EN_OW": "ROUND_OW", "EN_EY": "MID_E"}
     if viseme in lang:
         return _frame(lang[viseme])
+    es = {
+        # stressed /a/ reaches the big frame, unstressed stays at "ae"
+        "ES_OPEN_A": "OPEN_AH" if i >= 0.95 else "OPEN_AE",
+        "ES_MID_E": "MID_E",
+        "ES_WIDE_I": "WIDE_I" if i >= 0.95 and d >= 85 else "MID_E",
+        "ES_ROUND_O": "ROUND_AO" if i >= 0.95 and d >= 140 else "ROUND_OW",
+        "ES_PUCKER_U": "PUCKER_UW" if i >= 0.82 and d >= 80 else "ROUND_OW",
+        "ES_BH": "SOFT",
+        "ES_CH": "SIDE_SH",
+    }
+    if viseme in es:
+        return _frame(es[viseme])
+    if viseme == "ES_ALVEOLAR" and articulation is not None:
+        # tongue-only consonants show the lip preparation of their vowel
+        r = getattr(articulation, "lip_round", 0.0)
+        w = getattr(articulation, "mouth_width", 0.5)
+        return _frame("ROUND_OW" if r >= 0.30 else "MID_E" if w >= 0.70 else "SOFT")
     if viseme in {"EN_AY", "EN_AW"}:
         return _frame("OPEN_AH" if i >= 0.78 else "OPEN_AE")
     zh = {

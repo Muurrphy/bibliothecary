@@ -23,3 +23,11 @@
 - Merged the Lilyput Mandarin v1 rules (17 semantic targets, CV co-onset,
   initial lead, OLED de-flicker) with surface finals (ê, nasal codas, glide
   timing), pouting rounded initials and JALI-style jaw/lip separation.
+- Fixed word-level alignments (edge-tts, Azure, Whisper) being glued into one
+  phrase-long word: each word now keeps its own timestamp, so pauses stay
+  silent and Spanish/English no longer drift away from the voice.
+- Added `robot_lipsync.calibrate` to measure a TTS voice's timestamp offset
+  against its audio.
+- Spanish pass: vowels land on their sound, CV anticipation, pure-vowel muscle
+  targets, syllable-timed allocation, unstressed function words, glides, the
+  [β] approximant and a lighter `ch`.
