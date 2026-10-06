@@ -51,14 +51,25 @@ def test_bilabial_closure_is_not_blended_away():
     assert events[1].articulation.jaw_open > 0.7
 
 
-def test_short_diphthong_keeps_readable_endpoint():
-    events = phonemes_to_articulation("turn", [TimedPhoneme("OW1", 0, 120, "en")])
-    assert [event.viseme for event in events] == ["ROUND_OW"]
+def test_diphthong_is_one_moving_target():
+    from robot_lipsync import monroe
+
+    for duration in (120, 240):
+        events = phonemes_to_articulation("turn", [TimedPhoneme("OW1", 0, duration, "en")])
+        assert [event.viseme for event in events] == ["EN_OW"]
+    assert monroe.EN_GLIDES["EN_OW"] == ("ROUND_AO", "ROUND_OW")
+    # on the OLED a short diphthong shows its readable endpoint
+    assert monroe.FRAME_NAMES[events[0].metadata["oled_frame"]] == "V2_ROUND_OW"
 
 
-def test_long_diphthong_preserves_motion_path():
-    events = phonemes_to_articulation("turn", [TimedPhoneme("OW1", 0, 240, "en")])
-    assert [event.viseme for event in events] == ["ROUND_AO", "ROUND_OW"]
+def test_english_reduced_vowels_and_spanish_stress():
+    from robot_lipsync.phonemes import spanish_phones
+
+    events = phonemes_to_articulation("a", [TimedPhoneme("AH0", 0, 90, "en"), TimedPhoneme("AH1", 90, 150, "en")])
+    assert events[0].viseme == "EN_SCHWA" and events[1].viseme == "OPEN_AH"
+    assert events[0].articulation.jaw_open < events[1].articulation.jaw_open
+    assert spanish_phones("hola") == ("ES_O1", "ES_L", "ES_A")
+    assert spanish_phones("cenar")[3] == "ES_A1"
 
 
 def test_elevenlabs_seconds_alignment_is_scaled():

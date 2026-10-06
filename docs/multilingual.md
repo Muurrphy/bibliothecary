@@ -69,6 +69,25 @@ If `pypinyin` is absent, Han text remains renderable with a low-confidence
 neutral Mandarin vowel target (`confidence=0.25`). This is an explicit fallback,
 not full Mandarin support.
 
+## English and Spanish refinements (2026-10-06)
+
+Built on what made Mandarin read well: every syllable reaches its own target,
+and the targets differ where the mouth really differs.
+
+- English reduced vowels (`AH0`, `ER0`) use a small neutral schwa instead of
+  the open /ʌ/; lax `IH` and `UH` sit between their tense neighbours and the
+  neutral mouth.
+- English diphthongs (`AY AW OY EY OW`) are one moving target each, like
+  Mandarin `ai/ao`: the tablet shows the whole path even for a short "I" or
+  "go", and the OLED shows a readable endpoint.
+- `S Z` close the teeth and spread; `SH ZH CH JH` (and Spanish `ch`) pout
+  forward; `L` is tongue-only and no longer shifts the lips sideways.
+- Spanish gets default lexical stress (penultimate syllable for words ending
+  in a vowel, `n` or `s`, otherwise the last; written accents win; weak `i/u`
+  in a diphthong yield to the strong vowel). Spanish vowels are never reduced:
+  unstressed vowels keep 84% of the stressed opening, while English unstressed
+  vowels keep 70%.
+
 ## Spanish (`es`, `es-419`, or `es-ES`)
 
 Spanish support has no runtime dependency:

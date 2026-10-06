@@ -90,6 +90,8 @@ static inline int monroeNearestFrame(const float m[MONROE_CHANNELS]) {{
         "targets": muscles(monroe.TARGETS),
         "zhTargets": muscles(monroe.ZH_TARGETS),
         "zhGlides": monroe.ZH_GLIDES,
+        "langTargets": muscles(monroe.LANG_TARGETS),
+        "glides": monroe.GLIDES,
         "visemeTargets": monroe.VISEME_TARGETS,
         "frameNames": list(monroe.FRAME_NAMES),
         "frameWeights": monroe._FRAME_WEIGHTS,

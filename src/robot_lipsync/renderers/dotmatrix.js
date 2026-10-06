@@ -24,8 +24,8 @@
     lip_protrusion: 0, lower_lip_tuck: 0, asymmetry: 0};
   const KEYS = Object.keys(REST);
   const PALETTES = {
-    red:  {glow: "255,18,58",  core: "255,140,165", off: "255,18,58"},
-    blue: {glow: "30,76,255",  core: "140,175,255", off: "30,76,255"},     // electric blue
+    red:  {glow: "255,40,108", core: "255,196,222", off: "255,40,108"},    // Y2K lipstick rose, toned down
+    blue: {glow: "56,152,255", core: "205,232,255", off: "56,152,255"},    // Aqua (Mac OS X, 2000)
   };
   const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
   const av = (a, k) => (a && a[k] != null ? a[k] : REST[k]);
@@ -52,9 +52,10 @@
       lower_lip_depress: clamp((jaw - 0.35) * 1.55), lip_press: press, lower_lip_tuck: tuck,
       corner_raise: clamp((width - 0.70) * 0.75, 0, 0.30), asymmetry: av(a, "asymmetry")});
   }
+  function lookup(name) { return MODEL.targets[name] || MODEL.zhTargets[name] || (MODEL.langTargets || {})[name]; }
   function targetFor(viseme) {
     const name = MODEL.visemeTargets[viseme];
-    return name ? (MODEL.targets[name] || MODEL.zhTargets[name]) : null;
+    return name ? lookup(name) : null;
   }
   function nearestFrame(m) {
     let best = 0, bestD = Infinity;
@@ -261,7 +262,7 @@
   }
   function draw(ctx, x0, y0, width, state, opts) {
     opts = opts || {};
-    const pal = PALETTES[opts.palette] || PALETTES.red;
+    const pal = (opts.palette && typeof opts.palette === "object") ? opts.palette : (PALETTES[opts.palette] || PALETTES.red);
     const st = resolve(state);
     const prof = opts.profile === "oled" ? "oled" : "screen";
     const grid = prof === "oled" ? oledDots(st.frame) : screenDots(st.muscle);
@@ -271,7 +272,7 @@
     const size = prof === "oled" ? u * 0.9 : u * grid.pitch * 0.74;
     const flick = 0.94 + 0.06 * Math.sin((opts.t || 0) / 41);
     const off = prof === "oled" ? (x) => x * u : (x) => x * u;
-    const base = layer("base:" + prof + pal.off, W, H);
+    const base = layer("base:" + prof + pal.off + "|" + W, W, H);
     if (base._fresh) {
       const b = base.getContext("2d");
       b.fillStyle = `rgba(${pal.off},.07)`;
@@ -324,9 +325,9 @@
   // ---- timeline: blended muscle poses (screen) and one frame per event (oled) ----------
   const CLOSE = new Set(["PRESS", "FV", "ZH_BPM", "ZH_F"]);
   const LIP = new Set(["ROUND_OW", "PUCKER_UW", "RHOTIC_ER", "SIDE_SH", "ES_ROUND_O", "ES_PUCKER_U", "ZH_RETROFLEX",
-    "ZH_IR", "ZH_ER", "ZH_O", "ZH_U", "ZH_V", "ZH_OU", "ZH_AO"]);
-  const TONGUE = new Set(["SOFT", "TH", "SIDE_L", "ES_ALVEOLAR", "ZH_APICAL", "ZH_VELAR", "ZH_N", "ZH_NG"]);
-  const SIB = new Set(["ZH_PALATAL", "ZH_DENTAL", "ZH_IZ"]);
+    "ZH_IR", "ZH_ER", "ZH_O", "ZH_U", "ZH_V", "ZH_OU", "ZH_AO", "EN_SH", "EN_LAX_U", "EN_OW", "EN_AW"]);
+  const TONGUE = new Set(["SOFT", "TH", "SIDE_L", "ES_ALVEOLAR", "ZH_APICAL", "ZH_VELAR", "ZH_N", "ZH_NG", "EN_L"]);
+  const SIB = new Set(["ZH_PALATAL", "ZH_DENTAL", "ZH_IZ", "EN_S"]);
   const JAW = new Set(["jaw_open", "lip_separation", "lower_lip_depress"]);
   // [lip strength, jaw strength]: JALI (Edwards et al. 2016) — tongue-only consonants move
   // the jaw but leave the lip shape to the neighbouring vowels; rounded sounds lead early.
@@ -337,7 +338,7 @@
 
   function track(events) {
     const keys = events.map(e => {
-      const glide = MODEL.zhGlides[e.viseme];
+      const glide = (MODEL.glides || MODEL.zhGlides)[e.viseme];
       const target = targetFor(e.viseme) || muscleFromArticulation(e.articulation);
       const k = cls(e.viseme);
       const fixed = e.metadata && Number.isInteger(e.metadata.oled_frame) ? e.metadata.oled_frame : null;
@@ -346,7 +347,7 @@
       const t2 = Object.assign({}, target);
       for (const c of ["jaw_open", "lip_separation", "lower_lip_depress"]) t2[c] = clamp(target[c] * g);
       return {s: e.start_ms, e: e.start_ms + e.duration_ms, d: e.duration_ms, v: e.viseme, target: t2, k,
-        glide: glide ? [MODEL.zhTargets[glide[0]], MODEL.zhTargets[glide[1]]] : null,
+        glide: glide ? [lookup(glide[0]), lookup(glide[1])] : null,
         lead: (k === "close" || k === "lip") ? 105 : 75, trail: k === "close" ? 60 : 85,
         frame: fixed != null ? fixed : nearestFrame(muscleFromArticulation(e.articulation))};
     });

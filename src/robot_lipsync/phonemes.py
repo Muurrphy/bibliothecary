@@ -326,6 +326,22 @@ def spanish_phones(word: str, language: str = "es") -> tuple[str, ...]:
             if symbol:
                 result.append(symbol)
         index += 1
+    if not explicit_stress:
+        # Default Spanish stress: the penultimate syllable when the word ends in a
+        # vowel, n or s, otherwise the last one. Diphthongs (weak i/u next to a
+        # vowel) count as one syllable, so stress the strong vowel.
+        vowel_idx = [i for i, p in enumerate(result) if p in {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"}]
+        nuclei = []
+        for i in vowel_idx:
+            if nuclei and nuclei[-1][-1] == i - 1 and (result[i] in {"ES_I", "ES_U"} or result[nuclei[-1][-1]] in {"ES_I", "ES_U"}):
+                nuclei[-1].append(i)
+            else:
+                nuclei.append([i])
+        if nuclei:
+            last = normalized[-1:] if normalized else ""
+            target = nuclei[-2] if len(nuclei) > 1 and last in set("aeiouns") else nuclei[-1]
+            strong = [i for i in target if result[i] not in {"ES_I", "ES_U"}] or target
+            result[strong[0]] = result[strong[0]] + "1"
     return tuple(result or ["ES_E"])
 
 

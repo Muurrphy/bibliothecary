@@ -70,6 +70,23 @@ def _mandarin_role(name: str) -> str:
     return "initial" if name in _MANDARIN_INITIAL_TARGETS else "final"
 
 
+def _from_muscle(m) -> Articulation:
+    return Articulation(m.jaw_open, m.lip_separation, m.mouth_width, m.lip_round, m.lip_press,
+                        lip_protrusion=m.lip_protrusion, lower_lip_tuck=m.lower_lip_tuck, asymmetry=m.asymmetry)
+
+
+def _add_language_shapes() -> None:
+    from . import monroe
+
+    for name, muscle in monroe.LANG_TARGETS.items():
+        SHAPES[name] = _from_muscle(muscle)
+    for name, (start, _end) in monroe.EN_GLIDES.items():
+        SHAPES[name] = _from_muscle(monroe.TARGETS[start])
+
+
+_add_language_shapes()
+
+
 def _bare(phone: str) -> str:
     return re.sub(r"[012]$", "", phone.upper())
 
@@ -124,7 +141,7 @@ def _targets(phone: str) -> list[str]:
         "ES_M": "PRESS",
         "ES_F": "FV",
         "ES_TH": "TH",
-        "ES_CH": "SIDE_SH",
+        "ES_CH": "EN_SH",
         "ES_Y": "ES_WIDE_I",
         "ES_D": "ES_ALVEOLAR",
         "ES_T": "ES_ALVEOLAR",
@@ -133,7 +150,7 @@ def _targets(phone: str) -> list[str]:
         "ES_L": "ES_ALVEOLAR",
         "ES_R": "ES_ALVEOLAR",
         "ES_RR": "ES_ALVEOLAR",
-        "ES_S": "ES_ALVEOLAR",
+        "ES_S": "EN_S",
         "ES_K": "SOFT",
         "ES_G": "SOFT",
         "ES_X": "SOFT",
@@ -146,15 +163,16 @@ def _targets(phone: str) -> list[str]:
         return [multilingual[symbol]]
     if symbol.startswith("ZH_") and symbol in SHAPES:
         return [symbol]
-    diphthongs = {
-        "AY": ["OPEN_AH", "WIDE_I"],
-        "AW": ["OPEN_AH", "ROUND_OW"],
-        "OY": ["ROUND_AO", "WIDE_I"],
-        "EY": ["MID_E", "WIDE_I"],
-        "OW": ["ROUND_AO", "ROUND_OW"],
-    }
+    # English diphthongs are one moving target each (like Mandarin ai/ao), so a
+    # short "I" or "go" still shows its whole path instead of only its end.
+    diphthongs = {"AY": "EN_AY", "AW": "EN_AW", "OY": "EN_OY", "EY": "EN_EY", "OW": "EN_OW"}
     if symbol in diphthongs:
-        return diphthongs[symbol]
+        return [diphthongs[symbol]]
+    stress = re.search(r"([012])$", phone)
+    if symbol == "AH" and stress and stress.group(1) == "0":
+        return ["EN_SCHWA"]                         # reduced vowel: small, neutral
+    if symbol == "ER" and stress and stress.group(1) == "0":
+        return ["EN_SCHWA"]
     return [
         {
             "M": "PRESS",
@@ -166,24 +184,24 @@ def _targets(phone: str) -> list[str]:
             "DH": "TH",
             "W": "PUCKER_UW",
             "UW": "PUCKER_UW",
-            "UH": "PUCKER_UW",
+            "UH": "EN_LAX_U",
             "R": "RHOTIC_ER",
             "ER": "RHOTIC_ER",
             "Y": "WIDE_I",
             "IY": "WIDE_I",
-            "IH": "WIDE_I",
+            "IH": "EN_LAX_I",
             "EH": "MID_E",
             "AE": "OPEN_AE",
             "AH": "OPEN_AH",
             "AA": "DEEP_AA",
             "AO": "ROUND_AO",
-            "L": "SIDE_L",
-            "S": "SIDE_L",
-            "Z": "SIDE_L",
-            "SH": "SIDE_SH",
-            "ZH": "SIDE_SH",
-            "CH": "SIDE_SH",
-            "JH": "SIDE_SH",
+            "L": "EN_L",
+            "S": "EN_S",
+            "Z": "EN_S",
+            "SH": "EN_SH",
+            "ZH": "EN_SH",
+            "CH": "EN_SH",
+            "JH": "EN_SH",
             "H": "BREATH_H",
             "SYLLABLE": "SOFT",
         }.get(symbol, "SOFT")
@@ -233,7 +251,11 @@ def phonemes_to_articulation(
                 intensity = min(intensity, 0.80)
         else:
             stress = int(match.group(1)) if match else -1
-            intensity = 1.0 if stress == 1 else (0.82 if stress == 2 else 0.70)
+            if family == "es":
+                # Spanish vowels are never reduced; the stressed syllable opens most.
+                intensity = 1.0 if stress == 1 else 0.84
+            else:
+                intensity = 1.0 if stress == 1 else (0.82 if stress == 2 else 0.70)
         metadata = {"phoneme": phoneme.symbol, "audio_start_ms": round(float(audio_start), 3)}
         if phoneme.tone is not None:
             metadata["tone"] = phoneme.tone

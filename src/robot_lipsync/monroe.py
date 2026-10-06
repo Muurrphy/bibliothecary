@@ -325,8 +325,26 @@ ZH_TARGETS = {
     )
 }
 
-# Dynamic Mandarin primitives: one event, a target that moves (start -> end).
+# English and Spanish refinements (same approach as Mandarin): reduced vowels
+# stay small, lax vowels sit between their neighbours, sibilants close the teeth
+# and spread, postalveolars pout, and /l/ is tongue-only (no sideways lip shift).
+LANG_TARGETS = {
+    p.key: constrain(p)
+    for p in (
+        MusclePose("EN_SCHWA", jaw_open=0.24, lip_separation=0.32, mouth_width=0.54, upper_lip_raise=0.08, lower_lip_depress=0.06),
+        MusclePose("EN_LAX_I", jaw_open=0.26, lip_separation=0.34, mouth_width=0.80, upper_lip_raise=0.12, corner_raise=0.10),
+        MusclePose("EN_LAX_U", jaw_open=0.30, lip_separation=0.38, mouth_width=0.36, lip_round=0.62, lip_protrusion=0.45, upper_lip_raise=0.12),
+        MusclePose("EN_L", jaw_open=0.26, lip_separation=0.34, mouth_width=0.58, upper_lip_raise=0.08),
+        MusclePose("EN_S", jaw_open=0.12, lip_separation=0.20, mouth_width=0.74, upper_lip_raise=0.10, corner_raise=0.10),
+        MusclePose("EN_SH", jaw_open=0.22, lip_separation=0.30, mouth_width=0.38, lip_round=0.56, lip_protrusion=0.72, upper_lip_raise=0.24),
+    )
+}
+
+# Dynamic primitives: one event whose target moves from start to end.
 ZH_GLIDES = {"ZH_AI": ("ZH_A", "ZH_I"), "ZH_AO": ("ZH_A", "ZH_O"), "ZH_EI": ("ZH_EH", "ZH_I"), "ZH_OU": ("ZH_O", "ZH_U")}
+EN_GLIDES = {"EN_AY": ("OPEN_AH", "WIDE_I"), "EN_AW": ("OPEN_AH", "ROUND_OW"), "EN_OY": ("ROUND_AO", "WIDE_I"),
+             "EN_EY": ("MID_E", "WIDE_I"), "EN_OW": ("ROUND_AO", "ROUND_OW")}
+GLIDES = {**ZH_GLIDES, **EN_GLIDES}
 
 # Planner viseme -> muscle target name.
 VISEME_TARGETS = {
@@ -337,6 +355,8 @@ VISEME_TARGETS = {
     "ES_OPEN_A": "OPEN_AH", "ES_MID_E": "MID_E", "ES_WIDE_I": "WIDE_I", "ES_ROUND_O": "ROUND_OW",
     "ES_PUCKER_U": "PUCKER_UW", "ES_ALVEOLAR": "SOFT",
     **{name: name for name in ZH_TARGETS},
+    **{name: name for name in LANG_TARGETS},
+    **{name: start for name, (start, _) in EN_GLIDES.items()},
 }
 
 
@@ -344,7 +364,7 @@ def target_for(viseme: str) -> MusclePose | None:
     name = VISEME_TARGETS.get(viseme)
     if name is None:
         return None
-    return TARGETS.get(name) or ZH_TARGETS.get(name)
+    return TARGETS.get(name) or ZH_TARGETS.get(name) or LANG_TARGETS.get(name)
 
 
 def muscle_from_articulation(a) -> MusclePose:
@@ -404,6 +424,12 @@ def oled_frame(viseme: str, articulation=None, *, intensity: float = 1.0, durati
     follows the Mandarin v1 table, extended with ê, apical vowels and codas.
     Unknown visemes fall back to the nearest frame by muscle channels."""
     i, d = intensity, duration_ms
+    lang = {"EN_SCHWA": "SOFT", "EN_LAX_I": "MID_E", "EN_LAX_U": "ROUND_OW", "EN_L": "SOFT", "EN_S": "WIDE_I",
+            "EN_SH": "SIDE_SH", "EN_OY": "ROUND_AO", "EN_OW": "ROUND_OW", "EN_EY": "MID_E"}
+    if viseme in lang:
+        return _frame(lang[viseme])
+    if viseme in {"EN_AY", "EN_AW"}:
+        return _frame("OPEN_AH" if i >= 0.78 else "OPEN_AE")
     zh = {
         "ZH_BPM": "PRESS_MBP", "ZH_F": "FV_TUCK", "ZH_DENTAL": "WIDE_I", "ZH_IZ": "WIDE_I",
         "ZH_RETROFLEX": "RHOTIC_ER", "ZH_IR": "RHOTIC_ER", "ZH_ER": "RHOTIC_ER", "ZH_E": "MID_E",
@@ -483,6 +509,6 @@ def muscle_dict(pose: MusclePose) -> dict:
 
 __all__ = [
     "BASE_POSES", "CHANNELS", "FRAME_NAMES", "MusclePose", "POSES", "Pose", "TARGETS", "VISEME_TARGETS",
-    "ZH_GLIDES", "ZH_TARGETS", "blend_muscles", "constrain", "layer_offsets", "legacy_pose", "lip_contours",
+    "EN_GLIDES", "GLIDES", "LANG_TARGETS", "ZH_GLIDES", "ZH_TARGETS", "blend_muscles", "constrain", "layer_offsets", "legacy_pose", "lip_contours",
     "annotate_oled_frames", "muscle_from_articulation", "nearest_frame", "oled_frame", "target_for",
 ]

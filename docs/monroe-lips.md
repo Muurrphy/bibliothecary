@@ -67,3 +67,9 @@ pytest
 The OLED frames and the English readable profile were judged on the physical
 chest board. The Mandarin rules and the `screen` profile are software-tested
 only.
+
+## Colours
+
+Red is a toned-down Y2K lipstick rose (`255,40,108`); blue is the Aqua blue of
+Mac OS X around 2000 (`56,152,255`). Pure saturated red and blue were dropped
+because, glowing on black, they vibrated and were tiring to watch.
