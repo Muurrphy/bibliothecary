@@ -24,7 +24,7 @@ package; the earlier generic dot-matrix geometry was removed.
 | Profile | Where | What it draws |
 |---|---|---|
 | `oled` | 128×64 one-bit OLED (firmware, preview) | The 44 designed frames: Monroe v1 (0–26) and the muscle-channel targets (27–43). Clean 2×2 cells with 1 px gutters, one frame per event. |
-| `screen` | tablets, monitors | The same landmark contours rebuilt every frame at twice the resolution from blended muscle poses, drawn as a flat, saturated LED fill like the OLED: a quiet lip line, a dimmer parting and one small gloss mark. The Cupid's bow and tubercle are relaxed 60% toward the gentler tension outline so the peaks read soft on a large screen. |
+| `screen` | tablets, monitors | The same landmark contours rebuilt every frame on a 64x32 LED grid from blended muscle poses, drawn as a flat, saturated LED fill like the OLED: a quiet lip line, a dimmer parting and one small gloss mark. The Cupid's bow and tubercle are relaxed 60% toward the gentler tension outline. Gestures are bigger than on the OLED (wider jaw drop, narrower rounding, harder press, a squeezed kiss for u/ü/o), stronger syllables open further, and a mouth that would leave the panel is scaled to fit. |
 
 ## Files
 
@@ -54,8 +54,9 @@ pytest
   accents reach the extreme frames) and drops ordinary changes closer than
   70 ms. Mandarin drops them under 55 ms. Closures, f/v, th, deep /a/ and the
   tight pucker always show.
-- Screen: neighbouring muscle targets blend through smooth lead and release
-  windows (105 ms lead for closures and rounded sounds, 75 ms otherwise). Jaw
+- Screen: every target peaks at the middle of its event with a flat-topped
+  dominance window and hands over quickly to the next, so each syllable reaches
+  its own shape instead of averaging with its neighbours. Jaw
   channels and lip channels blend separately so tongue-only consonants move the
   jaw without reshaping the lips. During b/p/m and f the pose is locked 85% to
   the closure. Mandarin `ai/ao/ei/ou` move from start to end target inside one

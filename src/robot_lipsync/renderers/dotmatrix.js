@@ -68,14 +68,27 @@
   }
   const REST_FRAME = MODEL.v2First;
 
-  function legacyPose(m) {
-    return {
+  function legacyPose(m, big) {
+    if (!big) return {
       openness: clamp(0.98 * m.jaw_open + 0.54 * m.lip_separation, 0, 1.76),
       width: clamp(0.74 + 0.48 * m.mouth_width - 0.10 * m.lip_round - 0.10 * m.lip_protrusion - 0.08 * m.jaw_open, 0.58, 1.18),
       pucker: clamp(0.88 * m.lip_round + 0.58 * m.lip_protrusion, 0, 1.40),
       smile: 0.88 * m.corner_raise, tilt: 2.6 * m.asymmetry, shift: 2.0 * m.asymmetry,
       upperBias: 1.1 * m.upper_lip_raise - 0.25 * m.lip_press,
       lowerBias: 1.2 * m.lower_lip_depress - 0.45 * m.lower_lip_tuck,
+    };
+    // Tablet: a bigger screen needs bigger gestures. The same muscle pose opens
+    // further, rounds narrower and presses harder than on the OLED, and a pucker
+    // squeezes the lips together into a fuller, taller kiss.
+    const pk = clamp(0.88 * m.lip_round + 0.58 * m.lip_protrusion, 0, 1.40);
+    const kiss = clamp((pk - 0.6) / 0.8);
+    return {
+      openness: clamp(1.10 * m.jaw_open + 0.62 * m.lip_separation, 0, 1.80) * (1 - 0.6 * kiss),
+      width: clamp(0.70 + 0.56 * m.mouth_width - 0.16 * m.lip_round - 0.16 * m.lip_protrusion - 0.10 * m.jaw_open, 0.46, 1.20),
+      pucker: clamp(pk * 1.1, 0, 1.55),
+      smile: 1.05 * m.corner_raise, tilt: 2.6 * m.asymmetry, shift: 2.0 * m.asymmetry,
+      upperBias: 1.4 * m.upper_lip_raise - 2.2 * m.lip_press + 3.2 * kiss,
+      lowerBias: 1.5 * m.lower_lip_depress - 0.6 * m.lower_lip_tuck - 2.6 * m.lip_press + 3.0 * kiss,
     };
   }
 
@@ -145,21 +158,26 @@
   }
 
   // ---- "screen": continuous Monroe geometry at 2x, flat pixel-art tones ----------------
-  const S = 2, GW = 128 * S, GH = 64 * S, PITCH = 3, FIT = 0.86;
+  const S = 2, GW = 128 * S, GH = 64 * S, PITCH = 4, FIT = 0.84;   // 64x32 LEDs
   function screenDots(m) {
-    const P = legacyPose(m);
+    const P = legacyPose(m, true);
     const connected = P.width > 1.02 || Math.abs(P.tilt) > 0.3;
     const [uo, ui, li, lo] = contours(P, connected, 0.6);
-    const up = Math.round((-2.4 * m.upper_lip_raise + 1.8 * m.lip_press) * S);
-    const down = Math.round((2.4 * m.lower_lip_depress + 1.6 * m.jaw_open - 2.4 * m.lip_press) * S);
+    const up = Math.round((-3.0 * m.upper_lip_raise + 2.4 * m.lip_press) * S);
+    const down = Math.round((3.0 * m.lower_lip_depress + 2.2 * m.jaw_open - 3.0 * m.lip_press) * S);
     const cv = layer("geom", GW, GH), g = cv.getContext("2d", {willReadFrequently: true});
     g.clearRect(0, 0, GW, GH);
+    // fit: scale down only when a wide-open mouth would leave the panel, and centre it
+    let y0 = Infinity, y1 = -Infinity;
+    for (const pt of uo) y0 = Math.min(y0, pt[1] + up / S);
+    for (const pt of lo) y1 = Math.max(y1, pt[1] + down / S);
+    const fit = Math.min(FIT, 64 / Math.max(1, y1 - y0)), mid = (y0 + y1) / 2;
     const poly = (pts, rev, dy, color) => {
       g.fillStyle = color; g.beginPath();
       const all = pts.concat(rev.slice().reverse());
       // a touch smaller than the OLED crop, so strong vowels fit the tablet panel
       all.forEach(([x, y], i) => {
-        const px = ((x - 64) * FIT + 64) * S, py = ((y - 30) * FIT + 30) * S + dy * FIT;
+        const px = ((x - 64) * fit + 64) * S, py = ((y + dy / S - mid) * fit + 32) * S;
         if (i) g.lineTo(px, py); else g.moveTo(px, py);
       });
       g.closePath(); g.fill();
@@ -173,7 +191,7 @@
     const region = (x, y) => {            // 1 upper, 2 lower, 0 none
       if (x < 0 || x >= GW) return 0;
       const center = Math.max(0, 1 - Math.abs(x - CX * S) / (42 * S));
-      const yl = Math.round(y + 3.2 * S * FIT * tuck * center);   // F/V: the lower lip lifts and tucks
+      const yl = Math.round(y + 3.2 * S * fit * tuck * center);   // F/V: the lower lip lifts and tucks
       if (yl >= 0 && yl < GH && img[(yl * GW + x) * 4 + 1] > 127) return 2;
       if (y >= 0 && y < GH && img[(y * GW + x) * 4] > 127) return 1;
       return 0;
@@ -191,7 +209,7 @@
       for (let r = 0; r < rows; r++) if (cell[r][c] === k) { if (top < 0) top = r; bot = r; }
       return [top, bot];
     }));
-    const halfPx = HALF * P.width * S * FIT, cxPx = ((CX + P.shift - 64) * FIT + 64) * S;
+    const halfPx = HALF * P.width * S * fit, cxPx = ((CX + P.shift - 64) * fit + 64) * S;
     const dots = [];
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       const x = c * PITCH, y = r * PITCH + 1, k = cell[r][c];
@@ -323,29 +341,43 @@
       const target = targetFor(e.viseme) || muscleFromArticulation(e.articulation);
       const k = cls(e.viseme);
       const fixed = e.metadata && Number.isInteger(e.metadata.oled_frame) ? e.metadata.oled_frame : null;
-      return {s: e.start_ms, e: e.start_ms + e.duration_ms, d: e.duration_ms, v: e.viseme, target, k,
+      // stronger, longer syllables open further than weak ones (per-character variety)
+      const g = clamp(0.80 + 1.5 * ((e.intensity == null ? 0.84 : e.intensity) - 0.70), 0.80, 1.25);
+      const t2 = Object.assign({}, target);
+      for (const c of ["jaw_open", "lip_separation", "lower_lip_depress"]) t2[c] = clamp(target[c] * g);
+      return {s: e.start_ms, e: e.start_ms + e.duration_ms, d: e.duration_ms, v: e.viseme, target: t2, k,
         glide: glide ? [MODEL.zhTargets[glide[0]], MODEL.zhTargets[glide[1]]] : null,
         lead: (k === "close" || k === "lip") ? 105 : 75, trail: k === "close" ? 60 : 85,
         frame: fixed != null ? fixed : nearestFrame(muscleFromArticulation(e.articulation))};
     });
     const rest = MODEL.targets.REST;
+    // Each target peaks at the middle of its event and hands over quickly to the
+    // next (flat-topped dominance, Cohen & Massaro), so every syllable reaches its
+    // own shape instead of averaging with its neighbours.
+    for (const q of keys) {
+      q.c = q.s + q.d * 0.5;
+      q.sig = Math.max(q.k === "close" ? 30 : 38, q.d * (q.k === "lip" ? 0.55 : 0.45));
+    }
     return function at(t) {
       const lipSum = {}, jawSum = {};
-      for (const c of CH) { lipSum[c] = 0.22 * rest[c]; jawSum[c] = 0.22 * rest[c]; }
-      let wl = 0.22, wj = 0.22, lock = null;
+      const r0 = 0.04;
+      for (const c of CH) { lipSum[c] = r0 * rest[c]; jawSum[c] = r0 * rest[c]; }
+      let wl = r0, wj = r0, lock = null;
       for (const q of keys) {
-        let w;
-        if (t >= q.s && t <= q.e) w = 1;
-        else if (t < q.s && t >= q.s - q.lead) w = smooth((t - (q.s - q.lead)) / q.lead);
-        else if (t > q.e && t <= q.e + q.trail) w = smooth(1 - (t - q.e) / q.trail);
-        else continue;
+        const z = Math.abs(t - q.c) / q.sig;
+        if (z > 3) continue;
+        const w = Math.exp(-Math.pow(z, 4));
         let tm = q.target;
         if (q.glide) tm = mixMuscle(q.glide[0], q.glide[1], smooth(clamp(((t - q.s) / Math.max(1, q.d) - 0.25) / 0.6)));
         const [sl, sj] = STRENGTH[q.k];
         for (const c of CH) { if (JAW.has(c)) jawSum[c] += w * sj * tm[c]; else lipSum[c] += w * sl * tm[c]; }
         wl += w * sl; wj += w * sj;
-        if (q.k === "close" && t >= q.s && t <= q.e) lock = tm;
+        if (q.k === "close" && Math.abs(t - q.c) <= q.d * 0.4) lock = tm;
       }
+      // silence: drift back to rest between phrases
+      const first = keys.length ? keys[0].s : 0, last = keys.length ? keys[keys.length - 1].e : 0;
+      const gapW = keys.every(q => Math.abs(t - q.c) > q.sig * 1.6) ? 1 : 0;
+      if (gapW || t < first - 60 || t > last + 60) { for (const c of CH) { lipSum[c] += 2 * rest[c]; jawSum[c] += 2 * rest[c]; } wl += 2; wj += 2; }
       let m = {};
       for (const c of CH) m[c] = JAW.has(c) ? jawSum[c] / wj : lipSum[c] / wl;
       if (lock) m = mixMuscle(m, lock, 0.85);              // a closure is categorical, never averaged away
