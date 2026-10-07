@@ -55,6 +55,12 @@ robot-lipsync demo --text "你好，世界。" --language zh-CN \
 - 同一 IR 可以驱动网页、OLED、虚拟角色和未来的硅胶机械嘴；
 - 延迟从用户停嘴一直记录到实体扬声器起播和第一帧嘴部动作。
 
+## 旧设备当家庭终端（配合 Margin）
+
+[Margin](https://github.com/Muurrphy/margin) 是另一个独立的开源项目：让旧 Kindle 变成伴读。它的“嘴”用的就是这个仓库——旧 iPad 或手机负责出声、一直听、显示点阵梦露嘴，Kindle 负责显示文章。Margin 把 ElevenLabs 返回的每句话逐字时间交给 `alignment_to_phonemes` 和 `phonemes_to_articulation`，平板用 `renderers/dotmatrix.js` 画出来（蓝色配色）。
+
+两个项目互相独立：robot-lipsync 不依赖电子书；没装 robot-lipsync 时 Margin 也能跑，只是没有这张嘴。
+
 ## 诚实的延迟表述
 
 Lilyput 原型的大多数实测轮次约在 1.9–2.7 秒开始实体播放，同时记录到一次 4.573 秒长尾。因此目前准确的表达是“near-two-second reference response”，而不是“永远两秒内”或“全球最快”。仓库提供分阶段 trace、P50/P95/P99 和欠载指标，使优化能够复现和比较。

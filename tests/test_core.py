@@ -129,6 +129,7 @@ def test_mandarin_apical_i_does_not_create_false_wide_vowel():
     symbols, _ = mandarin_syllable_phones("si4")
     assert symbols == ("ZH_DENTAL", "ZH_IZ")
     from robot_lipsync.planner import SHAPES
+
     # The apical vowel stays visible but narrower than the true /i/.
     for name in ("ZH_IZ", "ZH_IR"):
         assert SHAPES[name].mouth_width < SHAPES["ZH_I"].mouth_width
@@ -249,6 +250,7 @@ def test_mandarin_finals_follow_surface_pronunciation():
     symbols, _ = mandarin_syllable_phones("gei3")
     assert symbols == ("ZH_VELAR", "ZH_EI")
     from robot_lipsync.planner import SHAPES
+
     assert SHAPES["ZH_N"].lip_separation < SHAPES["ZH_EH"].lip_separation
 
 
@@ -263,7 +265,7 @@ def test_mandarin_initial_keeps_lead_and_final_starts_at_onset():
     assert abs(phones[0].duration_ms - 56.0) < 1e-6
     assert abs(initial.start_ms - (1000 - 42)) < 1e-6
     assert abs(final.start_ms - (1000 + 56)) < 1e-6
-    assert initial.articulation.lip_press > 0.9          # closure is never averaged away
+    assert initial.articulation.lip_press > 0.9  # closure is never averaged away
 
 
 def test_mandarin_non_closing_initial_anticipates_rounded_final():

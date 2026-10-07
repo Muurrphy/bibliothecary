@@ -164,6 +164,18 @@ Set `ELEVENLABS_LANGUAGE=es` or `ELEVENLABS_LANGUAGE=zh-CN` so returned
 character alignment is routed to the matching articulation profile. For
 Mandarin, install both extras with `pip install -e ".[elevenlabs,mandarin]"`.
 
+## Old devices as a home terminal (with Margin)
+
+[Margin](https://github.com/Muurrphy/margin) is a separate open-source project that turns an old
+Kindle into a reading companion. It uses this repository for its mouth: an old iPad or phone
+becomes the companion's speaker, always-on microphone and dot-matrix Monroe lips, while the Kindle
+shows the article. Margin sends the ElevenLabs character timing of every spoken line through
+`alignment_to_phonemes` and `phonemes_to_articulation`, and the tablet draws it with
+`renderers/dotmatrix.js` (`DotLips.track` + `DotLips.draw`, palette `blue`).
+
+The two projects stay independent: robot-lipsync knows nothing about e-readers, and Margin
+runs without a mouth when this package is not installed.
+
 ## Existing systems and project boundary
 
 | System | Best at | Robot LipSync focuses on |

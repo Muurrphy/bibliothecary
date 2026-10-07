@@ -90,8 +90,12 @@ def build_parser() -> argparse.ArgumentParser:
     demo.add_argument("--text", default=DEMO_TEXT)
     demo.add_argument("--language", default="en", help="BCP-47 language tag, for example en, es, es-ES, or zh-CN")
     demo.add_argument("--output", default="build/demo.html")
-    demo.add_argument("--profile", choices=["screen", "oled"], default="screen",
-                      help="screen = tablet/monitor mouth; oled = preview of the 128x64 firmware mouth")
+    demo.add_argument(
+        "--profile",
+        choices=["screen", "oled"],
+        default="screen",
+        help="screen = tablet/monitor mouth; oled = preview of the 128x64 firmware mouth",
+    )
     demo.add_argument("--palette", choices=["red", "blue"], default="red")
     demo.set_defaults(func=command_demo)
 

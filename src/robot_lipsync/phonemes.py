@@ -71,7 +71,7 @@ def _is_han(token: str) -> bool:
 
 
 # Apostrophes stay: they belong inside words such as "don't".
-_EDGE_PUNCTUATION = ".,;:!?¡¿\"«»“”()[]…—"
+_EDGE_PUNCTUATION = '.,;:!?¡¿"«»“”()[]…—'
 
 
 def _latin_core(token: str) -> str:
@@ -365,7 +365,11 @@ def spanish_phones(word: str, language: str = "es") -> tuple[str, ...]:
         vowel_idx = [i for i, p in enumerate(result) if p in {"ES_A", "ES_E", "ES_I", "ES_O", "ES_U"}]
         nuclei = []
         for i in vowel_idx:
-            if nuclei and nuclei[-1][-1] == i - 1 and (result[i] in {"ES_I", "ES_U"} or result[nuclei[-1][-1]] in {"ES_I", "ES_U"}):
+            if (
+                nuclei
+                and nuclei[-1][-1] == i - 1
+                and (result[i] in {"ES_I", "ES_U"} or result[nuclei[-1][-1]] in {"ES_I", "ES_U"})
+            ):
                 nuclei[-1].append(i)
             else:
                 nuclei.append([i])
@@ -468,14 +472,42 @@ def _mandarin_final_phones(final: str, initial: str) -> list[str]:
     if final == "er":
         return ["ZH_ER"]
     table = {
-        "a": "A", "o": "O", "e": "E", "ê": "EH", "i": "I", "u": "U", "v": "V",
-        "ai": "AI", "ei": "EI", "ao": "AO", "ou": "OU",
-        "an": "A N", "en": "E N", "ang": "A NG", "eng": "E NG", "ong": "WU O NG",
-        "ia": "YI A", "ie": "YI EH", "iao": "YI AO", "iou": "YI OU", "ian": "YI EH N",
-        "in": "I N", "iang": "YI A NG", "ing": "I NG", "iong": "YU O NG",
-        "ua": "WU A", "uo": "WU O", "uai": "WU AI", "uei": "WU EI", "uan": "WU A N",
-        "uen": "WU E N", "uang": "WU A NG", "ueng": "WU E NG",
-        "ve": "YU EH", "van": "YU EH N", "vn": "V N",
+        "a": "A",
+        "o": "O",
+        "e": "E",
+        "ê": "EH",
+        "i": "I",
+        "u": "U",
+        "v": "V",
+        "ai": "AI",
+        "ei": "EI",
+        "ao": "AO",
+        "ou": "OU",
+        "an": "A N",
+        "en": "E N",
+        "ang": "A NG",
+        "eng": "E NG",
+        "ong": "WU O NG",
+        "ia": "YI A",
+        "ie": "YI EH",
+        "iao": "YI AO",
+        "iou": "YI OU",
+        "ian": "YI EH N",
+        "in": "I N",
+        "iang": "YI A NG",
+        "ing": "I NG",
+        "iong": "YU O NG",
+        "ua": "WU A",
+        "uo": "WU O",
+        "uai": "WU AI",
+        "uei": "WU EI",
+        "uan": "WU A N",
+        "uen": "WU E N",
+        "uang": "WU A NG",
+        "ueng": "WU E NG",
+        "ve": "YU EH",
+        "van": "YU EH N",
+        "vn": "V N",
     }
     if final in table:
         return ["ZH_" + part for part in table[final].split()]
@@ -569,8 +601,20 @@ def _phone_weight(symbol: str, language: str) -> float:
 
 MANDARIN_INITIALS = {"ZH_BPM", "ZH_F", "ZH_APICAL", "ZH_VELAR", "ZH_PALATAL", "ZH_DENTAL", "ZH_RETROFLEX"}
 MANDARIN_FINALS = {
-    "ZH_A", "ZH_O", "ZH_E", "ZH_EH", "ZH_I", "ZH_U", "ZH_V", "ZH_AI", "ZH_EI", "ZH_AO", "ZH_OU",
-    "ZH_IZ", "ZH_IR", "ZH_ER",
+    "ZH_A",
+    "ZH_O",
+    "ZH_E",
+    "ZH_EH",
+    "ZH_I",
+    "ZH_U",
+    "ZH_V",
+    "ZH_AI",
+    "ZH_EI",
+    "ZH_AO",
+    "ZH_OU",
+    "ZH_IZ",
+    "ZH_IR",
+    "ZH_ER",
 }
 
 
@@ -660,10 +704,16 @@ def spell_mandarin_numbers(text: str) -> str:
 
     text = re.sub(r"(\d{1,2}):(\d{2})", clock, text)
     text = re.sub(r"(\d{4})(?=年)", lambda m: "".join(_ZH_DIGITS[int(d)] for d in m.group(1)), text)
-    text = re.sub(r"(\d+)\.(\d+)", lambda m: spell_mandarin_numbers(m.group(1)) + "点" + "".join(_ZH_DIGITS[int(d)] for d in m.group(2)), text)
+    text = re.sub(
+        r"(\d+)\.(\d+)",
+        lambda m: spell_mandarin_numbers(m.group(1)) + "点" + "".join(_ZH_DIGITS[int(d)] for d in m.group(2)),
+        text,
+    )
     return re.sub(
         r"\d+",
-        lambda m: _mandarin_integer(int(m.group())) if len(m.group()) <= 4 else "".join(_ZH_DIGITS[int(d)] for d in m.group()),
+        lambda m: (
+            _mandarin_integer(int(m.group())) if len(m.group()) <= 4 else "".join(_ZH_DIGITS[int(d)] for d in m.group())
+        ),
         text,
     )
 
@@ -672,7 +722,9 @@ def alignment_to_phonemes(spans: Iterable[AlignmentSpan]) -> list[TimedPhoneme]:
     """Compile language-tagged English, Spanish, and Mandarin alignment."""
 
     spans = [
-        AlignmentSpan(spell_mandarin_numbers(span.token), span.start_ms, span.duration_ms, span.language, span.confidence)
+        AlignmentSpan(
+            spell_mandarin_numbers(span.token), span.start_ms, span.duration_ms, span.language, span.confidence
+        )
         if _language_family(span.language) == "zh" and re.search(r"\d", span.token)
         else span
         for span in spans

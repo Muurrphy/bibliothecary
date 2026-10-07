@@ -17,13 +17,13 @@ def test_frame_bank_matches_the_model():
     assert tuple(names) == monroe.FRAME_NAMES
     assert len(re.findall(r"0x[0-9A-F]{2}", header)) == 44 * 1024
     bank = (RENDERERS / "monroe_frames.js").read_text(encoding="utf-8")
-    payload = json.loads(bank[bank.index("= {") + 2:bank.rindex("};") + 1])
+    payload = json.loads(bank[bank.index("= {") + 2 : bank.rindex("};") + 1])
     assert tuple(payload["names"]) == monroe.FRAME_NAMES
 
 
 def test_generated_tables_are_in_sync():
     model = (RENDERERS / "monroe_model.js").read_text(encoding="utf-8")
-    data = json.loads(model[model.index("= {") + 2:model.rindex("};") + 1])
+    data = json.loads(model[model.index("= {") + 2 : model.rindex("};") + 1])
     assert data["visemeTargets"] == monroe.VISEME_TARGETS
     assert set(data["zhTargets"]) == set(monroe.ZH_TARGETS)
     select = (ROOT / "firmware/esp32_oled/monroe_select.h").read_text(encoding="utf-8")
@@ -65,8 +65,12 @@ def test_rounded_mandarin_targets_pout_and_evert():
 
 def test_word_level_spans_keep_their_own_timing():
     # edge-tts style: whole words with a pause between the two phrases
-    spans = [AlignmentSpan("Hola", 100, 350, "es-ES"), AlignmentSpan("soy", 612, 288, "es-ES"),
-             AlignmentSpan("Qué", 2262, 138, "es-ES"), AlignmentSpan("hoy", 2400, 200, "es-ES")]
+    spans = [
+        AlignmentSpan("Hola", 100, 350, "es-ES"),
+        AlignmentSpan("soy", 612, 288, "es-ES"),
+        AlignmentSpan("Qué", 2262, 138, "es-ES"),
+        AlignmentSpan("hoy", 2400, 200, "es-ES"),
+    ]
     phones = alignment_to_phonemes(spans)
     que = [p for p in phones if p.start_ms >= 2262]
     assert [p.symbol for p in que][:2] == ["ES_K", "ES_E1"]
@@ -88,8 +92,14 @@ def test_spanish_glides_approximants_and_clitics():
     assert spanish_phones("hoy") == ("ES_O1", "ES_J")
     assert spanish_phones("día") == ("ES_D", "ES_I1", "ES_A")
     assert spanish_phones("la") == ("ES_L", "ES_A")  # function word: no stress
-    phones = alignment_to_phonemes([AlignmentSpan("la", 0, 120, "es"), AlignmentSpan("vida", 120, 300, "es"),
-                                    AlignmentSpan("un", 600, 100, "es"), AlignmentSpan("beso", 700, 250, "es")])
+    phones = alignment_to_phonemes(
+        [
+            AlignmentSpan("la", 0, 120, "es"),
+            AlignmentSpan("vida", 120, 300, "es"),
+            AlignmentSpan("un", 600, 100, "es"),
+            AlignmentSpan("beso", 700, 250, "es"),
+        ]
+    )
     symbols = [p.symbol for p in phones]
     assert "ES_BH" in symbols and "ES_B" in symbols  # [β] between vowels, [b] after n
     events = phonemes_to_articulation("es", phones)

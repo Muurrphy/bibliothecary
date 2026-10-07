@@ -111,21 +111,55 @@ def upper_lip_dynamics(pose: Pose) -> tuple[float, float, float]:
     pucker_release = _clamp(pose.pucker / 1.30)
     bead_strength = min(1.08, max(0.12, 1.0 - 0.72 * open_tension - 0.55 * lateral_tension + 0.35 * pucker_release))
     bead_v = 0.055 + 0.185 * bead_strength
-    inner_arch_strength = min(1.05, max(0.28, 1.0 - 0.55 * open_tension - 0.42 * lateral_tension + 0.28 * pucker_release))
+    inner_arch_strength = min(
+        1.05, max(0.28, 1.0 - 0.55 * open_tension - 0.42 * lateral_tension + 0.28 * pucker_release)
+    )
     inner_arch_v = -0.075 * inner_arch_strength
     outer_sculpt = min(1.06, max(0.58, 1.0 - 0.34 * open_tension - 0.25 * lateral_tension + 0.18 * pucker_release))
     return bead_v, inner_arch_v, outer_sculpt
 
 
 _UPPER_OUTER_REST = (
-    (-1.00, 0.00), (-0.93, -0.07), (-0.82, -0.14), (-0.70, -0.28), (-0.58, -0.48), (-0.47, -0.73),
-    (-0.36, -1.00), (-0.25, -0.98), (-0.13, -0.78), (0.00, -0.56), (0.13, -0.78), (0.25, -0.98),
-    (0.36, -1.00), (0.47, -0.73), (0.58, -0.48), (0.70, -0.28), (0.82, -0.14), (0.93, -0.07), (1.00, 0.00),
+    (-1.00, 0.00),
+    (-0.93, -0.07),
+    (-0.82, -0.14),
+    (-0.70, -0.28),
+    (-0.58, -0.48),
+    (-0.47, -0.73),
+    (-0.36, -1.00),
+    (-0.25, -0.98),
+    (-0.13, -0.78),
+    (0.00, -0.56),
+    (0.13, -0.78),
+    (0.25, -0.98),
+    (0.36, -1.00),
+    (0.47, -0.73),
+    (0.58, -0.48),
+    (0.70, -0.28),
+    (0.82, -0.14),
+    (0.93, -0.07),
+    (1.00, 0.00),
 )
 _UPPER_OUTER_TENSION = (
-    (-1.00, 0.00), (-0.93, -0.06), (-0.82, -0.13), (-0.70, -0.27), (-0.58, -0.46), (-0.47, -0.65),
-    (-0.36, -0.82), (-0.25, -0.78), (-0.13, -0.70), (0.00, -0.67), (0.13, -0.70), (0.25, -0.78),
-    (0.36, -0.82), (0.47, -0.65), (0.58, -0.46), (0.70, -0.27), (0.82, -0.13), (0.93, -0.06), (1.00, 0.00),
+    (-1.00, 0.00),
+    (-0.93, -0.06),
+    (-0.82, -0.13),
+    (-0.70, -0.27),
+    (-0.58, -0.46),
+    (-0.47, -0.65),
+    (-0.36, -0.82),
+    (-0.25, -0.78),
+    (-0.13, -0.70),
+    (0.00, -0.67),
+    (0.13, -0.70),
+    (0.25, -0.78),
+    (0.36, -0.82),
+    (0.47, -0.65),
+    (0.58, -0.46),
+    (0.70, -0.27),
+    (0.82, -0.13),
+    (0.93, -0.06),
+    (1.00, 0.00),
 )
 
 
@@ -155,22 +189,61 @@ def lip_contours(pose: Pose, scale: float = 1.0):
     corner_separation_px = 0.0 if requires_connected_corners(pose) else 4.0 * open_factor * narrow_factor
     lower_corner_v = corner_separation_px / lower_h
     bead_v, inner_arch_v, outer_sculpt = upper_lip_dynamics(pose)
-    upper_outer_n = [(u, t + outer_sculpt * (r - t)) for (u, r), (_, t) in zip(_UPPER_OUTER_REST, _UPPER_OUTER_TENSION, strict=True)]
+    upper_outer_n = [
+        (u, t + outer_sculpt * (r - t)) for (u, r), (_, t) in zip(_UPPER_OUTER_REST, _UPPER_OUTER_TENSION, strict=True)
+    ]
     a = inner_arch_v
     upper_inner_n = [
-        (-1.00, 0.00), (-0.82, -0.035), (-0.62, -0.015), (-0.48, -0.010), (-0.38, a * 0.68), (-0.30, a),
-        (-0.22, a * 0.62), (-0.14, bead_v * 0.23), (-0.07, bead_v * 0.72), (0.00, bead_v), (0.07, bead_v * 0.72),
-        (0.14, bead_v * 0.23), (0.22, a * 0.62), (0.30, a), (0.38, a * 0.68), (0.48, -0.010), (0.62, -0.015),
-        (0.82, -0.035), (1.00, 0.00),
+        (-1.00, 0.00),
+        (-0.82, -0.035),
+        (-0.62, -0.015),
+        (-0.48, -0.010),
+        (-0.38, a * 0.68),
+        (-0.30, a),
+        (-0.22, a * 0.62),
+        (-0.14, bead_v * 0.23),
+        (-0.07, bead_v * 0.72),
+        (0.00, bead_v),
+        (0.07, bead_v * 0.72),
+        (0.14, bead_v * 0.23),
+        (0.22, a * 0.62),
+        (0.30, a),
+        (0.38, a * 0.68),
+        (0.48, -0.010),
+        (0.62, -0.015),
+        (0.82, -0.035),
+        (1.00, 0.00),
     ]
     c = lower_corner_v
     lower_inner_n = [
-        (-1.00, c), (-0.82, 0.06), (-0.62, 0.10), (-0.44, 0.17), (-0.27, 0.26), (-0.13, 0.32), (0.00, 0.35),
-        (0.13, 0.32), (0.27, 0.26), (0.44, 0.17), (0.62, 0.10), (0.82, 0.06), (1.00, c),
+        (-1.00, c),
+        (-0.82, 0.06),
+        (-0.62, 0.10),
+        (-0.44, 0.17),
+        (-0.27, 0.26),
+        (-0.13, 0.32),
+        (0.00, 0.35),
+        (0.13, 0.32),
+        (0.27, 0.26),
+        (0.44, 0.17),
+        (0.62, 0.10),
+        (0.82, 0.06),
+        (1.00, c),
     ]
     lower_outer_n = [
-        (-1.00, c), (-0.92, 0.20), (-0.80, 0.42), (-0.64, 0.66), (-0.47, 0.85), (-0.28, 0.99), (0.00, 1.06),
-        (0.28, 0.99), (0.47, 0.85), (0.64, 0.66), (0.80, 0.42), (0.92, 0.20), (1.00, c),
+        (-1.00, c),
+        (-0.92, 0.20),
+        (-0.80, 0.42),
+        (-0.64, 0.66),
+        (-0.47, 0.85),
+        (-0.28, 0.99),
+        (0.00, 1.06),
+        (0.28, 0.99),
+        (0.47, 0.85),
+        (0.64, 0.66),
+        (0.80, 0.42),
+        (0.92, 0.20),
+        (1.00, c),
     ]
 
     def contour(normalized, height, inner=0, outer_motion=0):
@@ -227,17 +300,26 @@ def constrain(pose: MusclePose, key: str | None = None) -> MusclePose:
     """Muscle antagonism and closure invariants."""
     jaw, sep, width = _clamp(pose.jaw_open), _clamp(pose.lip_separation), _clamp(pose.mouth_width)
     press, rnd, prot = _clamp(pose.lip_press), _clamp(pose.lip_round), _clamp(pose.lip_protrusion)
-    if jaw > 0.52:                       # a deep jaw pulls the corners in
+    if jaw > 0.52:  # a deep jaw pulls the corners in
         width = min(width, 0.72 - 0.42 * ((jaw - 0.52) / 0.48))
-    if width > 0.72:                     # a strong lateral pull limits the jaw
+    if width > 0.72:  # a strong lateral pull limits the jaw
         jaw = min(jaw, 0.48 - 0.24 * ((width - 0.72) / 0.28))
-    sep *= 1.0 - 0.96 * press            # M/B/P owns the aperture
+    sep *= 1.0 - 0.96 * press  # M/B/P owns the aperture
     jaw *= 1.0 - 0.80 * press
     width = min(width, 1.0 - 0.32 * rnd - 0.16 * prot)
     return MusclePose(
-        key or pose.key, _clamp(jaw), _clamp(sep), _clamp(width), rnd, prot,
-        _clamp(pose.upper_lip_raise), _clamp(pose.lower_lip_depress), press, _clamp(pose.lower_lip_tuck),
-        _clamp(pose.corner_raise, -1.0, 1.0), _clamp(pose.asymmetry, -1.0, 1.0),
+        key or pose.key,
+        _clamp(jaw),
+        _clamp(sep),
+        _clamp(width),
+        rnd,
+        prot,
+        _clamp(pose.upper_lip_raise),
+        _clamp(pose.lower_lip_depress),
+        press,
+        _clamp(pose.lower_lip_tuck),
+        _clamp(pose.corner_raise, -1.0, 1.0),
+        _clamp(pose.asymmetry, -1.0, 1.0),
     )
 
 
@@ -252,11 +334,20 @@ def blend_muscles(weighted, key: str = "ANIM") -> MusclePose:
 def legacy_pose(pose: MusclePose) -> Pose:
     pose = constrain(pose)
     openness = _clamp(0.98 * pose.jaw_open + 0.54 * pose.lip_separation, 0.0, 1.76)
-    width = _clamp(0.74 + 0.48 * pose.mouth_width - 0.10 * pose.lip_round - 0.10 * pose.lip_protrusion - 0.08 * pose.jaw_open, 0.58, 1.18)
+    width = _clamp(
+        0.74 + 0.48 * pose.mouth_width - 0.10 * pose.lip_round - 0.10 * pose.lip_protrusion - 0.08 * pose.jaw_open,
+        0.58,
+        1.18,
+    )
     pucker = _clamp(0.88 * pose.lip_round + 0.58 * pose.lip_protrusion, 0.0, 1.40)
     return Pose(
-        key=pose.key, openness=openness, width=width, pucker=pucker, smile=0.88 * pose.corner_raise,
-        tilt=2.6 * pose.asymmetry, shift_x=2.0 * pose.asymmetry,
+        key=pose.key,
+        openness=openness,
+        width=width,
+        pucker=pucker,
+        smile=0.88 * pose.corner_raise,
+        tilt=2.6 * pose.asymmetry,
+        shift_x=2.0 * pose.asymmetry,
         upper_bias=1.1 * pose.upper_lip_raise - 0.25 * pose.lip_press,
         lower_bias=1.2 * pose.lower_lip_depress - 0.45 * pose.lower_lip_tuck,
     )
@@ -275,21 +366,103 @@ TARGETS = {
     for p in (
         MusclePose("REST", lip_separation=0.035, lip_press=0.12),
         MusclePose("PRESS_MBP", mouth_width=0.46, lip_round=0.14, lip_protrusion=0.10, lip_press=1.0),
-        MusclePose("FV_TUCK", jaw_open=0.10, lip_separation=0.15, mouth_width=0.57, upper_lip_raise=0.18, lower_lip_tuck=1.0, asymmetry=-0.05),
-        MusclePose("TH_DH", jaw_open=0.14, lip_separation=0.22, mouth_width=0.59, upper_lip_raise=0.12, lower_lip_depress=0.10),
+        MusclePose(
+            "FV_TUCK",
+            jaw_open=0.10,
+            lip_separation=0.15,
+            mouth_width=0.57,
+            upper_lip_raise=0.18,
+            lower_lip_tuck=1.0,
+            asymmetry=-0.05,
+        ),
+        MusclePose(
+            "TH_DH", jaw_open=0.14, lip_separation=0.22, mouth_width=0.59, upper_lip_raise=0.12, lower_lip_depress=0.10
+        ),
         MusclePose("SOFT", jaw_open=0.15, lip_separation=0.22, mouth_width=0.53),
-        MusclePose("WIDE_I", jaw_open=0.24, lip_separation=0.31, mouth_width=0.96, upper_lip_raise=0.13, corner_raise=0.20),
-        MusclePose("MID_E", jaw_open=0.34, lip_separation=0.43, mouth_width=0.82, upper_lip_raise=0.17, corner_raise=0.10),
-        MusclePose("OPEN_AE", jaw_open=0.64, lip_separation=0.72, mouth_width=0.60, upper_lip_raise=0.28, lower_lip_depress=0.52),
-        MusclePose("OPEN_AH", jaw_open=0.76, lip_separation=0.82, mouth_width=0.52, upper_lip_raise=0.31, lower_lip_depress=0.68),
-        MusclePose("DEEP_AA", jaw_open=1.0, lip_separation=0.96, mouth_width=0.34, upper_lip_raise=0.50, lower_lip_depress=1.0),
-        MusclePose("ROUND_AO", jaw_open=0.66, lip_separation=0.72, mouth_width=0.36, lip_round=0.88, lip_protrusion=0.40, upper_lip_raise=0.25, lower_lip_depress=0.60),
-        MusclePose("ROUND_OW", jaw_open=0.45, lip_separation=0.52, mouth_width=0.31, lip_round=0.90, lip_protrusion=0.62, lower_lip_depress=0.30),
-        MusclePose("PUCKER_UW", jaw_open=0.25, lip_separation=0.36, mouth_width=0.18, lip_round=1.0, lip_protrusion=1.0),
-        MusclePose("RHOTIC_ER", jaw_open=0.30, lip_separation=0.38, mouth_width=0.29, lip_round=0.58, lip_protrusion=0.68, asymmetry=0.05),
-        MusclePose("BREATH_H", jaw_open=0.48, lip_separation=0.62, mouth_width=0.55, upper_lip_raise=0.28, lower_lip_depress=0.36, asymmetry=0.04),
-        MusclePose("SIDE_L", jaw_open=0.26, lip_separation=0.31, mouth_width=0.68, upper_lip_raise=0.14, corner_raise=0.10, asymmetry=-0.34),
-        MusclePose("SIDE_SH", jaw_open=0.29, lip_separation=0.35, mouth_width=0.48, lip_round=0.34, lip_protrusion=0.25, upper_lip_raise=0.19, asymmetry=0.20),
+        MusclePose(
+            "WIDE_I", jaw_open=0.24, lip_separation=0.31, mouth_width=0.96, upper_lip_raise=0.13, corner_raise=0.20
+        ),
+        MusclePose(
+            "MID_E", jaw_open=0.34, lip_separation=0.43, mouth_width=0.82, upper_lip_raise=0.17, corner_raise=0.10
+        ),
+        MusclePose(
+            "OPEN_AE",
+            jaw_open=0.64,
+            lip_separation=0.72,
+            mouth_width=0.60,
+            upper_lip_raise=0.28,
+            lower_lip_depress=0.52,
+        ),
+        MusclePose(
+            "OPEN_AH",
+            jaw_open=0.76,
+            lip_separation=0.82,
+            mouth_width=0.52,
+            upper_lip_raise=0.31,
+            lower_lip_depress=0.68,
+        ),
+        MusclePose(
+            "DEEP_AA", jaw_open=1.0, lip_separation=0.96, mouth_width=0.34, upper_lip_raise=0.50, lower_lip_depress=1.0
+        ),
+        MusclePose(
+            "ROUND_AO",
+            jaw_open=0.66,
+            lip_separation=0.72,
+            mouth_width=0.36,
+            lip_round=0.88,
+            lip_protrusion=0.40,
+            upper_lip_raise=0.25,
+            lower_lip_depress=0.60,
+        ),
+        MusclePose(
+            "ROUND_OW",
+            jaw_open=0.45,
+            lip_separation=0.52,
+            mouth_width=0.31,
+            lip_round=0.90,
+            lip_protrusion=0.62,
+            lower_lip_depress=0.30,
+        ),
+        MusclePose(
+            "PUCKER_UW", jaw_open=0.25, lip_separation=0.36, mouth_width=0.18, lip_round=1.0, lip_protrusion=1.0
+        ),
+        MusclePose(
+            "RHOTIC_ER",
+            jaw_open=0.30,
+            lip_separation=0.38,
+            mouth_width=0.29,
+            lip_round=0.58,
+            lip_protrusion=0.68,
+            asymmetry=0.05,
+        ),
+        MusclePose(
+            "BREATH_H",
+            jaw_open=0.48,
+            lip_separation=0.62,
+            mouth_width=0.55,
+            upper_lip_raise=0.28,
+            lower_lip_depress=0.36,
+            asymmetry=0.04,
+        ),
+        MusclePose(
+            "SIDE_L",
+            jaw_open=0.26,
+            lip_separation=0.31,
+            mouth_width=0.68,
+            upper_lip_raise=0.14,
+            corner_raise=0.10,
+            asymmetry=-0.34,
+        ),
+        MusclePose(
+            "SIDE_SH",
+            jaw_open=0.29,
+            lip_separation=0.35,
+            mouth_width=0.48,
+            lip_round=0.34,
+            lip_protrusion=0.25,
+            upper_lip_raise=0.19,
+            asymmetry=0.20,
+        ),
     )
 }
 
@@ -300,26 +473,131 @@ ZH_TARGETS = {
     p.key: constrain(p)
     for p in (
         MusclePose("ZH_BPM", mouth_width=0.46, lip_round=0.14, lip_protrusion=0.10, lip_press=1.0),
-        MusclePose("ZH_F", jaw_open=0.10, lip_separation=0.15, mouth_width=0.57, upper_lip_raise=0.18, lower_lip_tuck=1.0, asymmetry=-0.04),
+        MusclePose(
+            "ZH_F",
+            jaw_open=0.10,
+            lip_separation=0.15,
+            mouth_width=0.57,
+            upper_lip_raise=0.18,
+            lower_lip_tuck=1.0,
+            asymmetry=-0.04,
+        ),
         MusclePose("ZH_APICAL", jaw_open=0.18, lip_separation=0.26, mouth_width=0.60, upper_lip_raise=0.06),
         MusclePose("ZH_VELAR", jaw_open=0.20, lip_separation=0.28, mouth_width=0.54, upper_lip_raise=0.06),
-        MusclePose("ZH_PALATAL", jaw_open=0.20, lip_separation=0.27, mouth_width=0.72, upper_lip_raise=0.08, corner_raise=0.08),
-        MusclePose("ZH_DENTAL", jaw_open=0.16, lip_separation=0.22, mouth_width=0.80, upper_lip_raise=0.10, corner_raise=0.12),
-        MusclePose("ZH_RETROFLEX", jaw_open=0.24, lip_separation=0.32, mouth_width=0.42, lip_round=0.50, lip_protrusion=0.60, upper_lip_raise=0.22),
-        MusclePose("ZH_ER", jaw_open=0.26, lip_separation=0.34, mouth_width=0.44, lip_round=0.46, lip_protrusion=0.50, upper_lip_raise=0.18),
-        MusclePose("ZH_IZ", jaw_open=0.18, lip_separation=0.26, mouth_width=0.76, upper_lip_raise=0.10, corner_raise=0.10),
-        MusclePose("ZH_IR", jaw_open=0.22, lip_separation=0.30, mouth_width=0.46, lip_round=0.42, lip_protrusion=0.48, upper_lip_raise=0.20),
-        MusclePose("ZH_A", jaw_open=0.70, lip_separation=0.78, mouth_width=0.56, upper_lip_raise=0.30, lower_lip_depress=0.62),
-        MusclePose("ZH_O", jaw_open=0.55, lip_separation=0.62, mouth_width=0.34, lip_round=0.88, lip_protrusion=0.50, upper_lip_raise=0.20, lower_lip_depress=0.45),
-        MusclePose("ZH_E", jaw_open=0.34, lip_separation=0.42, mouth_width=0.70, upper_lip_raise=0.15, corner_raise=0.04),
-        MusclePose("ZH_EH", jaw_open=0.44, lip_separation=0.54, mouth_width=0.74, upper_lip_raise=0.20, lower_lip_depress=0.20, corner_raise=0.08),
-        MusclePose("ZH_I", jaw_open=0.22, lip_separation=0.30, mouth_width=0.86, upper_lip_raise=0.12, corner_raise=0.16),
-        MusclePose("ZH_U", jaw_open=0.24, lip_separation=0.34, mouth_width=0.18, lip_round=1.0, lip_protrusion=1.0, upper_lip_raise=0.18),
-        MusclePose("ZH_V", jaw_open=0.20, lip_separation=0.30, mouth_width=0.20, lip_round=1.0, lip_protrusion=0.75, upper_lip_raise=0.10),
-        MusclePose("ZH_AI", jaw_open=0.54, lip_separation=0.62, mouth_width=0.64, upper_lip_raise=0.26, lower_lip_depress=0.40, corner_raise=0.06),
-        MusclePose("ZH_AO", jaw_open=0.61, lip_separation=0.70, mouth_width=0.38, lip_round=0.76, lip_protrusion=0.40, upper_lip_raise=0.24, lower_lip_depress=0.52),
-        MusclePose("ZH_EI", jaw_open=0.32, lip_separation=0.40, mouth_width=0.77, upper_lip_raise=0.15, corner_raise=0.10),
-        MusclePose("ZH_OU", jaw_open=0.40, lip_separation=0.48, mouth_width=0.26, lip_round=0.94, lip_protrusion=0.70, upper_lip_raise=0.16, lower_lip_depress=0.25),
+        MusclePose(
+            "ZH_PALATAL", jaw_open=0.20, lip_separation=0.27, mouth_width=0.72, upper_lip_raise=0.08, corner_raise=0.08
+        ),
+        MusclePose(
+            "ZH_DENTAL", jaw_open=0.16, lip_separation=0.22, mouth_width=0.80, upper_lip_raise=0.10, corner_raise=0.12
+        ),
+        MusclePose(
+            "ZH_RETROFLEX",
+            jaw_open=0.24,
+            lip_separation=0.32,
+            mouth_width=0.42,
+            lip_round=0.50,
+            lip_protrusion=0.60,
+            upper_lip_raise=0.22,
+        ),
+        MusclePose(
+            "ZH_ER",
+            jaw_open=0.26,
+            lip_separation=0.34,
+            mouth_width=0.44,
+            lip_round=0.46,
+            lip_protrusion=0.50,
+            upper_lip_raise=0.18,
+        ),
+        MusclePose(
+            "ZH_IZ", jaw_open=0.18, lip_separation=0.26, mouth_width=0.76, upper_lip_raise=0.10, corner_raise=0.10
+        ),
+        MusclePose(
+            "ZH_IR",
+            jaw_open=0.22,
+            lip_separation=0.30,
+            mouth_width=0.46,
+            lip_round=0.42,
+            lip_protrusion=0.48,
+            upper_lip_raise=0.20,
+        ),
+        MusclePose(
+            "ZH_A", jaw_open=0.70, lip_separation=0.78, mouth_width=0.56, upper_lip_raise=0.30, lower_lip_depress=0.62
+        ),
+        MusclePose(
+            "ZH_O",
+            jaw_open=0.55,
+            lip_separation=0.62,
+            mouth_width=0.34,
+            lip_round=0.88,
+            lip_protrusion=0.50,
+            upper_lip_raise=0.20,
+            lower_lip_depress=0.45,
+        ),
+        MusclePose(
+            "ZH_E", jaw_open=0.34, lip_separation=0.42, mouth_width=0.70, upper_lip_raise=0.15, corner_raise=0.04
+        ),
+        MusclePose(
+            "ZH_EH",
+            jaw_open=0.44,
+            lip_separation=0.54,
+            mouth_width=0.74,
+            upper_lip_raise=0.20,
+            lower_lip_depress=0.20,
+            corner_raise=0.08,
+        ),
+        MusclePose(
+            "ZH_I", jaw_open=0.22, lip_separation=0.30, mouth_width=0.86, upper_lip_raise=0.12, corner_raise=0.16
+        ),
+        MusclePose(
+            "ZH_U",
+            jaw_open=0.24,
+            lip_separation=0.34,
+            mouth_width=0.18,
+            lip_round=1.0,
+            lip_protrusion=1.0,
+            upper_lip_raise=0.18,
+        ),
+        MusclePose(
+            "ZH_V",
+            jaw_open=0.20,
+            lip_separation=0.30,
+            mouth_width=0.20,
+            lip_round=1.0,
+            lip_protrusion=0.75,
+            upper_lip_raise=0.10,
+        ),
+        MusclePose(
+            "ZH_AI",
+            jaw_open=0.54,
+            lip_separation=0.62,
+            mouth_width=0.64,
+            upper_lip_raise=0.26,
+            lower_lip_depress=0.40,
+            corner_raise=0.06,
+        ),
+        MusclePose(
+            "ZH_AO",
+            jaw_open=0.61,
+            lip_separation=0.70,
+            mouth_width=0.38,
+            lip_round=0.76,
+            lip_protrusion=0.40,
+            upper_lip_raise=0.24,
+            lower_lip_depress=0.52,
+        ),
+        MusclePose(
+            "ZH_EI", jaw_open=0.32, lip_separation=0.40, mouth_width=0.77, upper_lip_raise=0.15, corner_raise=0.10
+        ),
+        MusclePose(
+            "ZH_OU",
+            jaw_open=0.40,
+            lip_separation=0.48,
+            mouth_width=0.26,
+            lip_round=0.94,
+            lip_protrusion=0.70,
+            upper_lip_raise=0.16,
+            lower_lip_depress=0.25,
+        ),
         MusclePose("ZH_N", jaw_open=0.10, lip_separation=0.10, mouth_width=0.58, upper_lip_raise=0.04),
         MusclePose("ZH_NG", jaw_open=0.20, lip_separation=0.26, mouth_width=0.52, upper_lip_raise=0.06),
     )
@@ -331,39 +609,139 @@ ZH_TARGETS = {
 LANG_TARGETS = {
     p.key: constrain(p)
     for p in (
-        MusclePose("EN_SCHWA", jaw_open=0.24, lip_separation=0.32, mouth_width=0.54, upper_lip_raise=0.08, lower_lip_depress=0.06),
-        MusclePose("EN_LAX_I", jaw_open=0.26, lip_separation=0.34, mouth_width=0.80, upper_lip_raise=0.12, corner_raise=0.10),
-        MusclePose("EN_LAX_U", jaw_open=0.30, lip_separation=0.38, mouth_width=0.36, lip_round=0.62, lip_protrusion=0.45, upper_lip_raise=0.12),
+        MusclePose(
+            "EN_SCHWA",
+            jaw_open=0.24,
+            lip_separation=0.32,
+            mouth_width=0.54,
+            upper_lip_raise=0.08,
+            lower_lip_depress=0.06,
+        ),
+        MusclePose(
+            "EN_LAX_I", jaw_open=0.26, lip_separation=0.34, mouth_width=0.80, upper_lip_raise=0.12, corner_raise=0.10
+        ),
+        MusclePose(
+            "EN_LAX_U",
+            jaw_open=0.30,
+            lip_separation=0.38,
+            mouth_width=0.36,
+            lip_round=0.62,
+            lip_protrusion=0.45,
+            upper_lip_raise=0.12,
+        ),
         MusclePose("EN_L", jaw_open=0.26, lip_separation=0.34, mouth_width=0.58, upper_lip_raise=0.08),
-        MusclePose("EN_S", jaw_open=0.12, lip_separation=0.20, mouth_width=0.74, upper_lip_raise=0.10, corner_raise=0.10),
-        MusclePose("EN_SH", jaw_open=0.22, lip_separation=0.30, mouth_width=0.38, lip_round=0.56, lip_protrusion=0.72, upper_lip_raise=0.24),
+        MusclePose(
+            "EN_S", jaw_open=0.12, lip_separation=0.20, mouth_width=0.74, upper_lip_raise=0.10, corner_raise=0.10
+        ),
+        MusclePose(
+            "EN_SH",
+            jaw_open=0.22,
+            lip_separation=0.30,
+            mouth_width=0.38,
+            lip_round=0.56,
+            lip_protrusion=0.72,
+            upper_lip_raise=0.24,
+        ),
         # Spanish: five pure, tense vowels (no diphthongisation, no reduction).
         # /a/ is central (narrower than English "ah"), /e/ a true mid vowel
         # between e and ê, /o/ and /u/ rounded more tightly than English.
-        MusclePose("ES_OPEN_A", jaw_open=0.72, lip_separation=0.80, mouth_width=0.55, upper_lip_raise=0.30, lower_lip_depress=0.64),
-        MusclePose("ES_MID_E", jaw_open=0.40, lip_separation=0.49, mouth_width=0.78, upper_lip_raise=0.18, lower_lip_depress=0.14, corner_raise=0.08),
-        MusclePose("ES_WIDE_I", jaw_open=0.22, lip_separation=0.30, mouth_width=0.90, upper_lip_raise=0.12, corner_raise=0.18),
-        MusclePose("ES_ROUND_O", jaw_open=0.50, lip_separation=0.58, mouth_width=0.32, lip_round=0.92, lip_protrusion=0.62, upper_lip_raise=0.16, lower_lip_depress=0.36),
-        MusclePose("ES_PUCKER_U", jaw_open=0.24, lip_separation=0.34, mouth_width=0.18, lip_round=1.00, lip_protrusion=1.00, upper_lip_raise=0.18),
+        MusclePose(
+            "ES_OPEN_A",
+            jaw_open=0.72,
+            lip_separation=0.80,
+            mouth_width=0.55,
+            upper_lip_raise=0.30,
+            lower_lip_depress=0.64,
+        ),
+        MusclePose(
+            "ES_MID_E",
+            jaw_open=0.40,
+            lip_separation=0.49,
+            mouth_width=0.78,
+            upper_lip_raise=0.18,
+            lower_lip_depress=0.14,
+            corner_raise=0.08,
+        ),
+        MusclePose(
+            "ES_WIDE_I", jaw_open=0.22, lip_separation=0.30, mouth_width=0.90, upper_lip_raise=0.12, corner_raise=0.18
+        ),
+        MusclePose(
+            "ES_ROUND_O",
+            jaw_open=0.50,
+            lip_separation=0.58,
+            mouth_width=0.32,
+            lip_round=0.92,
+            lip_protrusion=0.62,
+            upper_lip_raise=0.16,
+            lower_lip_depress=0.36,
+        ),
+        MusclePose(
+            "ES_PUCKER_U",
+            jaw_open=0.24,
+            lip_separation=0.34,
+            mouth_width=0.18,
+            lip_round=1.00,
+            lip_protrusion=1.00,
+            upper_lip_raise=0.18,
+        ),
         # b/v between sounds is [β]: lips nearly meet, no seal, no squeeze.
-        MusclePose("ES_BH", jaw_open=0.06, lip_separation=0.06, mouth_width=0.48, lip_round=0.12, lip_protrusion=0.08, lip_press=0.25),
+        MusclePose(
+            "ES_BH",
+            jaw_open=0.06,
+            lip_separation=0.06,
+            mouth_width=0.48,
+            lip_round=0.12,
+            lip_protrusion=0.08,
+            lip_press=0.25,
+        ),
         # Spanish ch rounds less than English ch/sh.
-        MusclePose("ES_CH", jaw_open=0.20, lip_separation=0.28, mouth_width=0.44, lip_round=0.40, lip_protrusion=0.50, upper_lip_raise=0.20),
+        MusclePose(
+            "ES_CH",
+            jaw_open=0.20,
+            lip_separation=0.28,
+            mouth_width=0.44,
+            lip_round=0.40,
+            lip_protrusion=0.50,
+            upper_lip_raise=0.20,
+        ),
     )
 }
 
 # Dynamic primitives: one event whose target moves from start to end.
-ZH_GLIDES = {"ZH_AI": ("ZH_A", "ZH_I"), "ZH_AO": ("ZH_A", "ZH_O"), "ZH_EI": ("ZH_EH", "ZH_I"), "ZH_OU": ("ZH_O", "ZH_U")}
-EN_GLIDES = {"EN_AY": ("OPEN_AH", "WIDE_I"), "EN_AW": ("OPEN_AH", "ROUND_OW"), "EN_OY": ("ROUND_AO", "WIDE_I"),
-             "EN_EY": ("MID_E", "WIDE_I"), "EN_OW": ("ROUND_AO", "ROUND_OW")}
+ZH_GLIDES = {
+    "ZH_AI": ("ZH_A", "ZH_I"),
+    "ZH_AO": ("ZH_A", "ZH_O"),
+    "ZH_EI": ("ZH_EH", "ZH_I"),
+    "ZH_OU": ("ZH_O", "ZH_U"),
+}
+EN_GLIDES = {
+    "EN_AY": ("OPEN_AH", "WIDE_I"),
+    "EN_AW": ("OPEN_AH", "ROUND_OW"),
+    "EN_OY": ("ROUND_AO", "WIDE_I"),
+    "EN_EY": ("MID_E", "WIDE_I"),
+    "EN_OW": ("ROUND_AO", "ROUND_OW"),
+}
 GLIDES = {**ZH_GLIDES, **EN_GLIDES}
 
 # Planner viseme -> muscle target name.
 VISEME_TARGETS = {
-    "REST": "REST", "PRESS": "PRESS_MBP", "FV": "FV_TUCK", "TH": "TH_DH", "SOFT": "SOFT",
-    "WIDE_I": "WIDE_I", "MID_E": "MID_E", "OPEN_AE": "OPEN_AE", "OPEN_AH": "OPEN_AH", "DEEP_AA": "DEEP_AA",
-    "ROUND_AO": "ROUND_AO", "ROUND_OW": "ROUND_OW", "PUCKER_UW": "PUCKER_UW", "RHOTIC_ER": "RHOTIC_ER",
-    "BREATH_H": "BREATH_H", "SIDE_L": "SIDE_L", "SIDE_SH": "SIDE_SH",
+    "REST": "REST",
+    "PRESS": "PRESS_MBP",
+    "FV": "FV_TUCK",
+    "TH": "TH_DH",
+    "SOFT": "SOFT",
+    "WIDE_I": "WIDE_I",
+    "MID_E": "MID_E",
+    "OPEN_AE": "OPEN_AE",
+    "OPEN_AH": "OPEN_AH",
+    "DEEP_AA": "DEEP_AA",
+    "ROUND_AO": "ROUND_AO",
+    "ROUND_OW": "ROUND_OW",
+    "PUCKER_UW": "PUCKER_UW",
+    "RHOTIC_ER": "RHOTIC_ER",
+    "BREATH_H": "BREATH_H",
+    "SIDE_L": "SIDE_L",
+    "SIDE_SH": "SIDE_SH",
     "ES_ALVEOLAR": "SOFT",
     **{name: name for name in ZH_TARGETS},
     **{name: name for name in LANG_TARGETS},
@@ -383,26 +761,43 @@ def muscle_from_articulation(a) -> MusclePose:
 
     The firmware does the same arithmetic, so a timeline streamed as plain
     articulation picks the same OLED frame on the board as in the preview."""
+
     def g(name, default=0.0):
         return float(getattr(a, name, default) if not isinstance(a, dict) else a.get(name, default))
 
     jaw, sep, width = g("jaw_open"), g("lip_separation"), g("mouth_width", 0.48)
     tuck, press = g("lower_lip_tuck"), g("lip_press")
-    return constrain(MusclePose(
-        "ANIM", jaw, sep, width, g("lip_round"), g("lip_protrusion"),
-        upper_lip_raise=_clamp(0.40 * sep + 0.18 * tuck - 0.10 * press + 0.15 * g("lip_protrusion")),
-        lower_lip_depress=_clamp((jaw - 0.35) * 1.55),
-        lip_press=press, lower_lip_tuck=tuck,
-        corner_raise=_clamp((width - 0.70) * 0.75, 0.0, 0.30),
-        asymmetry=g("asymmetry"),
-    ))
+    return constrain(
+        MusclePose(
+            "ANIM",
+            jaw,
+            sep,
+            width,
+            g("lip_round"),
+            g("lip_protrusion"),
+            upper_lip_raise=_clamp(0.40 * sep + 0.18 * tuck - 0.10 * press + 0.15 * g("lip_protrusion")),
+            lower_lip_depress=_clamp((jaw - 0.35) * 1.55),
+            lip_press=press,
+            lower_lip_tuck=tuck,
+            corner_raise=_clamp((width - 0.70) * 0.75, 0.0, 0.30),
+            asymmetry=g("asymmetry"),
+        )
+    )
 
 
 # Channel weights for picking the nearest OLED frame (open/width/round dominate).
 _FRAME_WEIGHTS = {
-    "jaw_open": 2.0, "lip_separation": 1.6, "mouth_width": 1.6, "lip_round": 1.4, "lip_protrusion": 0.8,
-    "upper_lip_raise": 0.5, "lower_lip_depress": 0.7, "lip_press": 2.4, "lower_lip_tuck": 2.0,
-    "corner_raise": 0.6, "asymmetry": 0.6,
+    "jaw_open": 2.0,
+    "lip_separation": 1.6,
+    "mouth_width": 1.6,
+    "lip_round": 1.4,
+    "lip_protrusion": 0.8,
+    "upper_lip_raise": 0.5,
+    "lower_lip_depress": 0.7,
+    "lip_press": 2.4,
+    "lower_lip_tuck": 2.0,
+    "corner_raise": 0.6,
+    "asymmetry": 0.6,
 }
 V2_FIRST_FRAME = 27
 
@@ -435,8 +830,17 @@ def oled_frame(viseme: str, articulation=None, *, intensity: float = 1.0, durati
     follows the Mandarin v1 table, extended with ê, apical vowels and codas.
     Unknown visemes fall back to the nearest frame by muscle channels."""
     i, d = intensity, duration_ms
-    lang = {"EN_SCHWA": "SOFT", "EN_LAX_I": "MID_E", "EN_LAX_U": "ROUND_OW", "EN_L": "SOFT", "EN_S": "WIDE_I",
-            "EN_SH": "SIDE_SH", "EN_OY": "ROUND_AO", "EN_OW": "ROUND_OW", "EN_EY": "MID_E"}
+    lang = {
+        "EN_SCHWA": "SOFT",
+        "EN_LAX_I": "MID_E",
+        "EN_LAX_U": "ROUND_OW",
+        "EN_L": "SOFT",
+        "EN_S": "WIDE_I",
+        "EN_SH": "SIDE_SH",
+        "EN_OY": "ROUND_AO",
+        "EN_OW": "ROUND_OW",
+        "EN_EY": "MID_E",
+    }
     if viseme in lang:
         return _frame(lang[viseme])
     es = {
@@ -459,10 +863,22 @@ def oled_frame(viseme: str, articulation=None, *, intensity: float = 1.0, durati
     if viseme in {"EN_AY", "EN_AW"}:
         return _frame("OPEN_AH" if i >= 0.78 else "OPEN_AE")
     zh = {
-        "ZH_BPM": "PRESS_MBP", "ZH_F": "FV_TUCK", "ZH_DENTAL": "WIDE_I", "ZH_IZ": "WIDE_I",
-        "ZH_RETROFLEX": "RHOTIC_ER", "ZH_IR": "RHOTIC_ER", "ZH_ER": "RHOTIC_ER", "ZH_E": "MID_E",
-        "ZH_V": "PUCKER_UW", "ZH_U": "PUCKER_UW", "ZH_AI": "OPEN_AE", "ZH_AO": "ROUND_AO", "ZH_EI": "MID_E",
-        "ZH_OU": "ROUND_OW", "ZH_N": "SOFT", "ZH_NG": "SOFT",
+        "ZH_BPM": "PRESS_MBP",
+        "ZH_F": "FV_TUCK",
+        "ZH_DENTAL": "WIDE_I",
+        "ZH_IZ": "WIDE_I",
+        "ZH_RETROFLEX": "RHOTIC_ER",
+        "ZH_IR": "RHOTIC_ER",
+        "ZH_ER": "RHOTIC_ER",
+        "ZH_E": "MID_E",
+        "ZH_V": "PUCKER_UW",
+        "ZH_U": "PUCKER_UW",
+        "ZH_AI": "OPEN_AE",
+        "ZH_AO": "ROUND_AO",
+        "ZH_EI": "MID_E",
+        "ZH_OU": "ROUND_OW",
+        "ZH_N": "SOFT",
+        "ZH_NG": "SOFT",
     }
     if viseme in zh:
         return _frame(zh[viseme])
@@ -536,7 +952,27 @@ def muscle_dict(pose: MusclePose) -> dict:
 
 
 __all__ = [
-    "BASE_POSES", "CHANNELS", "FRAME_NAMES", "MusclePose", "POSES", "Pose", "TARGETS", "VISEME_TARGETS",
-    "EN_GLIDES", "GLIDES", "LANG_TARGETS", "ZH_GLIDES", "ZH_TARGETS", "blend_muscles", "constrain", "layer_offsets", "legacy_pose", "lip_contours",
-    "annotate_oled_frames", "muscle_from_articulation", "nearest_frame", "oled_frame", "target_for",
+    "BASE_POSES",
+    "CHANNELS",
+    "FRAME_NAMES",
+    "MusclePose",
+    "POSES",
+    "Pose",
+    "TARGETS",
+    "VISEME_TARGETS",
+    "EN_GLIDES",
+    "GLIDES",
+    "LANG_TARGETS",
+    "ZH_GLIDES",
+    "ZH_TARGETS",
+    "blend_muscles",
+    "constrain",
+    "layer_offsets",
+    "legacy_pose",
+    "lip_contours",
+    "annotate_oled_frames",
+    "muscle_from_articulation",
+    "nearest_frame",
+    "oled_frame",
+    "target_for",
 ]

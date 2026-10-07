@@ -67,8 +67,16 @@ def _mandarin_role(name: str) -> str:
 
 
 def _from_muscle(m) -> Articulation:
-    return Articulation(m.jaw_open, m.lip_separation, m.mouth_width, m.lip_round, m.lip_press,
-                        lip_protrusion=m.lip_protrusion, lower_lip_tuck=m.lower_lip_tuck, asymmetry=m.asymmetry)
+    return Articulation(
+        m.jaw_open,
+        m.lip_separation,
+        m.mouth_width,
+        m.lip_round,
+        m.lip_press,
+        lip_protrusion=m.lip_protrusion,
+        lower_lip_tuck=m.lower_lip_tuck,
+        asymmetry=m.asymmetry,
+    )
 
 
 def _add_language_shapes() -> None:
@@ -168,7 +176,7 @@ def _targets(phone: str) -> list[str]:
         return [diphthongs[symbol]]
     stress = re.search(r"([012])$", phone)
     if symbol == "AH" and stress and stress.group(1) == "0":
-        return ["EN_SCHWA"]                         # reduced vowel: small, neutral
+        return ["EN_SCHWA"]  # reduced vowel: small, neutral
     if symbol == "ER" and stress and stress.group(1) == "0":
         return ["EN_SCHWA"]
     return [
@@ -240,9 +248,12 @@ def phonemes_to_articulation(
             nxt = next_shape
             amount = 0.42 if nxt.lip_round >= 0.80 else (0.30 if nxt.mouth_width >= 0.78 else 0.20)
             shape = _blend(shape, nxt, amount)
-        elif spanish and not es_vowel and name not in {"PRESS", "FV", "ES_BH"} and _bare(
-            expanded[index + 1][0].symbol if index + 1 < len(expanded) else ""
-        ) in _ES_NUCLEI:
+        elif (
+            spanish
+            and not es_vowel
+            and name not in {"PRESS", "FV", "ES_BH"}
+            and _bare(expanded[index + 1][0].symbol if index + 1 < len(expanded) else "") in _ES_NUCLEI
+        ):
             # Spanish is CV-timed like Mandarin: a consonant already shows the
             # rounding or spreading of its vowel (o/u most, i/e less, a least).
             nxt = next_shape
