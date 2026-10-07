@@ -620,10 +620,63 @@ def _allocate(
     return result
 
 
+_ZH_DIGITS = "零一二三四五六七八九"
+
+
+def _mandarin_integer(number: int) -> str:
+    """Spoken Mandarin for 0..9999 (12 -> 十二, 105 -> 一百零五)."""
+
+    if number < 10:
+        return _ZH_DIGITS[number]
+    if number < 20:
+        return "十" + (_ZH_DIGITS[number % 10] if number % 10 else "")
+    units = ((1000, "千"), (100, "百"), (10, "十"))
+    text, zero = "", False
+    for value, name in units:
+        digit = number // value % 10
+        if digit:
+            if zero and text:
+                text += "零"
+            text += _ZH_DIGITS[digit] + name
+            zero = False
+        elif text:
+            zero = True
+    if number % 10:
+        text += ("零" if zero else "") + _ZH_DIGITS[number % 10]
+    return text
+
+
+def spell_mandarin_numbers(text: str) -> str:
+    """Write Arabic numerals the way they are read aloud in Mandarin, so the
+    mouth says them too: 10月8日 -> 十月八日, 12度 -> 十二度, 7:52 -> 七点五十二,
+    3.5 -> 三点五, 2026年 -> 二零二六年. Longer digit strings are read digit by digit."""
+
+    def clock(match: re.Match) -> str:
+        hour, minute = int(match.group(1)), int(match.group(2))
+        spoken = _mandarin_integer(hour) + "点"
+        if minute:
+            spoken += ("零" if minute < 10 else "") + _mandarin_integer(minute)
+        return spoken
+
+    text = re.sub(r"(\d{1,2}):(\d{2})", clock, text)
+    text = re.sub(r"(\d{4})(?=年)", lambda m: "".join(_ZH_DIGITS[int(d)] for d in m.group(1)), text)
+    text = re.sub(r"(\d+)\.(\d+)", lambda m: spell_mandarin_numbers(m.group(1)) + "点" + "".join(_ZH_DIGITS[int(d)] for d in m.group(2)), text)
+    return re.sub(
+        r"\d+",
+        lambda m: _mandarin_integer(int(m.group())) if len(m.group()) <= 4 else "".join(_ZH_DIGITS[int(d)] for d in m.group()),
+        text,
+    )
+
+
 def alignment_to_phonemes(spans: Iterable[AlignmentSpan]) -> list[TimedPhoneme]:
     """Compile language-tagged English, Spanish, and Mandarin alignment."""
 
-    spans = list(spans)
+    spans = [
+        AlignmentSpan(spell_mandarin_numbers(span.token), span.start_ms, span.duration_ms, span.language, span.confidence)
+        if _language_family(span.language) == "zh" and re.search(r"\d", span.token)
+        else span
+        for span in spans
+    ]
     result: list[TimedPhoneme] = []
     index = 0
     while index < len(spans):

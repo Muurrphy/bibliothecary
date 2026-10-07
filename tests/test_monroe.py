@@ -105,3 +105,13 @@ def test_offset_estimate_finds_early_timestamps():
     for i in range(int(0.39 * rate), int(0.69 * rate)):  # speech 390-690 ms
         samples[i] = 0.5 if i % 2 else -0.5
     assert estimate_offset_ms([AlignmentSpan("hola", 300, 300, "es")], samples, rate) == 90.0
+
+
+def test_mandarin_numbers_are_spoken():
+    from robot_lipsync.phonemes import spell_mandarin_numbers
+
+    assert spell_mandarin_numbers("10月8日，体感12度") == "十月八日，体感十二度"
+    assert spell_mandarin_numbers("7:52出门") == "七点五十二出门"
+    assert spell_mandarin_numbers("2026年") == "二零二六年"
+    phones = alignment_to_phonemes([AlignmentSpan("12度", 0, 400, "zh-CN")])
+    assert len({round(p.start_ms) for p in phones}) >= 5  # 十 二 度, not just 度

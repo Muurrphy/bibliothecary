@@ -147,6 +147,19 @@
     return [map(uo, upperH, 0, -1), map(ui, upperH, -1, 0), map(li, lowerH, 1, 0), map(lo, lowerH, 0, 1)];
   }
 
+  // Vector outline of the screen-profile lips for a muscle pose, in 128x64 panel
+  // units: {upper, lower, mouth} closed polygons (mouth = whole silhouette). For pen/vector renderers.
+  function outline(m) {
+    const P = legacyPose(m, true);
+    const connected = P.width > 1.02 || Math.abs(P.tilt) > 0.3;
+    const [uo, ui, li, lo] = contours(P, connected, 0.6);
+    const up = -3.0 * m.upper_lip_raise + 2.4 * m.lip_press;
+    const down = 3.0 * m.lower_lip_depress + 2.2 * m.jaw_open - 3.0 * m.lip_press;
+    const shift = (pts, dy) => pts.map(([x, y]) => [x, y + dy]);
+    return {upper: shift(uo.concat(ui.slice().reverse()), up), lower: shift(li.concat(lo.slice().reverse()), down),
+      mouth: shift(uo, up).concat(shift(lo, down).reverse())};
+  }
+
   // ---- offscreen helpers --------------------------------------------------------------
   const CACHE = {};
   function layer(key, w, h) {
@@ -417,5 +430,5 @@
   }
 
   root.DotLips = {REST, PALETTES, PROFILES: ["screen", "oled"], MODEL, draw, track, targetAt, makeSmoother,
-    muscleFromArticulation, nearestFrame, targetFor, constrain};
+    muscleFromArticulation, nearestFrame, targetFor, constrain, outline};
 })(typeof window !== "undefined" ? window : globalThis);
