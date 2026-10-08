@@ -1,11 +1,11 @@
 # Known issues — 2026-10-08 snapshot
 
-This is an early personal prototype. Version 0.2.1 addresses the freezes and missed turns seen while filming (see the changelog); those fixes are tested offline and in a desktop browser, not yet over a long session on a real phone.
+This is an early personal prototype. Versions 0.2.1 and 0.2.2 address the freezes and missed turns seen while filming (see the changelog); those fixes are tested offline and in a desktop browser, not yet over a long session on a real phone.
 
 | Area | Current limitation |
 |---|---|
-| Phone microphone | In real use, the phone sometimes captures a question and sometimes misses it or produces no reply. The cause has not been conclusively established. |
-| Mobile sessions | Audio permission, foreground state, interruptions or session loss can require tapping again or reloading. Do not infer continuous reliable listening from a filmed take. |
+| Phone microphone | Earlier versions sometimes heard a question late or not at all. Known causes are fixed (a page that lost the microphone after reloading, a queue of small uploads on slow Wi-Fi, a realtime connection that went quiet); long sessions on phones are still being tested. |
+| Mobile sessions | Safari asks for the microphone on every visit unless the site is set to Allow; a Home Screen page may ask each time it opens. After a call or Siri, the page may need one tap. |
 | Speech detection | Browser echo cancellation and voice thresholds are present, but can reject quiet speech or allow residual echo. Their contribution to the observed failures is unconfirmed. |
 | Provider / network | API calls and local Wi-Fi can fail. Existing timeout and playback-error handling are included; this does not resolve every stalled or missed turn. |
 | Mouth alignment | Native character timing is used when available; phonemes within a character are estimated. Exact human articulation is not demonstrated. |

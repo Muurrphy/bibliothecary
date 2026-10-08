@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import os
@@ -218,6 +219,13 @@ class App:
                         app.ears.audio(qid, body)
                         return self._json({"ok": True})
                     if url.path == "/api/heard/end":
+                        stopped = (parse_qs(url.query).get("t") or [""])[0]
+                        if stopped:   # when you stopped talking, on the shared clock (ms)
+                            with contextlib.suppress(ValueError):
+                                late = time.time() - float(stopped) / 1000
+                                if late > 1.5:
+                                    app.log(f"your question reached the computer {late:.1f}s after you stopped "
+                                            "(slow Wi-Fi to the phone or tablet)")
                         return self._json(app.ears.end(qid))
                     if url.path == "/api/heard/cancel":
                         app.ears.cancel(qid)

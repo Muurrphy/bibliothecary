@@ -1,117 +1,108 @@
-# Margin · a reading companion across devices
+# Margin
 
-I wanted to read on an old Kindle and ask questions without switching back to my computer. The Kindle does not need a microphone: a phone or iPad supplies the voice, listens to questions, and shows a small digital mouth while the companion speaks.
+**An AI reading companion for an old Kindle, with a talking digital mouth on your phone.**
 
-Margin brings these pieces into one project. The Kindle opens a lightweight reading page with highlights and notes; a computer runs the lesson and calls the AI services. **No Kindle jailbreak or application installation is required.**
+You read on the Kindle. Your phone (or an old iPad) is the companion's voice, ears and face: it reads the article to you in your language, underlines the sentence it is talking about on the e-ink screen, and stops when you ask a question out loud. A small multilingual mouth (Mandarin, English, Spanish) moves with every word.
 
-[中文说明](README.zh-CN.md) · [Setup and configuration](docs/configuration.md) · [Known issues](docs/known-issues.md)
+No Kindle jailbreak, no app to install. The Kindle and the phone just open web pages; a program on your computer does the thinking.
 
-> **Experimental snapshot, v0.2.0.** Phone listening is currently intermittent: it sometimes misses speech or does not produce a reply. Playback and mouth timing can also need a page reload. The examples have been used in filmed demos; they are not evidence of reliable everyday hands-free use.
+[中文说明](README.zh-CN.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+
+## Two parts: use them together or on their own
+
+| Part | What it is | Use it alone for |
+|---|---|---|
+| **Reading companion** (`margin`) | Kindle page with highlights, circled words, margin notes and small diagrams; a prepared talk you can interrupt; spoken questions answered by a model. | Reading with an e-reader and asking questions by text or voice, no mouth needed. |
+| **Mouth** (`robot_lipsync`) | Turns speech timing into mouth shapes for Mandarin, English and Spanish. Draws on a browser canvas or a 128×64 OLED (ESP32 firmware included). | Any robot, avatar or small screen that needs lips in step with a TTS voice. |
+
+Together, the mouth runs on the phone while the companion speaks, so the phone on your bedside table becomes a small face that reads to you.
+
+This repository used to be **robot-lipsync**. In October 2026 the mouth and the Kindle companion were merged here, because each makes most sense with the other. The full history of the mouth project is kept.
 
 ## What each device does
 
-| Device | Role |
+| Device | Job |
 |---|---|
-| Kindle | Article, sentence highlights, marked words, margin notes and simple diagrams. |
-| Phone or iPad | Its own microphone captures your questions; its own speaker plays replies; its screen draws the mouth. |
-| Computer | Hosts the pages, runs the lesson, calls the models and prepares speech timing. |
-| Extra phone or tablet | Can display a muted mouth without opening another microphone. |
+| Kindle (or any e-reader with a browser) | Shows the article, the underline, the notes. Does not record anything. |
+| Phone or iPad | Plays the voice, listens for your questions, shows the mouth. |
+| Computer | Runs the talk, calls the models, prepares voice and mouth timing. |
+| More phones or tablets (optional) | Extra mouths, all speaking at the same moment, without their own microphone. |
 
-All devices connect to the same local network. The Kindle only needs its browser. It does not record audio. A robot head or mechanical arm is **optional** and is not needed for this project.
+All devices need to be on the same Wi-Fi.
 
 ## Quick start
 
-Python 3.11 or newer. On macOS or Linux:
+Python 3.11 or newer.
 
 ```bash
 git clone https://github.com/Muurrphy/margin.git
 cd margin
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# Inspect a lesson and open the reader without API keys or paid calls.
-margin check examples/village.lesson.json
+# no keys, no cost: open the reader with a sample lesson
 margin serve examples/village.lesson.json --voice silent --paused
 ```
 
-Open the printed `http://<computer-address>:8765/` on the Kindle. Open `http://localhost:8765/remote` on the computer to play, pause or ask a text question. With no API key, the included scripted questions can be used.
+Open the printed `http://<computer>:8765/` on the Kindle (Experimental Browser) and `http://localhost:8765/remote` on the computer to play, pause or type a question.
 
-The multilingual mouth is included in the same installation. This offline preview uses **synthetic timing**, so it is only a visual example:
+Only the mouth:
 
 ```bash
 robot-lipsync demo --text "你好，世界。" --language zh-CN --output build/mouth.html
 ```
 
-Open `build/mouth.html`. No second repository or mouth package installation is required.
+This preview uses made-up timing; with a real voice the timing comes from the speech service. See the [mouth guide](docs/lipsync.md).
 
-## Add voice and questions
-
-Copy `.env.example` to `.env`, then enter your own OpenAI and ElevenLabs credentials and ElevenLabs voice ID. Set a TTS model your account supports if needed. Providers may charge for use.
+## With voice and spoken questions
 
 ```bash
-cp .env.example .env
-# Edit .env before starting.
+cp .env.example .env      # add your OpenAI and ElevenLabs keys and a voice id
 margin serve examples/octopus.lesson.json --voice elevenlabs --paused
 ```
 
-On the phone, open the printed HTTPS address with `/speaker?role=primary`, allow microphone access and tap **tap to begin**. The first tap unlocks browser audio. Keep the page visible and the device awake while trying voice questions.
+On the phone, open the printed `https://…:8765/speaker` address and tap the screen once. The phone needs the computer's local certificate for the microphone (steps in [setup](docs/configuration.md#https-on-the-phone)). In Safari, set **Website Settings → Microphone → Allow** for this address, or it asks again every time the page opens.
 
-Use `https://<computer-address>:8765/speaker?listen=0&mute=1` for an extra display. With `MARGIN_SINGLE_SPEAKER=1`, only the primary device sends questions and confirms playback.
+Then just talk. Ask anything and it answers, then goes back to where it was. Short commands run at once without a model: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
 
-Mobile microphone access needs HTTPS and a trusted certificate. Margin creates a local certificate using `openssl`; [the setup guide](docs/configuration.md#https-on-the-phone) explains the iPad/iPhone profile steps. Close the foreground terminal session or press Ctrl+C when finished.
-
-The companion follows a prepared lesson and can attempt to answer spoken interruptions before continuing. Short commands include **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again** and **跳过 / skip**. Voice capture remains unreliable in current testing; the computer's `/remote` page is available for text questions.
-
-## Bring an article
+## Your own article
 
 ```bash
-margin build article.txt --explain "Simplified Chinese" --bedtime -o tonight.json
+margin build https://example.com/article --explain "Simplified Chinese" --bedtime -o tonight.json
 margin serve tonight.json --voice elevenlabs --paused
 ```
 
-`margin build` can also take an article URL and needs an OpenAI-compatible chat API. Realtime voice questions use OpenAI; other compatible chat services can use the separate transcription-and-answer path with `MARGIN_REALTIME=0`. Transcription availability depends on the provider.
+The talk is prepared ahead (what the piece is about, the background, the main points in order, why it matters), so you get the whole story even if you never interrupt. Sample lessons: a village where everyone signs, how octopuses sleep, bumblebees playing with balls, and a short neutrino primer.
 
-Included lessons cover a signing village, octopus sleep, bumblebee play and a short neutrino primer. These are sample lessons; generated explanations should be checked against their sources.
-
-## Reading and mouth timing
+## How it works
 
 ```text
-Computer: lesson + questions → speech audio + character timing
-            ├─ Kindle: article, highlight, note
-            └─ Phone: audio clock → multilingual mouth
-                      microphone → question → answer
+computer: lesson + your question → answer → voice + character timing
+   ├─ Kindle: article, underline, notes      (one long-poll page, plain ES5)
+   └─ phone:  voice + mouth (robot_lipsync)  microphone → realtime model
 ```
 
-`src/margin` contains the reader, lesson player, voice and browser connection. `src/robot_lipsync` is the integrated mouth module, including Mandarin, English and Spanish articulation, canvas rendering and optional OLED tools. Its Python import and `robot-lipsync` command remain available for reuse.
+- **The Kindle is a thin page.** Text and about 200 lines of old-style JavaScript, so it runs in the Kindle browser. Every request has a time limit and the page redraws itself if anything goes wrong, so it does not freeze after a Wi-Fi blink.
+- **The model never draws on the screen directly.** It returns the same small steps a hand-written lesson uses, and every step is checked against the article.
+- **Questions are heard while you speak.** The phone streams your voice to the computer, which forwards it to an OpenAI realtime model; when you stop, the answer is already being written. If that path stalls, it falls back to speech-to-text plus a text model.
+- **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
+- **The mouth follows real timing.** The voice service returns when each character is spoken; the mouth module turns that into mouth shapes, and the phone draws them on its audio clock.
 
-The live reader currently selects Chinese or English timing heuristically. Spanish is supported by the mouth module's language-tagged API and CLI; automatic Spanish selection in the companion has not been validated.
+More: [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
 
-The example configuration requires character timestamps returned with the generated audio and uses zero manual visual offset. Phoneme positions **within a character** are still estimated. If strict timing is disabled, the existing alignment fallbacks are available; `MARGIN_ALIGN=local` avoids sending generated recordings to a forced-alignment service.
+## Status
 
-See the [mouth module guide](docs/lipsync.md), [architecture](docs/device-companion.md), [language profiles](docs/multilingual.md) and [limitations](docs/known-issues.md).
-
-## What is included
-
-- Reader and phone pages, live and scripted question paths, voice adapters, example lessons.
-- Multilingual mouth source, renderers, alignment fixtures, tests and schemas.
-- Optional ESP32 OLED firmware and tools from the original mouth project.
-- Historical latency tooling; simulated traces and old hardware measurements are labeled and do not establish this companion's response time.
-
-Personal recordings, hardware calibration, robot trajectories, private filming scripts, keys and local certificates are not distributed. [Data handling](SECURITY.md) describes where speech and article text go during use.
+Early prototype, used to film demos on a Kindle (10th gen, firmware 5.16), iPhone and iPad. Version 0.2.2 fixed the freezes and missed questions seen while filming; long everyday sessions on phones are still being tested. See [known issues](docs/known-issues.md).
 
 ## Development
 
 ```bash
 pip install -e ".[dev,elevenlabs,serial]"
 python -m pytest
-python -m build
 ```
 
-CI runs offline tests, checks lesson examples, builds the combined package and exercises the mouth preview. No API keys, microphones or motors are used by the tests.
-
-[Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Merge history](docs/migration.md)
+Tests run offline: no API keys, microphones or motors. [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Merge history](docs/migration.md)
 
 ## License
 
-MIT. The earlier [robot-lipsync repository](https://github.com/Muurrphy/robot-lipsync) is retained as a historical source; ongoing companion development is in this repository. Linked research and service providers retain their own terms. Third-party model weights, full articles and voice recordings are not bundled.
+MIT.

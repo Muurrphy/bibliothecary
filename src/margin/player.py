@@ -9,6 +9,7 @@ leaves a command in the queue.
 from __future__ import annotations
 
 import inspect
+import re
 import queue
 import threading
 import time
@@ -31,6 +32,27 @@ def _join(a: str, b: str) -> str:
 # answerer(lesson, question, focused sentence[, position in the plan]) returns a list of steps, or
 # {"steps": [...], "then": "continue" | "pause" | "back" | "skip" | "restart"}.
 Answerer = Callable[..., "list[Step] | dict | None"]
+
+
+_SENTENCE_END = re.compile(r"(?<=[。！？!?])|(?<=[.;])\s+")
+
+
+def _sentences(text: str, shortest: int = 8) -> list[str]:
+    """Split a spoken answer into sentences (very short ones stay with the next)."""
+    pieces, buf = [], ""
+    for part in _SENTENCE_END.split(text):
+        if not part or not part.strip():
+            continue
+        buf = _join(buf, part.strip()) if buf else part.strip()
+        if len(buf) >= shortest:
+            pieces.append(buf)
+            buf = ""
+    if buf:
+        if pieces:
+            pieces[-1] = _join(pieces[-1], buf)
+        else:
+            pieces.append(buf)
+    return pieces or [text]
 
 
 def default_fillers(explain_language: str) -> list[str]:
@@ -170,8 +192,9 @@ class Player:
             self.fillers = default_fillers(self.lesson.explain_language) if self._wants_fillers() else []
             self._prepare([Step(say=f) for f in self.fillers])
             # planned moments ("always" questions) are voiced ahead, so they start without a wait
-            self._prepare([Step(say=st.get("say", "")) for q in self.lesson.questions if q.get("always")
-                           for st in q.get("steps", []) if st.get("say")])
+            planned = [Step(say=st.get("say", "")) for q in self.lesson.questions if q.get("always")
+                       for st in q.get("steps", []) if st.get("say")]
+            self._prepare(planned, answer=True)
             self.bus.publish("lesson", **self.lesson.reader_payload())
             self.bus.publish("status", state="reading" if self.playing else "paused")
         elif name == "play":
@@ -212,13 +235,23 @@ class Player:
         finally:
             self._busy = False
 
-    def _prepare(self, steps: list[Step]) -> None:
-        """Let a voice synthesize what comes next while the current line plays."""
+    def _prepare(self, steps: list[Step], *, answer: bool = False) -> None:
+        """Let a voice synthesize what comes next while the current line plays.
+
+        Answer lines go first (``urgent``) and are voiced sentence by sentence: a short first
+        sentence is ready much sooner than a long one, so the reply starts sooner."""
         prepare = getattr(self.voice, "prepare", None)
-        if prepare:
-            for step in steps:
-                if step.say:
-                    prepare(step.say)
+        if not prepare:
+            return
+        try:
+            urgent = answer and "urgent" in inspect.signature(prepare).parameters
+        except (TypeError, ValueError):
+            urgent = False
+        for step in steps:
+            if not step.say:
+                continue
+            for piece in (_sentences(step.say) if answer else [step.say]):
+                prepare(piece, urgent=True) if urgent else prepare(piece)
 
     def _perform(self, step: Step, *, answer: dict | None = None) -> bool:
         """Show and say one step. False when it was interrupted."""
@@ -246,7 +279,10 @@ class Player:
                 answer["text"] = _join(answer["text"], step.say)
                 self.bus.publish("answer", question=answer["question"], text=answer["text"], done=False)
             self.bus.publish("caption", text=step.say)
-            self._say(step.say)
+            for piece in (_sentences(step.say) if answer is not None else [step.say]):
+                if self._stop.is_set():
+                    break
+                self._say(piece)
         if step.pause and not self._stop.is_set():
             self._stop.wait(step.pause)
         return not self._stop.is_set()
@@ -362,7 +398,7 @@ class Player:
                 self._log(f"answer failed: {err}")
         then, command_only, stream, filled = "continue", False, None, False
         if hasattr(result, "start") and hasattr(result, "wait_first"):     # streamed: steps arrive as written
-            stream = result.start(on_step=lambda st: self._prepare([st]))
+            stream = result.start(on_step=lambda st: self._prepare([st], answer=True))
             if live is not None:
                 # wait (briefly) for what you said: to show it, and to be sure it was not our own voice
                 heard = live.wait_heard(max(0.0, 1.6 - (time.monotonic() - t0)))
@@ -395,7 +431,7 @@ class Player:
         if not command_only:
             if isinstance(steps, list):
                 steps = steps or [sorry]
-                self._prepare(steps)
+                self._prepare(steps, answer=True)
             answer = {"question": question, "text": ""}
             spoken, t_first = 0, None
             for step in steps:

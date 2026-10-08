@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "margin-reader"
-version = "0.2.1"
+version = "0.2.2"
 description = "A reading companion across an old Kindle and a phone: articles, spoken questions and a multilingual digital mouth."
 readme = "README.md"
 requires-python = ">=3.11"

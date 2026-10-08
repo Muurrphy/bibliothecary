@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 — 2026-10-08
+
+- One repository: the former robot-lipsync repository now holds Margin, with the mouth project's history kept. READMEs rewritten around the two parts (reading companion, mouth) that work alone or together.
+- Phone and tablet: audio is uploaded one request at a time with whatever has piled up, so slow Wi-Fi no longer makes the computer hear the end of a question seconds late. The log notes when a question arrived late.
+- Answers are voiced sentence by sentence, on their own voice workers, so the first sentence is not stuck behind longer text or lines prepared for later. The log records how long each answer line took to voice.
+- A device that lost the microphone to another one says so at the top of the screen; tapping there takes over.
+- Setup notes on keeping Safari from asking for the microphone every time.
+
 ## 0.2.1 — 2026-10-08
 
 Smoothness fixes from the filming sessions (Kindle stopped moving, questions not heard, slow or

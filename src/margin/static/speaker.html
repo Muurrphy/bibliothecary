@@ -18,6 +18,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #tap[hidden]{display:none}
 #cert{position:fixed;bottom:22px;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.06em;text-transform:none;color:rgba(120,185,255,.45)}
 .standalone #cert{display:none}
+#other{position:fixed;top:14px;left:0;right:0;text-align:center;font:12px "IBM Plex Mono",ui-monospace,Menlo,monospace;letter-spacing:.06em;color:rgba(120,185,255,.55);cursor:pointer}
+#other[hidden]{display:none}
 #dbg{position:fixed;left:14px;bottom:12px;font:11px/1.45 ui-monospace,Menlo,monospace;color:rgba(120,185,255,.7);white-space:pre;pointer-events:none}
 </style>
 <!-- the mouth comes from robot-lipsync when it is installed; without it a simple one is drawn -->
@@ -29,6 +31,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div id="tap"><div>tap to begin</div><small id="why"></small>
   <a id="cert" href="/margin-ca.crt">full screen: install the certificate, then Share → Add to Home Screen</a></div>
 <div id="dbg" hidden></div>
+<div id="other" hidden>another device is listening · tap here to use this one</div>
 <script>
 "use strict";
 // ---------------------------------------------------------------------------------
@@ -79,6 +82,7 @@ async function hello(claim = false) {
   if (result.error) throw new Error(result.error);
   if (!result.primary && (LISTEN || !MUTE)) {   // another device took over: be a quiet mouth
     note("another device is the speaker now");
+    otherEl.hidden = false;
     LISTEN = false; MUTE = true;
     const graph = window.marginMicGraph;
     if (graph) graph.stream.getTracks().forEach(track => track.stop());
@@ -202,13 +206,18 @@ function send(path, body, type) {        // in order, one after another
   chain = p.then(() => {}, () => {});
   return p;
 }
+// One upload at a time: while one is on its way, new audio waits and goes along with the next.
+// On a slow phone Wi-Fi this keeps the computer at most one round trip behind you, instead of a
+// queue of small uploads that made it hear the end of a question seconds late.
 function flush(final) {
   const c = V.cap; if (!c) return;
-  if (c.frames.length - c.sent >= 6 || (final && c.frames.length > c.sent)) {
-    const piece = pcm24(c.frames.slice(c.sent), AC.sampleRate);
-    c.sent = c.frames.length;
-    send("/api/heard?q=" + c.qid + "&sid=" + SID, piece, "application/octet-stream");
-  }
+  const pending = c.frames.length - c.sent;
+  if (!pending || (!final && (pending < 6 || c.inflight))) return;
+  const piece = pcm24(c.frames.slice(c.sent), AC.sampleRate);
+  c.sent = c.frames.length;
+  c.inflight = (c.inflight || 0) + 1;
+  send("/api/heard?q=" + c.qid + "&sid=" + SID, piece, "application/octet-stream")
+    .then(() => { c.inflight--; if (V.cap === c) flush(false); });
 }
 function startQuestion() {
   V.cap = {frames: V.pre.slice(), sent: 0, silent: 0, voicedMs: 0, qid: Date.now().toString(36) + (++qn)};
@@ -225,7 +234,7 @@ function finishQuestion() {
   if (c.voicedMs < 300) { V.state = "too short"; send("/api/heard/cancel?q=" + c.qid + "&sid=" + SID, "{}"); return; }
   V.wait = performance.now() + 8000;    // until the answer starts (status events clear this)
   V.state = "sending";
-  send("/api/heard/end?q=" + c.qid + "&sid=" + SID, "{}").then(r => {
+  send("/api/heard/end?q=" + c.qid + "&sid=" + SID + "&t=" + Math.round(Date.now() + clockOffset - 700), "{}").then(r => {
     note(r.error ? "error: " + r.error : r.ignored != null ? "ignored: " + r.ignored : r.live ? "asked (realtime)" : "asked: " + r.question);
     if (r.error || r.ignored != null) {
       V.wait = performance.now() + 300;
@@ -292,6 +301,14 @@ async function begin() {
   setInterval(() => hello().catch(e => note(String(e))), 5000);
   connect(LISTEN);
 }
+const otherEl = document.getElementById("other");
+otherEl.addEventListener("click", async () => {      // take over listening and speaking on this device
+  LISTEN = Q.get("listen") !== "0"; MUTE = Q.get("mute") === "1";
+  if (AC.state !== "running") { try { await AC.resume(); } catch (e) {} }
+  if (LISTEN && !micLive()) await openMic();
+  const r = await hello(true).catch(() => ({}));
+  if (r.primary) otherEl.hidden = true;
+});
 function needTap(why) {
   document.getElementById("why").textContent = why;
   tapEl.hidden = false;

@@ -5,6 +5,6 @@ type: software
 authors:
   - name: Muurrphy
 repository-code: "https://github.com/Muurrphy/margin"
-version: 0.2.1
+version: 0.2.2
 date-released: 2026-10-08
 license: MIT

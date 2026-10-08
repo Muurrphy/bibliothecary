@@ -175,6 +175,9 @@ class ElevenLabsVoice(_ProcessVoice):
         self.model = model or os.environ.get("MARGIN_ELEVEN_MODEL") or self._pick_model()
         self.player = _player()
         self._pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="margin-tts")
+        # answers get their own workers: they never queue behind lines prepared for later
+        self._urgent_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="margin-tts-answer")
+        self.log = _warn
         self._cache: dict[str, Future] = {}
         self._lock = threading.Lock()
         self.timestamps = True
@@ -322,12 +325,21 @@ class ElevenLabsVoice(_ProcessVoice):
                 "character_start_times_seconds": [float(c.get("start", 0)) for c in chars],
                 "character_end_times_seconds": [float(c.get("end", 0)) for c in chars]}
 
-    def prepare(self, text: str) -> None:
+    def prepare(self, text: str, urgent: bool = False) -> None:
         with self._lock:
             if text not in self._cache:
                 if len(self._cache) > 64:
                     self._cache.clear()
-                self._cache[text] = self._pool.submit(self._synthesize, text)
+                if urgent:
+                    self._cache[text] = self._urgent_pool.submit(self._timed, text)
+                else:
+                    self._cache[text] = self._pool.submit(self._synthesize, text)
+
+    def _timed(self, text: str) -> Clip:
+        t0 = time.monotonic()
+        clip = self._synthesize(text)
+        self.log(f"voice for an answer line: {time.monotonic() - t0:.1f}s ({len(text)} characters)")
+        return clip
 
     def speak(self, text: str, stop: threading.Event) -> None:
         if stop.is_set() or not text.strip():

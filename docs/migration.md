@@ -1,9 +1,10 @@
 # One project, one repository
 
-On 2026-10-08 the Kindle reading companion and multilingual digital mouth were consolidated under **Margin**.
+In October 2026 the Kindle reading companion and the multilingual digital mouth became one project, **Margin**, in one repository.
 
-The mouth implementation was imported from `Muurrphy/robot-lipsync` at commit `8b90e617de9af3bc5d8c33d94d40e19735abe951`, under the same MIT license. Source, renderers, articulation data, language rules, fixtures, tests, schemas, OLED firmware, generators and benchmark tools are included. The earlier repository remains available for its history.
+- The repository is the former `Muurrphy/robot-lipsync`, renamed to `Muurrphy/margin`. GitHub redirects the old address, and the mouth project's full commit history is kept as an ancestor of the merged history.
+- The mouth code lives in `src/robot_lipsync`. Its Python import and the `robot-lipsync` command work as before, so it can still be used on its own (robots, OLED screens, avatars). The old `[mouth]` extra remains as a harmless alias.
+- `src/margin` is the reading companion. `pip install -e .` installs both.
+- A short-lived separate `Muurrphy/margin` repository (two commits, 2026-10-08) was folded in here; its content is identical to the start of the merged history.
 
-`pip install -e .` now installs both `margin` and `robot_lipsync`, plus the English and Mandarin language dependencies. `margin` and `robot-lipsync` command names are retained. The old `[mouth]` extra remains as a compatibility alias and no longer fetches a second GitHub repository.
-
-The original local reader history is retained locally. The public repository starts with a clean combined source snapshot and GitHub noreply commit metadata. Previously developed reliability and voice-profile changes are published with this snapshot. They do not constitute a new fix for the observed intermittent phone capture. The public examples are original lesson texts; private recordings, calibration, account-specific settings and filming archives stay local.
+The public repository holds code, mouth data, sample lessons, tests, configuration templates, documentation and the optional OLED firmware. Keys, recordings, personal logs, private filming scripts, robot-arm trajectories, device calibration and local certificates are not included.
