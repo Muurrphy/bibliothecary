@@ -22,7 +22,7 @@ STEP_SHAPE = """Each step is an object:
   "focus": the id of the sentence on screen this step is about, e.g. "p2.s1" (optional).
   "mark":  a word or short phrase copied EXACTLY from the focused sentence, to circle (optional).
   "note":  a margin note, at most 25 words, in {explain} (optional). Use it for a translation,
-           a key term, or the one idea worth keeping. Not every step needs one.
+           a key term with its meaning, or a fact worth keeping. Not every step needs one.
   "figure": a small diagram drawn on the e-reader (optional, rare: only when seeing the structure
            helps more than hearing it). Keep every label to a few words. One of:
            {{"type": "compare", "title": "...", "rows": [{{"label": "...", "items": ["...", ...], "hi": [2]}}]}}
@@ -32,14 +32,14 @@ STEP_SHAPE = """Each step is an object:
            {{"type": "terms", "title": "...", "items": [{{"term": "...", "meaning": "..."}}]}}"""
 
 LESSON_SYSTEM = """You are a calm, curious reading companion. You walk someone through an article on an
-e-ink reader, sentence by sentence, the way a good friend who already read it would: you tell them
+e-ink reader, the way a good friend who already read it would: you tell them
 what it says, translate when they read in a second language, point at the words that matter, and
 skip what does not. You are not a summarizer and not a lecturer.
 
 Return JSON: {{"preview": [ ... ], "steps": [ ... ], "review": [ ... ], "goodbye": "..."}}.
 {shape}
 
-"preview": {n_preview} steps said BEFORE the reading, in {explain}, without "focus": the background
+"preview": {n_preview} step objects ({{"say": "..."}}) said BEFORE the reading, in {explain}, without "focus": the background
 knowledge someone needs to follow this piece and may not have. Terms, people, places, the field, how
 something works. Only what the article relies on; not a summary of the article. [] if nothing is needed.
 {known}
@@ -52,14 +52,20 @@ Rules for "steps" (the reading itself):
 - It is a short talk with a clear arc: say what the piece is and why it is interesting (no focus),
   give whatever background the preview did not, walk through the main points in the order of the article, and close
   with why it matters. Someone who never interrupts should still get the whole story.
-- Go through the article in order. Every paragraph gets at least one step; long or dense ones more.
-- Explain, do not just repeat. When the article is in another language than {explain},
-  your "say" carries the meaning in {explain}; the note may give a key phrase's translation.
+- Go through the article in order, one idea per step. A step usually covers several sentences or a
+  whole paragraph: focus the sentence that carries the idea. Skip what adds nothing (asides, credits,
+  repetition); a paragraph that adds nothing new can be passed over.
+- Retell, do not translate. Say what it means in your own words, the way you would tell a friend over
+  dinner, not sentence by sentence. Never narrate the structure of the article ("this paragraph",
+  "next it says", "the heading", "the section begins", "it then turns to"); just tell the content.
+- Notes are for what is worth keeping on paper: a key term with its meaning, a number, a name, a
+  translation of a phrase. Never a note about the structure ("transition", "data coming up") and never
+  a vague label. Most steps need no note; a note must be correct on its own.
 - Numbers, names and claims must come from the article. Do not invent facts.
 {style}
 - Mark at most one phrase per step, and only when pointing at it helps.
 - End with one short step that says what to remember.
-- About {n_steps} steps in total."""
+- About {n_steps} reading steps at most; fewer is fine for a short piece."""
 
 ANSWER_SYSTEM = """You are a reading companion on an e-ink reader, going through an article with a friend.
 You were following a plan you prepared (below), and they just said something. Usually it is a question.
@@ -163,7 +169,7 @@ def build_lesson(client: OpenAICompatible, title: str, text: str, *, explain_lan
     paragraphs = [p for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
     lesson = Lesson.from_dict({"title": title, "source": source, "language": language,
                                "explain_language": explain_language, "paragraphs": paragraphs, "steps": []})
-    n = max(4, min(40, len(lesson.sentence_ids()) // 2 + 2))
+    n = max(4, min(24, len(lesson.sentence_ids()) // 3 + 3))
     system = LESSON_SYSTEM.format(
         shape=_shape(explain_language), explain=explain_language, n_steps=n, style=STYLE,
         n_preview="2-4" if preview else "0", n_review=str(max(0, review)),
@@ -174,16 +180,26 @@ def build_lesson(client: OpenAICompatible, title: str, text: str, *, explain_lan
     return lesson
 
 
+def _as_steps(raw: Any) -> list[Any]:
+    """Models sometimes give a part as plain sentences instead of step objects: accept both."""
+    if isinstance(raw, str):
+        raw = [raw]
+    return [{"say": item} if isinstance(item, str) else item for item in raw or []] if isinstance(raw, list) else []
+
+
 def assemble(lesson: Lesson, data: dict[str, Any], *, preview: bool = True, review: int = 3) -> list[Step]:
     """The model's three parts as one list of steps: preview, reading, review questions, goodbye."""
     steps = []
     if preview:
-        for step in clean_steps(lesson, data.get("preview") or []):
+        for step in clean_steps(lesson, _as_steps(data.get("preview"))):
             step.focus, step.mark, step.part = None, None, "preview"
             if step.say:
                 steps.append(step)
-    steps += clean_steps(lesson, data.get("steps") or [])
-    for item in (data.get("review") or [])[:max(0, review)]:
+    steps += clean_steps(lesson, _as_steps(data.get("steps")))
+    reviews = data.get("review") or []
+    for item in (reviews if isinstance(reviews, list) else [])[:max(0, review)]:
+        if isinstance(item, str):
+            item = {"question": item}
         if isinstance(item, dict) and str(item.get("question") or "").strip():
             steps.append(Step(say=str(item["question"]).strip(), part="review",
                               expect=str(item.get("answer") or "").strip() or None))

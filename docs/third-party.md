@@ -21,3 +21,10 @@ These links provide background on speech animation and voice interaction, along 
 ## ElevenLabs
 
 The optional provider uses the official [HTTP streaming-with-timestamps endpoint](https://elevenlabs.io/docs/api-reference/text-to-speech/stream-with-timestamps). Its [latency guide](https://elevenlabs.io/docs/eleven-api/concepts/latency) describes service timing. The offline mouth preview and tests use local fixtures.
+
+## Libraries the librarian depends on
+
+| Library | Used for | License |
+|---|---|---|
+| [trafilatura](https://github.com/adbar/trafilatura) | Finding the article on a web page, without menus, related links or footers | Apache-2.0 |
+| [cmudict](https://github.com/prosegrammers/pronouncing) / [pypinyin](https://github.com/mozillazg/python-pinyin) | English and Mandarin pronunciation for the mouth | see each project |

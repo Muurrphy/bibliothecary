@@ -9,6 +9,7 @@ The project is now **Bibliothecary**, a personal librarian (Chinese: 图书管�
 - Circulation records: every question and answer is appended to the reading's `session.jsonl` as it is said, and a Markdown reading report is written when the session ends or the program is stopped. With a model, the report adds what still seems unclear and which threads are worth following, next to the verbatim record.
 - Readings are kept in `~/Bibliothecary` (or `$BIBLIOTHECARY_HOME`), on this computer only.
 - `margin build` takes `--no-preview` and `--review N`; the octopus example has a preview and two review questions.
+- From the first real run: the background is no longer lost when the model writes it as plain sentences; the talk retells instead of translating sentence by sentence, with fewer, fuller steps and no notes about the article's structure; web pages go through trafilatura, so menus and news links no longer end up in the reading.
 - The Python package is published as `bibliothecary`; the `margin` and `robot-lipsync` commands are unchanged.
 
 ## 0.2.2 — 2026-10-08

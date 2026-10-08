@@ -214,4 +214,28 @@ def test_build_lesson_asks_for_three_parts():
     assert "already understands: REM sleep" in system
     assert [s.part for s in lesson.steps] == ["preview", None, "review", "review"]
     brain.build_lesson(client, "T", "One.", preview=False, review=0)
-    assert "0 steps said BEFORE" in client.calls[1][0] and "0 questions" in client.calls[1][0]
+    assert "0 step objects" in client.calls[1][0] and "0 questions" in client.calls[1][0]
+
+
+def test_plain_string_parts_are_kept():
+    # a real model wrote the preview as plain sentences, which used to be dropped
+    lesson = Lesson.load(OCTOPUS)
+    steps = brain.assemble(lesson, {"preview": ["逃逸速度超过光速。", "事件视界是一条边界。"],
+                                    "steps": ["正文。"], "review": ["什么是事件视界？"]})
+    assert [(s.part, s.say) for s in steps] == [("preview", "逃逸速度超过光速。"), ("preview", "事件视界是一条边界。"),
+                                               (None, "正文。"), ("review", "什么是事件视界？")]
+
+
+def test_web_page_keeps_only_the_article():
+    from margin.ingest import from_html
+
+    article = " ".join(f"Black holes bend light and time in sentence number {i}." for i in range(40))
+    page = f"""<html><head><title>Black Holes - NASA Science</title></head><body>
+      <nav><ul><li>Missions</li><li>Humans in Space</li><li>Learning Resources for Students</li></ul></nav>
+      <main><article><h1>Black Holes</h1><p>{article}</p><p>{article}</p></article></main>
+      <footer><p>NASA Opens Applications for Next Class of Flight Directors and more news</p></footer>
+    </body></html>"""
+    title, text = from_html(page)
+    assert title == "Black Holes"
+    assert "Missions" not in text and "Flight Directors" not in text and "sentence number 39" in text
+    assert not text.startswith("Black Holes")          # the title is not read twice
