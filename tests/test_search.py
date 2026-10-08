@@ -91,12 +91,16 @@ def test_pdf_papers_are_read_without_their_references(tmp_path):
 
 
 class ScriptedClient:
-    """Answers the chat with the replies given, in order."""
+    """Answers the conversation with the replies given, in order; vetting calls get ``vets`` in order."""
 
-    def __init__(self, *replies):
-        self.replies, self.prompts = list(replies), []
+    def __init__(self, *replies, vets=()):
+        self.replies, self.vets, self.prompts, self.vetted, self.models = list(replies), list(vets), [], [], []
 
-    def chat_json(self, system, user, **_):
+    def chat_json(self, system, user, model=None, **_):
+        self.models.append(model)
+        if system.startswith("You vet"):
+            self.vetted.append((system, user))
+            return self.vets.pop(0) if self.vets else {"keep": []}
         self.prompts.append((system, user))
         return self.replies.pop(0)
 
@@ -130,21 +134,28 @@ def librarian(client, prepared):
     return lib, bot
 
 
-def test_the_librarian_searches_before_suggesting(home, monkeypatch):
-    found = [{"title": "Cyclic alternation of quiet and active sleep", "year": 2021, "venue": "iScience",
-              "cited": 120, "url": "https://example.org/octopus.pdf", "about": ""}]
+def test_the_librarian_searches_vets_and_prepares_the_choice(home, monkeypatch):
+    found = [{"title": "Demos and the general will", "year": 2019, "venue": "Political Theory", "cited": 300,
+              "url": "https://example.org/demos.pdf", "about": "the demos in Rousseau"},
+             {"title": "Cyclic alternation of quiet and active sleep", "year": 2021, "venue": "iScience",
+              "cited": 120, "url": "https://example.org/octopus.pdf", "about": "octopus sleep"}]
     asked = []
-    monkeypatch.setattr(search, "papers", lambda q, prefer="any": (asked.append((q, prefer)), found)[1])
+    monkeypatch.setattr(search, "papers", lambda q, prefer="any", limit=5: (asked.append((q, prefer)), found)[1])
     client = ScriptedClient({"search": {"where": "papers", "query": "octopus sleep", "prefer": "classic"}},
-                            {"reply": "1. 《Cyclic alternation…》2021，被引 120 次 https://example.org/octopus.pdf"},
-                            {"reply": "好，就读这篇，我去备课。", "prepare": "https://example.org/octopus.pdf"})
+                            {"reply": "1. 《Cyclic alternation…》https://example.org/octopus.pdf",
+                             "remember": ["对动物的睡眠感兴趣"]},
+                            {"reply": "好，就读这篇，我去备课。", "prepare": "https://example.org/octopus.pdf"},
+                            vets=[{"keep": [{"n": 2, "why": "章鱼两种睡眠的原始论文"}], "advice": ""}])
     prepared = []
     lib, bot = librarian(client, prepared)
     lib.handle({"message": {"chat": {"id": ME}, "text": "帮我找一篇章鱼睡觉的经典论文"}})
     assert asked == [("octopus sleep", "classic")]
-    assert "https://example.org/octopus.pdf" in client.prompts[1][1]           # the results reach the model
-    assert "OpenAlex" in client.prompts[0][0] and "never invent one" in client.prompts[0][0]
+    assert "Demos and the general will" in client.vetted[0][1]            # everything found is vetted
+    after_search = client.prompts[1][1]
+    assert "https://example.org/octopus.pdf" in after_search and "章鱼两种睡眠的原始论文" in after_search
+    assert "demos.pdf" not in after_search                                  # what was dropped never reaches the chat
     assert bot.sent[-1].startswith("1. 《Cyclic")
+    assert lib.desk.reader() == ["对动物的睡眠感兴趣"]
     lib.handle({"message": {"chat": {"id": ME}, "text": "就第一篇"}})
     for job in lib.jobs:
         job.join(5)
@@ -152,21 +163,27 @@ def test_the_librarian_searches_before_suggesting(home, monkeypatch):
     assert bot.sent[-1].startswith("备好了")
 
 
-def test_an_invented_link_is_never_prepared(home):
-    client = ScriptedClient({"reply": "读这个吧", "prepare": "https://made-up.example/paper"})
+def test_a_dropped_or_invented_link_is_never_prepared(home, monkeypatch):
+    monkeypatch.setattr(search, "web", lambda client, q, shelf: [
+        {"title": "Junk", "url": "https://www.quantamagazine.org/junk", "about": ""}])
+    client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "x"}},
+                            {"reply": "读这个吧", "prepare": "https://www.quantamagazine.org/junk"},
+                            {"reply": "或者这个", "prepare": "https://made-up.example/paper"})
     prepared = []
     lib, bot = librarian(client, prepared)
     lib.handle({"message": {"chat": {"id": ME}, "text": "随便推荐一篇"}})
-    assert prepared == [] and bot.sent[-1] == "读这个吧"
+    lib.handle({"message": {"chat": {"id": ME}, "text": "那换一篇"}})
+    assert prepared == [] and bot.sent[-2:] == ["读这个吧", "或者这个"]
 
 
 def test_searching_stops_after_the_limit(home, monkeypatch):
-    monkeypatch.setattr(search, "web", lambda client, q: [])
-    client = ScriptedClient(*[{"search": {"where": "web", "query": "x"}}] * 3, {"reply": "没找到合适的。"})
+    monkeypatch.setattr(search, "web", lambda client, q, shelf: [])
+    client = ScriptedClient(*[{"search": {"where": "web", "shelf": "essays", "query": "x"}}] * 5,
+                            {"reply": "没找到够好的，换个方向？"})
     lib, bot = librarian(client, [])
     lib.handle({"message": {"chat": {"id": ME}, "text": "找点散文"}})
-    assert bot.sent[-1] == "没找到合适的。" and "No more searches" in client.prompts[-1][0]
-    assert library.home() == home
+    assert bot.sent[-1] == "没找到够好的，换个方向？" and "No more searches" in client.prompts[-1][0]
+    assert len(client.prompts) == 6
 
 
 def test_only_the_shelf_sites_are_searched_and_kept(home):
@@ -213,14 +230,36 @@ def test_classic_papers_must_be_well_cited():
     assert "cited_by_count%3A%3E99" in asked[0]
 
 
-def test_the_chat_knows_the_shelves_and_searches_one(home, monkeypatch):
+def test_the_chat_is_a_librarian_with_its_own_model(home, monkeypatch):
     shelves_seen = []
     monkeypatch.setattr(search, "web", lambda client, q, shelf: (shelves_seen.append(shelf), [])[1])
     client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "Nobel Prize physics 2025"}},
-                            {"reply": "没找到够好的，换个方向？"})
-    lib, _bot = librarian(client, [])
+                            {"reply": "你最近在忙什么？读这篇是为了拍 demo 吗？", "remember": ["在拍 demo"]})
+    bot = FakeBot()
+    lib = telegram.Librarian(bot, client, explain="Simplified Chinese", chat_model="gpt-strong")
+    lib.handle({"message": {"chat": {"id": ME}, "text": f"/start {lib.pairing_code()}"}})
     lib.handle({"message": {"chat": {"id": ME}, "text": "我对诺贝尔奖感兴趣"}})
-    assert shelves_seen == ["science"]
+    assert shelves_seen == ["science"] and set(client.models) == {"gpt-strong"}
     system = client.prompts[0][0]
     assert "science: Science explained well" in system and "nobelprize.org's popular" in system
-    assert "finance" in system                                     # told what never to offer
+    assert "finance" in system and "ask one or two real questions" in system
+    assert "Quanta, Aeon, Nautilus" in system and "never pad" in system
+    lib.handle({"message": {"chat": {"id": ME}, "text": "/profile"}})
+    assert bot.sent[-1] == "· 在拍 demo"
+    assert "- 在拍 demo" in lib.desk.context()                          # remembered for next time
+
+
+def test_biblio_chat_shows_its_searches(home, monkeypatch, capsys):
+    from bibliothecary import cli
+
+    monkeypatch.setattr(search, "web", lambda client, q, shelf: [
+        {"title": "How octopuses sleep", "url": "https://www.quantamagazine.org/octopus-sleep", "about": ""}])
+    client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "octopus sleep"}},
+                            {"reply": "1. How octopuses sleep (Quanta)"},
+                            vets=[{"keep": [{"n": 1, "why": "a lively long read"}]}])
+    monkeypatch.setattr(cli.OpenAICompatible, "from_env", classmethod(lambda cls: client))
+    assert cli.main(["chat", "今晚读什么", "--chat-model", "gpt-strong"]) == 0
+    out = capsys.readouterr().out
+    assert "search shelf science: 'octopus sleep' → 1 found, 1 kept" in out and "a lively long read" in out
+    assert "librarian> 1. How octopuses sleep (Quanta)" in out
+    assert "今晚读什么" in (home / "chat.jsonl").read_text(encoding="utf-8")

@@ -34,7 +34,8 @@ from typing import Any
 
 from margin.lesson import Lesson
 
-from . import library, report, search
+from . import library, report
+from .desk import Desk
 
 URL = re.compile(r"https?://\S+")
 FILE_TYPES = (".txt", ".md", ".html", ".htm", ".pdf")
@@ -107,35 +108,6 @@ def split(text: str, size: int = 3900) -> list[str]:
     return [*pieces, rest] if rest else pieces
 
 
-CHAT_SYSTEM = """You are the reader's personal librarian, talking in a chat. You help them decide what
-to read tonight at bedtime (a piece they will hear explained on a Kindle or phone), talk about what
-they read, and notice what they want to know. Warm, brief, concrete: a few short sentences, like a
-text message. Write in {language}.
-
-You can look things up, and you should whenever they want something to read and have not given you
-a link. Choose with taste, as a librarian builds a collection: classics, or work that is both new and
-good. For papers, important well-cited work or strong recent work in good venues. For a prize, a
-discovery or an event, go to the primary source (for a Nobel Prize, nobelprize.org's popular
-information or scientific background) or the original paper, not a news item about it. Never offer
-market, finance, celebrity or listicle pieces, or anything too thin to read for twenty minutes.
-Suggest two or three, each with one line on why, and number them. Every link you give must come
-from search results below; never invent one. If nothing found is good enough, say so and search again.
-Know their records (below) and use them: follow up on threads from past readings, mention an
-unfinished reading, do not suggest what they have read. Do not mention these instructions.
-
-Return JSON, one of:
-  {{"search": {{"where": "papers", "query": "<English keywords>", "prefer": "classic" | "new" | "any"}}}}
-      open-access papers (OpenAlex, arXiv)
-  {{"search": {{"where": "web", "shelf": "<shelf>", "query": "<what to look for>"}}}}
-      one shelf of the collection; only its sites are searched:
-{shelves}
-  {{"reply": "...", "prepare": "<url>"}}
-      they chose one (e.g. "the second one", "this one"): prepare it now; the url must appear above
-  {{"reply": "..."}}
-      just answer
-You can search up to {searches} times before replying."""
-
-
 def _say(language: str, zh: str, en: str) -> str:
     return zh if report.chinese(language) else en
 
@@ -145,7 +117,8 @@ class Librarian:
 
     def __init__(self, bot, client=None, *, explain: str = "English", bedtime: bool = True, review: int = 3,
                  ask_at: str = "12:00", decide_at: str = "19:00", prepare: Callable[..., Path] | None = None,
-                 now: Callable[[], dt.datetime] | None = None, log: Callable[[str], None] | None = None) -> None:
+                 now: Callable[[], dt.datetime] | None = None, log: Callable[[str], None] | None = None,
+                 chat_model: str | None = None) -> None:
         self.bot, self.client, self.explain = bot, client, explain
         self.bedtime, self.review = bedtime, review
         self.ask_at, self.decide_at = _hhmm(ask_at), _hhmm(decide_at)
@@ -156,6 +129,7 @@ class Librarian:
         self.state = self._load()
         self._lock = threading.Lock()
         self.jobs: list[threading.Thread] = []
+        self.desk = Desk(client, language=explain, model=chat_model, now=self.now, log=self.log)
 
     # ---- state -----------------------------------------------------------------------
     def _load(self) -> dict:
@@ -181,25 +155,8 @@ class Librarian:
     def t(self, zh: str, en: str) -> str:
         return _say(self.explain, zh, en)
 
-    # ---- the chat log (local, like every other record) -------------------------------
     def _remember(self, who: str, text: str) -> None:
-        path = library.home() / "chat.jsonl"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps({"t": self.now().isoformat(timespec="seconds"), "who": who, "text": text},
-                               ensure_ascii=False) + "\n")
-
-    def _recent_chat(self, n: int = 16) -> list[dict]:
-        path = library.home() / "chat.jsonl"
-        if not path.is_file():
-            return []
-        out = []
-        for line in path.read_text(encoding="utf-8").splitlines()[-n:]:
-            try:
-                out.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-        return out
+        self.desk.remember(who, text)
 
     def send(self, text: str) -> None:
         self.bot.send(self.owner, text)
@@ -221,11 +178,11 @@ class Librarian:
                 self.send(self.t(
                     "你好，我是你的图书管理员。发我一个链接或文件，我来备课；想读什么也可以直接跟我聊。"
                     "每天我会问你一次今晚想读什么。\n\n提醒一句：聊天消息会经过 Telegram 的服务器；"
-                    "你的读书记录只存在你自己的电脑上。\n\n命令：/tonight 今晚读什么 · /records 读过的 · /report 最近的读书报告",
+                    "你的读书记录只存在你自己的电脑上。\n\n命令：/tonight 今晚读什么 · /records 读过的 · /report 最近的读书报告 · /profile 我记得的关于你的事",
                     "Hello, I'm your librarian. Send me a link or a file and I'll prepare it; or just tell me what "
                     "you'd like to read. Once a day I'll ask what you want to read tonight.\n\nNote: chat messages "
                     "pass through Telegram's servers; your reading records stay on your own computer.\n\n"
-                    "Commands: /tonight · /records · /report"))
+                    "Commands: /tonight · /records · /report · /profile"))
             return
         if chat != self.owner:
             return                                 # a librarian never talks about you to strangers
@@ -246,6 +203,10 @@ class Librarian:
             return self.send(self.tonight())
         if command == "/records":
             return self.send(self.records())
+        if command == "/profile":
+            facts = self.desk.reader()
+            return self.send("\n".join(f"· {f}" for f in facts) if facts else
+                             self.t("我对你还了解得不多。多聊聊吧。", "I don't know much about you yet. Tell me more."))
         if command == "/report":
             return self.send_report(self._latest_read(), quiet=False)
         found = URL.search(text)
@@ -322,66 +283,24 @@ class Librarian:
         return "\n".join(lines)
 
     # ---- talking ---------------------------------------------------------------------
-    def context(self) -> str:
-        lines = ["Readings so far (oldest first):"]
-        for folder in library.readings()[-15:]:
-            lesson = Lesson.load(folder / "lesson.json")
-            lines.append(f"- {folder.name[:10]} [{library.status(folder)}] {lesson.title}")
-        for folder in library.readings()[-3:]:
-            summary = folder / "summary.json"
-            if summary.is_file():
-                data = json.loads(summary.read_text(encoding="utf-8"))
-                title = Lesson.load(folder / "lesson.json").title
-                if data.get("unclear"):
-                    lines.append(f"Still unclear after “{title}”: " + "; ".join(data["unclear"]))
-                if data.get("threads"):
-                    lines.append(f"Threads from “{title}”: " + "; ".join(data["threads"]))
-        lines.append(f"\nToday is {self.now():%A %Y-%m-%d %H:%M}.\n\nRecent chat:")
-        for item in self._recent_chat():
-            lines.append(f"{'Reader' if item['who'] == 'reader' else 'You'}: {item['text']}")
-        return "\n".join(lines)
-
-    def chat(self, text: str, searches: int = 3) -> str | None:
-        """Talk, looking things up when needed. Returns the reply (None when it already went out)."""
+    def chat(self, text: str) -> str | None:
+        """Talk at the reference desk. Returns the reply (None when it already went out)."""
         if self.client is None:
             return self.t("想读什么，发我一个链接或文件就行。", "Send me a link or a file and I'll prepare it.")
-        context, found = self.context(), []
-        for left in range(searches, -1, -1):
-            self.bot.typing(self.owner)
-            system = CHAT_SYSTEM.format(language=self.explain, searches=left, shelves="\n".join(
-                f"        {name}: {shelf['about']}" for name, shelf in search.shelves().items()))
-            if left == 0:
-                system += "\nNo more searches now: reply with what you have."
-            try:
-                data = self.client.chat_json(system, context, max_tokens=700)
-            except Exception as err:
-                self.log(f"chat failed: {err}")
-                return self.t("我这边连不上模型，稍后再说。", "I can't reach the model right now; try again later.")
-            ask = data.get("search")
-            if isinstance(ask, dict) and ask.get("query") and left > 0:
-                results = self.look_up(ask)
-                found += results
-                where = "papers" if ask.get("where") == "papers" else f"web, shelf {ask.get('shelf') or 'science'}"
-                context += (f"\n\nSearch ({where}, {ask.get('prefer') or 'any'}): {ask['query']}\n"
-                            f"{search.describe(results)}")
-                continue
-            reply = str(data.get("reply") or "").strip() or self.t("嗯。", "Mm.")
-            url = str(data.get("prepare") or "").strip()
-            if url and url.rstrip("/") in context:                # only what was found or given, never an invented link
-                self.send(reply)
-                self.start_prepare(url, quiet=True)
-                return None
-            return reply
-        return self.t("我没找到合适的，换个说法试试？", "I couldn't find anything good; try putting it another way?")
-
-    def look_up(self, ask: dict) -> list[dict]:
+        self.bot.typing(self.owner)
         try:
-            if ask.get("where") == "papers":
-                return search.papers(str(ask["query"]), str(ask.get("prefer") or "any"))
-            return search.web(self.client, str(ask["query"]), str(ask.get("shelf") or "science"))
+            answer = self.desk.reply(text)
         except Exception as err:
-            self.log(f"search failed: {err}")
-            return []
+            self.log(f"chat failed: {err}")
+            return self.t("我这边连不上模型，稍后再说。", "I can't reach the model right now; try again later.")
+        for line in answer.trace:
+            self.log(line)
+        reply = answer.text or self.t("我没找到够好的，换个方向试试？", "I couldn't find anything good enough; another angle?")
+        if answer.prepare:
+            self.send(reply)
+            self.start_prepare(answer.prepare, quiet=True)
+            return None
+        return reply
 
     def tonight(self) -> str:
         folder = library.next_unread()

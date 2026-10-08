@@ -104,10 +104,45 @@ def cmd_telegram(args) -> int:
         _log("no model key: the librarian can list and send reports, but not prepare or talk")
     try:
         telegram.run(token, client, log=_log, explain=args.explain, bedtime=not args.no_bedtime,
-                     review=args.review, ask_at=args.ask_at, decide_at=args.decide_at)
+                     review=args.review, ask_at=args.ask_at, decide_at=args.decide_at, chat_model=args.chat_model)
     except KeyboardInterrupt:
         pass
     return 0
+
+
+def cmd_chat(args) -> int:
+    """Talk with the librarian in the terminal; the same memory as Telegram, and it shows its searches."""
+    from .desk import Desk
+
+    client = OpenAICompatible.from_env()
+    if client is None:
+        raise SystemExit("set OPENAI_API_KEY (or MARGIN_API_KEY) in .env first")
+    desk = Desk(client, language=args.explain, model=args.chat_model, log=_log)
+    print(f"  (talking with {desk.model or client.model}; searches are shown indented)\n", flush=True)
+    said = list(args.message)
+    while True:
+        if said:
+            text = said.pop(0)
+            print(f"you> {text}")
+        elif args.message:
+            return 0                                   # messages given on the command line: done
+        else:
+            try:
+                text = input("you> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return 0
+            if not text:
+                continue
+        desk.remember("reader", text)
+        answer = desk.reply(text)
+        for line in answer.trace:
+            print("    " + line.replace("\n", "\n    "))
+        print(f"librarian> {answer.text}\n", flush=True)
+        if answer.text:
+            desk.remember("librarian", answer.text)
+        if answer.prepare:
+            print(f"    (would prepare: {answer.prepare}; run: biblio prepare {answer.prepare})\n")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -141,7 +176,15 @@ def main(argv: list[str] | None = None) -> int:
     tg.add_argument("--decide-at", default="19:00", help="when it settles tonight's reading (HH:MM)")
     tg.add_argument("--review", type=int, default=3, help="review questions per reading")
     tg.add_argument("--no-bedtime", action="store_true", help="no good night at the end")
+    tg.add_argument("--chat-model", help="model for conversation and choosing readings "
+                    "(default: $BIBLIOTHECARY_CHAT_MODEL, else the main model)")
     tg.set_defaults(fn=cmd_telegram)
+
+    ch = sub.add_parser("chat", help="talk with the librarian here in the terminal (shares Telegram's memory)")
+    ch.add_argument("message", nargs="*", help="say these one after another and stop; none = talk until Ctrl+D")
+    ch.add_argument("--explain", default="English", help="language it talks in, e.g. 'Simplified Chinese'")
+    ch.add_argument("--chat-model", help="as for telegram")
+    ch.set_defaults(fn=cmd_chat)
 
     args = p.parse_args(argv)
     margin_cli.load_env()

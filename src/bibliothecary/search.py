@@ -54,7 +54,8 @@ def _abstract(inverted: dict[str, list[int]] | None, size: int = 400) -> str:
 def openalex(query: str, prefer: str = "any", limit: int = 5, *, today: dt.date | None = None,
              get=_get) -> list[dict]:
     today = today or dt.datetime.now().astimezone().date()
-    filters = ["has_abstract:true", "open_access.is_oa:true", "type:article|review|preprint|book-chapter"]
+    filters = ["has_abstract:true", "open_access.is_oa:true", "is_paratext:false", "is_retracted:false",
+               "type:article|review|preprint|book-chapter"]
     params = {"search": query, "per_page": str(limit),
               "select": "title,publication_year,cited_by_count,doi,best_oa_location,primary_location,"
                         "abstract_inverted_index"}
