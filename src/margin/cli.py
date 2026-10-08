@@ -50,10 +50,45 @@ def cmd_serve(args) -> int:
     return run(Lesson.load(args.lesson), args)
 
 
+class Room:
+    """A running reading room: the server, the player and the addresses to open."""
+
+    def __init__(self, app, player, servers, urls: dict[str, str], voice) -> None:
+        self.app, self.player, self.servers, self.urls, self.voice = app, player, servers, urls, voice
+
+    def close(self) -> None:
+        for server in self.servers:
+            server.shutdown()
+
+
 def run(lesson: Lesson, args, *, client: OpenAICompatible | None = None, record=None,
         title: str = "Margin is ready.") -> int:
     """Serve a lesson until Ctrl-C. ``record`` keeps the session (see ``player.Recorder``)."""
-    for issue in lesson.problems():
+    room = start(lesson, args, client=client, record=record)
+    print(f"""
+  {title}
+
+    On the Kindle, type exactly (with http://):   {room.urls['kindle']}
+    On the tablet (voice, microphone, mouth):    {room.urls['speaker_note']}
+    One phone alone (article, voice, mouth):     {room.urls['phone']}
+    On this computer (play / pause / ask):      {room.urls['remote']}
+
+  {room.urls['summary']}
+""", flush=True)
+    if not args.paused:
+        time.sleep(args.delay)
+        room.player.play()
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        room.close()
+    return 0
+
+
+def start(lesson: Lesson | None, args, *, client: OpenAICompatible | None = None, record=None) -> Room:
+    """Start the reading room in the background, with a lesson or with none yet."""
+    for issue in (lesson.problems() if lesson else []):
         _log(f"warning: {issue}")
     client = client or OpenAICompatible.from_env()
     if client is not None:
@@ -83,7 +118,8 @@ def run(lesson: Lesson, args, *, client: OpenAICompatible | None = None, record=
         voice.want_alignment = lipsync_available()   # timing for the mouth is only worth fetching with one
     player = Player(bus, voice, answerer, log=_log, record=record)
     player.forced = brain.forced_answer
-    player.load(lesson)
+    if lesson is not None:
+        player.load(lesson)
     ip = lan_address()
     host = local_hostname()
     tls = None
@@ -103,35 +139,27 @@ def run(lesson: Lesson, args, *, client: OpenAICompatible | None = None, record=
         app.ears.instructions = lambda: brain.live_instructions(player.lesson, player.focus, player.index,
                                                                 player.history, player.review)
     # one port for everything: the Kindle uses http://, the tablet https:// (same port)
-    server = serve(app, args.host, args.port, tls=tls[:2] if tls else None)
-    secure = serve(app, args.host, args.https_port, tls=tls[:2]) if tls else None   # older bookmarks
+    servers = [serve(app, args.host, args.port, tls=tls[:2] if tls else None)]
     if tls:
+        servers.append(serve(app, args.host, args.https_port, tls=tls[:2]))   # older bookmarks
         where = f"{host}.local" if host else ip
         speaker = (f"https://{where}:{args.port}/speaker    (or https://{ip}:{args.port}/speaker)\n"
                    f"      full screen, once: open https://{ip}:{args.port}/margin-ca.crt on the tablet,\n"
                    f"      install and trust the profile, then Share → Add to Home Screen")
     else:
         speaker = "(needs openssl for HTTPS)"
-    print(f"""
-  {title}
-
-    On the Kindle, type exactly (with http://):   http://{ip}:{args.port}/
-    On the tablet (voice, microphone, mouth):    {speaker}
-    On this computer (play / pause / ask):      http://localhost:{args.port}/remote
-
-  Voice: {voice.name}{' / ' + voice.model if hasattr(voice, 'model') else ''}   Questions: {('realtime ' + app.ears.link.model) if app.ears.link else ('model + script' if client else 'script only (no API key)')}   Mouth: {'robot-lipsync' if lipsync_available() else 'simple (robot-lipsync not installed)'}
-""", flush=True)
-    if not args.paused:
-        time.sleep(args.delay)
-        player.play()
-    try:
-        while True:
-            time.sleep(3600)
-    except KeyboardInterrupt:
-        server.shutdown()
-        if secure:
-            secure.shutdown()
-    return 0
+    scheme = "https" if tls else "http"
+    urls = {
+        "kindle": f"http://{ip}:{args.port}/",
+        "base": f"{scheme}://{ip}:{args.port}",
+        "phone": f"{scheme}://{ip}:{args.port}/phone",
+        "remote": f"http://localhost:{args.port}/remote",
+        "speaker_note": speaker,
+        "summary": (f"Voice: {voice.name}{' / ' + voice.model if hasattr(voice, 'model') else ''}   Questions: "
+                    f"{('realtime ' + app.ears.link.model) if app.ears.link else ('model + script' if client else 'script only (no API key)')}"
+                    f"   Mouth: {'robot-lipsync' if lipsync_available() else 'simple (robot-lipsync not installed)'}"),
+    }
+    return Room(app, player, servers, urls, voice)
 
 
 def cmd_build(args) -> int:

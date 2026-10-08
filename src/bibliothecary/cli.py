@@ -102,11 +102,21 @@ def cmd_telegram(args) -> int:
     client = OpenAICompatible.from_env()
     if client is None:
         _log("no model key: the librarian can list and send reports, but not prepare or talk")
+    room = None
+    if not args.no_room:
+        from .room import ReadingRoom
+
+        room = ReadingRoom(args, client, log=_log)
+        print(f"\n  The reading room is open: phone {room.room.urls['phone']}   Kindle {room.kindle}", flush=True)
     try:
-        telegram.run(token, client, log=_log, explain=args.explain, bedtime=not args.no_bedtime,
+        telegram.run(token, client, log=_log, room=room, explain=args.explain, bedtime=not args.no_bedtime,
                      review=args.review, ask_at=args.ask_at, decide_at=args.decide_at, chat_model=args.chat_model)
     except KeyboardInterrupt:
         pass
+    finally:
+        if room is not None:
+            _log("filing the open reading…")
+            room.close()
     return 0
 
 
@@ -178,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
     tg.add_argument("--no-bedtime", action="store_true", help="no good night at the end")
     tg.add_argument("--chat-model", help="model for conversation and choosing readings "
                     "(default: $BIBLIOTHECARY_CHAT_MODEL, else the main model)")
+    tg.add_argument("--no-room", action="store_true",
+                    help="do not keep the reading room open (then read with biblio read)")
+    margin_cli.add_serve_options(tg)
     tg.set_defaults(fn=cmd_telegram)
 
     ch = sub.add_parser("chat", help="talk with the librarian here in the terminal (shares Telegram's memory)")

@@ -94,6 +94,10 @@ class Player:
         self._thread = threading.Thread(target=self._run, daemon=True, name="margin-player")
         self._thread.start()
 
+    def set_recorder(self, record: Recorder | None) -> None:
+        """Keep the next sessions somewhere else (the librarian switches this per reading)."""
+        self._record = record or (lambda *_a, **_k: None)
+
     # ---- commands (any thread) -------------------------------------------------------
     def load(self, lesson: Lesson) -> None:
         self._command("load", lesson)

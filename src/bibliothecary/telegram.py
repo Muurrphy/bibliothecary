@@ -72,9 +72,22 @@ class Bot:
     def updates(self, offset: int, wait: int = 30) -> list[dict]:
         return self.call("getUpdates", offset=offset, timeout=wait, allowed_updates=["message"])
 
-    def send(self, chat: int, text: str) -> None:
-        for piece in split(text):
-            self.call("sendMessage", chat_id=chat, text=piece, link_preview_options={"is_disabled": True})
+    def send(self, chat: int, text: str, buttons: list[tuple[str, str]] | None = None) -> None:
+        """``buttons``: [(label, url)] shown under the message, e.g. a link that opens the reading."""
+        pieces = split(text)
+        for n, piece in enumerate(pieces):
+            params: dict[str, Any] = {"chat_id": chat, "text": piece, "link_preview_options": {"is_disabled": True}}
+            if buttons and n == len(pieces) - 1:
+                params["reply_markup"] = {"inline_keyboard": [[{"text": label, "url": url}] for label, url in buttons]}
+                try:
+                    self.call("sendMessage", **params)
+                    continue
+                except TelegramError as err:                 # Telegram refused the address: send it as text
+                    if "url" not in str(err).lower() and "button" not in str(err).lower():
+                        raise
+                    params.pop("reply_markup")
+                    params["text"] = piece + "\n\n" + "\n".join(f"{label}: {url}" for label, url in buttons)
+            self.call("sendMessage", **params)
 
     def typing(self, chat: int) -> None:
         try:
@@ -118,7 +131,7 @@ class Librarian:
     def __init__(self, bot, client=None, *, explain: str = "English", bedtime: bool = True, review: int = 3,
                  ask_at: str = "12:00", decide_at: str = "19:00", prepare: Callable[..., Path] | None = None,
                  now: Callable[[], dt.datetime] | None = None, log: Callable[[str], None] | None = None,
-                 chat_model: str | None = None) -> None:
+                 chat_model: str | None = None, room=None) -> None:
         self.bot, self.client, self.explain = bot, client, explain
         self.bedtime, self.review = bedtime, review
         self.ask_at, self.decide_at = _hhmm(ask_at), _hhmm(decide_at)
@@ -130,6 +143,7 @@ class Librarian:
         self._lock = threading.Lock()
         self.jobs: list[threading.Thread] = []
         self.desk = Desk(client, language=explain, model=chat_model, now=self.now, log=self.log)
+        self.room = room                                   # a ReadingRoom, so links can open readings
 
     # ---- state -----------------------------------------------------------------------
     def _load(self) -> dict:
@@ -158,9 +172,22 @@ class Librarian:
     def _remember(self, who: str, text: str) -> None:
         self.desk.remember(who, text)
 
-    def send(self, text: str) -> None:
-        self.bot.send(self.owner, text)
+    def send(self, text: str, buttons: list[tuple[str, str]] | None = None) -> None:
+        if buttons:
+            self.bot.send(self.owner, text, buttons)
+        else:
+            self.bot.send(self.owner, text)
         self._remember("librarian", text)
+
+    def read_here(self, folder: Path) -> tuple[str, list[tuple[str, str]] | None]:
+        """How to start reading: a button for the phone and the Kindle's address, or the command."""
+        if self.room is None:
+            return self.t("晚上在电脑上运行 biblio read 就能听。", "Run biblio read tonight to hear it."), None
+        if self.room.folder is None or library.status(self.room.folder) == "read":
+            self.room.open(folder.name)                   # nothing else open: the Kindle shows this one
+        return (self.t(f"点下面的按钮在手机上读（要和电脑连同一个 Wi-Fi）；用 Kindle 就打开 {self.room.kindle}",
+                       f"Tap below to read on your phone (same Wi-Fi as the computer); on the Kindle open {self.room.kindle}"),
+                [(self.t("📖 在手机上读", "📖 Read on this phone"), self.room.link(folder))])
 
     # ---- incoming messages -----------------------------------------------------------
     def handle(self, update: dict) -> None:
@@ -200,7 +227,7 @@ class Librarian:
             return self.send(self.t("发链接或文件给我备课；/tonight 今晚读什么；/records 读过的；/report 最近的读书报告。",
                                     "Send a link or file to prepare it. /tonight · /records · /report"))
         if command == "/tonight":
-            return self.send(self.tonight())
+            return self.send(*self.tonight())
         if command == "/records":
             return self.send(self.records())
         if command == "/profile":
@@ -265,8 +292,9 @@ class Librarian:
         except Exception as err:
             self.log(f"preparing {article} failed: {err}")
             return self.send(self.t(f"这篇没备成：{err}", f"I couldn't prepare that one: {err}"))
+        how, buttons = self.read_here(folder)
         with self._lock:
-            self.send(self.guide(folder))
+            self.send(self.guide(folder) + "\n\n" + how, buttons)
 
     def guide(self, folder: Path) -> str:
         lesson = Lesson.load(folder / "lesson.json")
@@ -278,8 +306,7 @@ class Librarian:
             lines += ["", self.t("读之前要知道的：", "Before you read:"), *(f"· {p}" for p in preview)]
         if notes:
             lines += ["", self.t("要点：", "Main points:"), *(f"· {n}" for n in notes[:8])]
-        lines += ["", self.t(f"讲完会问你 {questions} 个问题。晚上在电脑上运行 biblio read 就能听。",
-                             f"{questions} review questions at the end. Run biblio read tonight to hear it.")]
+        lines += ["", self.t(f"讲完会问你 {questions} 个问题。", f"{questions} review questions at the end.")]
         return "\n".join(lines)
 
     # ---- talking ---------------------------------------------------------------------
@@ -302,12 +329,13 @@ class Librarian:
             return None
         return reply
 
-    def tonight(self) -> str:
+    def tonight(self) -> tuple[str, list[tuple[str, str]] | None]:
         folder = library.next_unread()
         if folder is None:
-            return self.t("今晚还没有要读的。发我一个链接吧。", "Nothing to read tonight yet. Send me a link.")
+            return self.t("今晚还没有要读的。发我一个链接吧。", "Nothing to read tonight yet. Send me a link."), None
         title = Lesson.load(folder / "lesson.json").title
-        return self.t(f"今晚读《{title}》。晚上在电脑上运行 biblio read。", f"Tonight: “{title}”. Run biblio read tonight.")
+        how, buttons = self.read_here(folder)
+        return self.t(f"今晚读《{title}》。", f"Tonight: “{title}”.") + "\n" + how, buttons
 
     def records(self) -> str:
         found = library.readings()[-10:]
@@ -356,7 +384,7 @@ class Librarian:
         if self.decide_at <= clock < late and self.state.get("decided") != today:
             self.state["decided"] = today
             self.save()
-            self.send(self.tonight())
+            self.send(*self.tonight())
         sent = set(self.state.get("reported") or [])
         for folder in library.readings():
             if library.status(folder) == "read" and folder.name not in sent:
@@ -389,9 +417,9 @@ def _hhmm(value: str) -> tuple[int, int]:
     return int(hours), int(minutes)
 
 
-def run(token: str, client, *, log: Callable[[str], None], **options) -> None:
+def run(token: str, client, *, log: Callable[[str], None], room=None, **options) -> None:
     bot = Bot(token)
-    librarian = Librarian(bot, client, log=log, **options)
+    librarian = Librarian(bot, client, log=log, room=room, **options)
     me = bot.call("getMe")
     if librarian.owner is None:
         print(f"\n  In Telegram, open @{me['username']} and send:   /start {librarian.pairing_code()}\n", flush=True)

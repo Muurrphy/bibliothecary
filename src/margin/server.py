@@ -3,6 +3,8 @@
     GET  /                 the e-reader page (open this on the Kindle)
     GET  /remote           the remote: play/pause and push-to-talk (open on the computer)
     GET  /speaker          a tablet as speaker, always-on microphone and mouth (open over HTTPS)
+    GET  /phone            one phone on its own: the article above, voice, microphone and mouth below
+    GET  /open/<name>      open a reading by name (when the app can, see ``App.opener``), then /phone
     GET  /api/clip/<id>    audio of one spoken line; /api/clip/<id>.json its mouth timeline
     POST /api/speaker/done {"id": "..."} the speaker page finished playing a clip
     POST /api/heard?q=<id> 24 kHz 16-bit mono audio while you talk; /api/heard/end?q=<id> when you stop
@@ -82,6 +84,7 @@ class App:
         self.log = log or (lambda _m: None)
         self.hub = hub or SpeakerHub(bus, self.log)
         self.ca_file = ca_file
+        self.opener: Callable[[str], bool] | None = None    # name -> loaded? (set by the librarian)
         from .live import Ears
 
         # the tablet's microphone: without a realtime link, recordings are transcribed and asked
@@ -141,6 +144,18 @@ class App:
                     return self._send(200, _static("remote.html"), "text/html; charset=utf-8")
                 if url.path == "/speaker":
                     return self._send(200, _static("speaker.html"), "text/html; charset=utf-8")
+                if url.path == "/phone":
+                    return self._send(200, _static("phone.html"), "text/html; charset=utf-8")
+                if url.path.startswith("/open/") and app.opener:
+                    from urllib.parse import unquote
+
+                    if not app.opener(unquote(url.path[len("/open/"):])):
+                        return self._send(404, b"no such reading", "text/plain; charset=utf-8")
+                    self.send_response(303)
+                    self.send_header("Location", "/phone")
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                    return None
                 if url.path in STATIC_FILES:   # home-screen icon and manifest for the tablet page
                     return self._send(200, _static(url.path[1:]), STATIC_FILES[url.path])
                 if url.path.startswith("/face/"):

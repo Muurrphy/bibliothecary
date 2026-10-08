@@ -43,6 +43,20 @@ Version 0.3 does the reading, the instruction, the records and the daily chat. T
 
 Any combination of devices works: phone only; Kindle and computer; Kindle and phone; phone and iPad; extra screens as extra mouths.
 
+### With a phone only, or with a Kindle
+
+The Kindle is optional. Everything is a web page served by your own computer, so a phone alone is enough: `/phone` shows the article above and the voice, microphone and mouth below.
+
+<img src="assets/phone-reading.png" alt="The phone page: the article with the current sentence underlined, a note under it, what is being said, and the mouth" width="300">
+
+| How you read | Open |
+|---|---|
+| Phone only | `https://<computer>:8765/phone` |
+| Kindle + phone | Kindle: `http://<computer>:8765/` · phone: `https://<computer>:8765/speaker` |
+| Phone + iPad | one opens `/` (the article), the other `/speaker` (voice and mouth) |
+
+With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room only serves your home Wi-Fi, from your own computer: everyone runs their own librarian, and nobody else can reach yours. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
+
 ## Quick start
 
 Python 3.11 or newer.
