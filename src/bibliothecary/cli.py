@@ -6,13 +6,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from margin import brain
 from margin import cli as margin_cli
-from margin.ingest import load_article
 from margin.lesson import Lesson
 from margin.llm import OpenAICompatible
 
 from . import __version__, library, report
+from .prepare import prepare
 from .records import Ledger
 
 _log = margin_cli._log
@@ -37,16 +36,11 @@ def _folder(where: str | None, *, fallback) -> Path:
 
 
 def cmd_prepare(args) -> int:
-    client = OpenAICompatible()
-    title, text, source = load_article(args.article)
-    _log(f"preparing “{args.title or title}” ({len(text.split())} words)…")
-    lesson = brain.build_lesson(client, args.title or title, text, explain_language=args.explain,
-                                source=source, language=args.language, bedtime=args.bedtime,
-                                preview=args.preview, review=args.review)
-    for issue in lesson.problems():
-        _log(f"warning: {issue}")
-    folder = library.new_reading(lesson)
-    path = report.write(folder)
+    folder = prepare(OpenAICompatible(), args.article, title=args.title, explain=args.explain,
+                     language=args.language, bedtime=args.bedtime, preview=args.preview, review=args.review,
+                     log=_log)
+    lesson = Lesson.load(folder / "lesson.json")
+    path = folder / "report.md"
     parts = {p: sum(1 for s in lesson.steps if s.part == p) for p in ("preview", "review")}
     print(f"\n  Ready for tonight: {folder}\n"
           f"    {parts['preview']} background steps, {len(lesson.steps) - parts['preview'] - parts['review']} reading steps,"
@@ -97,6 +91,25 @@ def cmd_records(args) -> int:
     return 0
 
 
+def cmd_telegram(args) -> int:
+    import os
+
+    from . import telegram
+
+    token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        raise SystemExit("set TELEGRAM_BOT_TOKEN (from @BotFather in Telegram) in .env first")
+    client = OpenAICompatible.from_env()
+    if client is None:
+        _log("no model key: the librarian can list and send reports, but not prepare or talk")
+    try:
+        telegram.run(token, client, log=_log, explain=args.explain, bedtime=not args.no_bedtime,
+                     review=args.review, ask_at=args.ask_at, decide_at=args.decide_at)
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="biblio", description="Bibliothecary: a personal librarian. "
                                 "Readings and reports are kept in " + str(library.readings_dir()))
@@ -121,6 +134,14 @@ def main(argv: list[str] | None = None) -> int:
 
     rc = sub.add_parser("records", help="list the readings kept so far")
     rc.set_defaults(fn=cmd_records)
+
+    tg = sub.add_parser("telegram", help="talk with the librarian in Telegram (needs TELEGRAM_BOT_TOKEN)")
+    tg.add_argument("--explain", default="English", help="language it talks and explains in, e.g. 'Simplified Chinese'")
+    tg.add_argument("--ask-at", default="12:00", help="when it asks what you'd like to read tonight (HH:MM)")
+    tg.add_argument("--decide-at", default="19:00", help="when it settles tonight's reading (HH:MM)")
+    tg.add_argument("--review", type=int, default=3, help="review questions per reading")
+    tg.add_argument("--no-bedtime", action="store_true", help="no good night at the end")
+    tg.set_defaults(fn=cmd_telegram)
 
     args = p.parse_args(argv)
     margin_cli.load_env()

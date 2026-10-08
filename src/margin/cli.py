@@ -139,7 +139,7 @@ def cmd_build(args) -> int:
     title, text, source = load_article(args.article)
     _log(f"writing a lesson for “{args.title or title}” ({len(text.split())} words)…")
     lesson = brain.build_lesson(client, args.title or title, text, explain_language=args.explain,
-                                source=source, language=args.language, bedtime=args.bedtime,
+                                source=source, language=args.language or "en", bedtime=args.bedtime,
                                 preview=args.preview, review=args.review)
     lesson.save(args.output)
     _log(f"{len(lesson.steps)} steps → {args.output}")
@@ -172,7 +172,7 @@ def add_serve_options(s: argparse.ArgumentParser) -> None:
 def add_build_options(b: argparse.ArgumentParser) -> None:
     b.add_argument("--title")
     b.add_argument("--explain", default="English", help="language of the explanation, e.g. 'Simplified Chinese'")
-    b.add_argument("--language", default="en", help="language of the article")
+    b.add_argument("--language", help="language of the article, e.g. en or zh-CN (default: guessed)")
     b.add_argument("--bedtime", action="store_true", help="end with a good night")
     b.add_argument("--no-preview", dest="preview", action="store_false",
                    help="no background before the reading")

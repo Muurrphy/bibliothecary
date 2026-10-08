@@ -30,7 +30,8 @@ Version 0.3 does the reading, the instruction and the records. The collection, t
 | | |
 |---|---|
 | **Works now** | `biblio prepare` turns an article into a three-part session: background, reading, review questions. `biblio read` reads it on the Kindle and phone, takes spoken questions, waits for your answers to the review questions, and files a reading report when it ends. |
-| **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.5 the librarian asks you each day in Telegram what to read · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
+| **Also now** | `biblio telegram`: the librarian in a Telegram chat. Send it a link, a file or a voice message; it prepares the reading, asks you each day what you'd like to read tonight, and sends the reading report when you finish. |
+| **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
 
 ## Three parts: use them together or on their own
 
@@ -82,6 +83,24 @@ A session has three parts:
 3. **Review.** A few questions (`biblio prepare --review N`, default 3). The librarian waits for your answer and tells you what you got right and what is missing. Say **继续 / go on** to skip one.
 
 Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
+
+## The librarian in Telegram
+
+If you have no personal agent of your own, the librarian can live in a Telegram chat.
+
+1. In Telegram, open **@BotFather**, send `/newbot`, pick a name. It gives you a token.
+2. Put it in `.env`: `TELEGRAM_BOT_TOKEN=...`
+3. Run `biblio telegram --explain "Simplified Chinese"` and send your new bot the `/start` code it prints. From then on it answers only you.
+
+Then, from anywhere:
+
+- **Send a link, a .txt/.md/.html file, or a voice message.** It prepares the reading and sends back the guide: the background and the main points.
+- **Just talk.** Tell it what you are in the mood for; it knows what you have read and what was left unclear, and suggests real sources (it never makes up links).
+- **Every day** (`--ask-at 12:00`) it asks what you'd like to read tonight; in the evening (`--decide-at 19:00`) it tells you tonight's reading.
+- **After the session**, the reading report arrives in the chat.
+- `/tonight`, `/records`, `/report` do what they say.
+
+The computer has to be on for the bot to answer. Chat messages pass through Telegram's servers; the readings and records stay on your computer. Your chat with the librarian is kept locally in `~/Bibliothecary/chat.jsonl`.
 
 ## The reading report
 
