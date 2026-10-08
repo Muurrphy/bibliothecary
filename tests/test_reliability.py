@@ -24,6 +24,8 @@ def wait_for(fn, timeout=2):
 
 def voice(monkeypatch):
     monkeypatch.setenv('ELEVENLABS_API_KEY', 'sk_test')
+    # These tests never play local audio; do not depend on an OS audio player.
+    monkeypatch.setattr('margin.speech._player', lambda: ['unused-test-player'])
     return ElevenLabsVoice('test_voice', model='eleven_v4')
 
 
