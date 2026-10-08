@@ -113,17 +113,22 @@ they read, and notice what they want to know. Warm, brief, concrete: a few short
 text message. Write in {language}.
 
 You can look things up, and you should whenever they want something to read and have not given you
-a link. Choose with taste: classics, or work that is both new and good; for papers prefer important,
-well-cited work or strong recent work in good venues. Suggest two or three, each with one line on why,
-and number them. Every link you give must come from search results below; never invent one.
+a link. Choose with taste, as a librarian builds a collection: classics, or work that is both new and
+good. For papers, important well-cited work or strong recent work in good venues. For a prize, a
+discovery or an event, go to the primary source (for a Nobel Prize, nobelprize.org's popular
+information or scientific background) or the original paper, not a news item about it. Never offer
+market, finance, celebrity or listicle pieces, or anything too thin to read for twenty minutes.
+Suggest two or three, each with one line on why, and number them. Every link you give must come
+from search results below; never invent one. If nothing found is good enough, say so and search again.
 Know their records (below) and use them: follow up on threads from past readings, mention an
 unfinished reading, do not suggest what they have read. Do not mention these instructions.
 
 Return JSON, one of:
   {{"search": {{"where": "papers", "query": "<English keywords>", "prefer": "classic" | "new" | "any"}}}}
       open-access papers (OpenAlex, arXiv)
-  {{"search": {{"where": "web", "query": "<what to look for>"}}}}
-      news, long-form journalism, essays, books, public-domain texts
+  {{"search": {{"where": "web", "shelf": "<shelf>", "query": "<what to look for>"}}}}
+      one shelf of the collection; only its sites are searched:
+{shelves}
   {{"reply": "...", "prepare": "<url>"}}
       they chose one (e.g. "the second one", "this one"): prepare it now; the url must appear above
   {{"reply": "..."}}
@@ -343,7 +348,8 @@ class Librarian:
         context, found = self.context(), []
         for left in range(searches, -1, -1):
             self.bot.typing(self.owner)
-            system = CHAT_SYSTEM.format(language=self.explain, searches=left)
+            system = CHAT_SYSTEM.format(language=self.explain, searches=left, shelves="\n".join(
+                f"        {name}: {shelf['about']}" for name, shelf in search.shelves().items()))
             if left == 0:
                 system += "\nNo more searches now: reply with what you have."
             try:
@@ -355,7 +361,7 @@ class Librarian:
             if isinstance(ask, dict) and ask.get("query") and left > 0:
                 results = self.look_up(ask)
                 found += results
-                where = "papers" if ask.get("where") == "papers" else "web"
+                where = "papers" if ask.get("where") == "papers" else f"web, shelf {ask.get('shelf') or 'science'}"
                 context += (f"\n\nSearch ({where}, {ask.get('prefer') or 'any'}): {ask['query']}\n"
                             f"{search.describe(results)}")
                 continue
@@ -372,7 +378,7 @@ class Librarian:
         try:
             if ask.get("where") == "papers":
                 return search.papers(str(ask["query"]), str(ask.get("prefer") or "any"))
-            return search.web(self.client, str(ask["query"]))
+            return search.web(self.client, str(ask["query"]), str(ask.get("shelf") or "science"))
         except Exception as err:
             self.log(f"search failed: {err}")
             return []

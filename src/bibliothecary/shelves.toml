@@ -1,0 +1,91 @@
+# The collection: where the librarian may take readings from.
+#
+# A good librarian does not shelve whatever is lying around. Web searches only look at the
+# sites below, and anything found elsewhere is dropped, so a finance portal never ends up on
+# your bedside table. Papers are searched separately (OpenAlex, arXiv); links you send yourself
+# are always accepted.
+#
+# To change it, copy this file to ~/Bibliothecary/shelves.toml. A shelf you define there
+# replaces the default one of the same name; a new name adds a shelf. "add" and "remove"
+# under a default shelf adjust it instead, e.g.
+#
+#   [science]
+#   add = ["sciencenews.org"]
+#   remove = ["newscientist.com"]
+#
+# Domains are written without https:// and include their subdomains.
+
+[science]
+about = "Science explained well: long reads, primary sources, the Nobel Prize's own explanations"
+sites = [
+  "nobelprize.org",           # popular information and scientific background for every prize
+  "quantamagazine.org",
+  "knowablemagazine.org",     # from Annual Reviews
+  "nautil.us",
+  "scientificamerican.com",
+  "nature.com",               # news, features, News & Views
+  "science.org",
+  "newscientist.com",
+  "pnas.org",
+  "cell.com",
+  "annualreviews.org",
+  "plos.org",
+  "elifesciences.org",
+  "hhmi.org",
+  "nasa.gov",
+  "esa.int",
+  "cern.ch",
+  "theconversation.com",      # written by researchers
+  "zhishifenzi.com",          # 知识分子
+]
+
+[news]
+about = "Reporting and long-form journalism from outlets with real standards"
+sites = [
+  "apnews.com",
+  "reuters.com",
+  "bbc.com",
+  "bbc.co.uk",
+  "theguardian.com",
+  "economist.com",
+  "ft.com",
+  "nytimes.com",
+  "washingtonpost.com",
+  "theatlantic.com",
+  "newyorker.com",
+  "propublica.org",
+  "wired.com",
+  "technologyreview.com",
+  "restofworld.org",
+  "caixin.com",               # 财新
+  "thepaper.cn",              # 澎湃新闻
+  "nobelprize.org",
+]
+
+[essays]
+about = "Essays and ideas"
+sites = [
+  "aeon.co",
+  "psyche.co",
+  "nybooks.com",
+  "lrb.co.uk",
+  "theamericanscholar.org",
+  "harpers.org",
+  "granta.com",
+  "theparisreview.org",
+  "themarginalian.org",
+  "noemamag.com",
+  "laphamsquarterly.org",
+  "plato.stanford.edu",       # Stanford Encyclopedia of Philosophy
+]
+
+[books]
+about = "Books and classic texts that can be read in full"
+sites = [
+  "standardebooks.org",
+  "gutenberg.org",
+  "wikisource.org",
+  "ctext.org",                # 中国哲学书电子化计划
+  "openlibrary.org",
+  "archive.org",
+]

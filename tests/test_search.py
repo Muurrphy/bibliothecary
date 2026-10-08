@@ -167,3 +167,60 @@ def test_searching_stops_after_the_limit(home, monkeypatch):
     lib.handle({"message": {"chat": {"id": ME}, "text": "找点散文"}})
     assert bot.sent[-1] == "没找到合适的。" and "No more searches" in client.prompts[-1][0]
     assert library.home() == home
+
+
+def test_only_the_shelf_sites_are_searched_and_kept(home):
+    class Client:
+        def web_search(self, query, domains=None):
+            self.domains = domains
+            return {"text": "x", "sources": [
+                {"title": "诺贝尔奖揭晓 股市", "url": "https://finance.sina.com.cn/stock/nobel.shtml"},
+                {"title": "Popular information", "url": "https://www.nobelprize.org/prizes/physics/2025/popular-information/"},
+                {"title": "lookalike", "url": "https://nobelprize.org.evil.example/x"}]}
+
+    client = Client()
+    found = search.web(client, "2025 Nobel Prize in Physics explained", "science")
+    assert [r["url"] for r in found] == ["https://www.nobelprize.org/prizes/physics/2025/popular-information/"]
+    assert "nobelprize.org" in client.domains and "quantamagazine.org" in client.domains
+    assert not any("sina" in d for name in search.shelves() for d in search.shelves()[name]["sites"])
+    with pytest.raises(search.SearchError, match="no shelf"):
+        search.web(client, "x", "gossip")
+
+
+def test_the_reader_can_change_the_collection(home):
+    home.mkdir(parents=True)
+    (home / "shelves.toml").write_text('[science]\nadd = ["sciencenews.org"]\nremove = ["newscientist.com"]\n\n'
+                                       '[poetry]\nabout = "Poems"\nsites = ["poetryfoundation.org"]\n\n'
+                                       '[books]\nsites = ["standardebooks.org"]\n', encoding="utf-8")
+    shelves = search.shelves()
+    assert "sciencenews.org" in shelves["science"]["sites"] and "newscientist.com" not in shelves["science"]["sites"]
+    assert shelves["poetry"] == {"about": "Poems", "sites": ["poetryfoundation.org"]}
+    assert shelves["books"]["sites"] == ["standardebooks.org"]
+
+
+def test_web_search_sends_the_allowed_sites(monkeypatch):
+    client = llm.OpenAICompatible(api_key="k", model="gpt-4.1-mini")
+    sent = []
+    monkeypatch.setattr(client, "_post", lambda path, body, kind: (sent.append(json.loads(body)), b'{"output": []}')[1])
+    client.web_search("q", domains=["nobelprize.org"])
+    assert sent[0]["tools"] == [{"type": "web_search", "filters": {"allowed_domains": ["nobelprize.org"]}}]
+
+
+def test_classic_papers_must_be_well_cited():
+    asked = []
+    search.openalex("nobel", "classic", today=dt.date(2026, 10, 8),
+                    get=lambda url: (asked.append(url), b'{"results": []}')[1])
+    assert "cited_by_count%3A%3E99" in asked[0]
+
+
+def test_the_chat_knows_the_shelves_and_searches_one(home, monkeypatch):
+    shelves_seen = []
+    monkeypatch.setattr(search, "web", lambda client, q, shelf: (shelves_seen.append(shelf), [])[1])
+    client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "Nobel Prize physics 2025"}},
+                            {"reply": "没找到够好的，换个方向？"})
+    lib, _bot = librarian(client, [])
+    lib.handle({"message": {"chat": {"id": ME}, "text": "我对诺贝尔奖感兴趣"}})
+    assert shelves_seen == ["science"]
+    system = client.prompts[0][0]
+    assert "science: Science explained well" in system and "nobelprize.org's popular" in system
+    assert "finance" in system                                     # told what never to offer

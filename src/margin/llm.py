@@ -124,14 +124,19 @@ class OpenAICompatible:
                 yield piece
 
     # ---- web search ------------------------------------------------------------------
-    def web_search(self, query: str, *, model: str | None = None) -> dict[str, Any]:
-        """OpenAI's built-in web search (Responses API): {"text": ..., "sources": [{"title", "url"}]}."""
+    def web_search(self, query: str, *, domains: list[str] | None = None, model: str | None = None) -> dict[str, Any]:
+        """OpenAI's built-in web search (Responses API): {"text": ..., "sources": [{"title", "url"}]}.
+
+        ``domains`` limits the search to those sites (and their subdomains), at most 100."""
         if "api.openai.com" not in self.base_url:
             raise APIError("web search needs the OpenAI API (MARGIN_BASE_URL is another service)")
         model = model or os.environ.get("MARGIN_SEARCH_MODEL") or self.model
         last: Exception | None = None
         for tool in ("web_search", "web_search_preview"):        # the older name for older accounts
-            body = {"model": model, "tools": [{"type": tool}], "input": query}
+            spec: dict[str, Any] = {"type": tool}
+            if domains and tool == "web_search":                  # the older tool cannot filter: callers check
+                spec["filters"] = {"allowed_domains": list(domains)[:100]}
+            body = {"model": model, "tools": [spec], "input": query}
             try:
                 raw = self._post("/responses", json.dumps(body).encode(), "application/json")
                 break

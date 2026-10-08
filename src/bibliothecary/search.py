@@ -3,8 +3,9 @@
 - papers: OpenAlex (free, no key; ``OPENALEX_API_KEY`` raises the daily budget), with arXiv as a
   fallback. Open-access works only, so whatever is found can actually be read. "classic" sorts by
   citations among works at least five years old; "new" keeps the last twelve months.
-- web: OpenAI's built-in web search (same key as the model), for news, long-form pieces, essays and
-  books. It returns real pages with their addresses.
+- web: OpenAI's built-in web search (same key as the model), for science writing, news, essays and
+  books, but only on the sites of one shelf of the collection (``shelves.toml``). Anything from
+  another site is dropped, whatever the search returns.
 
 Every result carries the address it came from; the librarian may only offer those.
 """
@@ -14,11 +15,15 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from pathlib import Path
 from typing import Any
+
+from . import library
 
 UA = {"User-Agent": "Bibliothecary (personal reading librarian)"}
 
@@ -53,11 +58,12 @@ def openalex(query: str, prefer: str = "any", limit: int = 5, *, today: dt.date 
     params = {"search": query, "per_page": str(limit),
               "select": "title,publication_year,cited_by_count,doi,best_oa_location,primary_location,"
                         "abstract_inverted_index"}
-    if prefer == "classic":
-        filters.append(f"to_publication_date:{today.year - 5}-12-31")
+    if prefer == "classic":                    # well cited, and old enough to have earned it
+        filters += [f"to_publication_date:{today.year - 5}-12-31", "cited_by_count:>99"]
         params["sort"] = "cited_by_count:desc"
-    elif prefer == "new":
+    elif prefer == "new":                      # the last year, the most noticed first
         filters.append(f"from_publication_date:{today - dt.timedelta(days=365)}")
+        params["sort"] = "cited_by_count:desc"
     params["filter"] = ",".join(filters)
     if os.environ.get("OPENALEX_API_KEY"):
         params["api_key"] = os.environ["OPENALEX_API_KEY"]
@@ -106,13 +112,41 @@ def papers(query: str, prefer: str = "any", limit: int = 5, *, get=_get) -> list
     return arxiv(query, prefer, limit, get=get)
 
 
-def web(client, query: str) -> list[dict]:
-    """Pages found by the model's own web search: [{"title", "url", "about"}]."""
-    answer = client.web_search(query)
+DEFAULT_SHELVES = Path(__file__).with_name("shelves.toml")
+
+
+def shelves() -> dict[str, dict]:
+    """The collection: {name: {"about", "sites"}}, the defaults adjusted by ~/Bibliothecary/shelves.toml."""
+    out = tomllib.loads(DEFAULT_SHELVES.read_text(encoding="utf-8"))
+    mine = library.home() / "shelves.toml"
+    if mine.is_file():
+        for name, shelf in tomllib.loads(mine.read_text(encoding="utf-8")).items():
+            if not isinstance(shelf, dict):
+                continue
+            if "sites" in shelf or name not in out:
+                out[name] = {"about": shelf.get("about", name), "sites": list(shelf.get("sites") or [])}
+            base = out[name]
+            base["sites"] = [x for x in base["sites"] + list(shelf.get("add") or []) if x not in (shelf.get("remove") or [])]
+    return {name: {"about": str(s.get("about") or name), "sites": [str(x).lower() for x in s.get("sites") or []]}
+            for name, s in out.items() if isinstance(s, dict) and s.get("sites")}
+
+
+def on_shelf(url: str, sites: list[str]) -> bool:
+    host = (urllib.parse.urlsplit(url).hostname or "").lower()
+    return any(host == site or host.endswith("." + site) for site in sites)
+
+
+def web(client, query: str, shelf: str = "science") -> list[dict]:
+    """Pages from one shelf's sites, found by the model's own web search: [{"title", "url", "about"}]."""
+    collection = shelves()
+    if shelf not in collection:
+        raise SearchError(f"no shelf called {shelf!r}; the shelves are {', '.join(collection)}")
+    sites = collection[shelf]["sites"]
+    answer = client.web_search(query, domains=sites)
     seen, out = set(), []
     for source in answer.get("sources") or []:
         url = source.get("url")
-        if url and url not in seen:
+        if url and url not in seen and on_shelf(url, sites):
             seen.add(url)
             out.append({"title": source.get("title") or url, "url": url, "about": ""})
     if out and answer.get("text"):

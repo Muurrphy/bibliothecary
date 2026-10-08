@@ -95,7 +95,7 @@ If you have no personal agent of your own, the librarian can live in a Telegram 
 Then, from anywhere:
 
 - **Send a link, a .txt/.md/.html/.pdf file, or a voice message.** It prepares the reading and sends back the guide: the background and the main points.
-- **Just talk.** "A classic paper on octopus sleep", "a good long read on black holes": it searches open-access papers (OpenAlex, arXiv; classic means well cited, new means the last year) or the web (OpenAI's web search), suggests two or three with a reason each, and prepares the one you pick. It only offers links it actually found. It knows what you have read and what was left unclear.
+- **Just talk.** "A classic paper on octopus sleep", "a good long read on black holes": it searches open-access papers (OpenAlex, arXiv; classic means well cited, new means the last year) or the collection's own shelves of sites (science writing and primary sources such as nobelprize.org, serious news, essays, full-text books; see `src/bibliothecary/shelves.toml`), suggests two or three with a reason each, and prepares the one you pick. Nothing from outside the collection gets through, and it only offers links it actually found. To change the collection, copy `shelves.toml` to `~/Bibliothecary/` and edit it. It knows what you have read and what was left unclear.
 - **Every day** (`--ask-at 12:00`) it asks what you'd like to read tonight; in the evening (`--decide-at 19:00`) it tells you tonight's reading.
 - **After the session**, the reading report arrives in the chat.
 - `/tonight`, `/records`, `/report` do what they say.
