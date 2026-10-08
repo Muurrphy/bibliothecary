@@ -1,0 +1,14 @@
+{
+  "name": "Margin",
+  "short_name": "Margin",
+  "start_url": "/speaker",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {"src": "/speaker-icon-180.png", "sizes": "180x180", "type": "image/png"},
+    {"src": "/speaker-icon-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

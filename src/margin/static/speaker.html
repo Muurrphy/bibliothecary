@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-title" content="Margin">
+<link rel="manifest" href="/speaker.webmanifest">
+<link rel="apple-touch-icon" href="/speaker-icon-180.png">
+<title>Margin · speaker</title>
+<style>
+html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:manipulation;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+#tap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;
+  color:rgba(120,185,255,.85);font:500 14px "IBM Plex Mono",ui-monospace,Menlo,monospace;letter-spacing:.32em;text-transform:uppercase;cursor:pointer}
+#tap small{letter-spacing:.08em;text-transform:none;color:rgba(120,185,255,.45);font-size:12px}
+#tap[hidden]{display:none}
+#cert{position:fixed;bottom:22px;left:0;right:0;text-align:center;font-size:11px;letter-spacing:.06em;text-transform:none;color:rgba(120,185,255,.45)}
+.standalone #cert{display:none}
+#dbg{position:fixed;left:14px;bottom:12px;font:11px/1.45 ui-monospace,Menlo,monospace;color:rgba(120,185,255,.7);white-space:pre;pointer-events:none}
+</style>
+<!-- the mouth comes from robot-lipsync when it is installed; without it a simple one is drawn -->
+<script src="/face/monroe_model.js"></script>
+<script src="/face/dotmatrix.js"></script>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="tap"><div>tap to begin</div><small id="why"></small>
+  <a id="cert" href="/margin-ca.crt">full screen: install the certificate, then Share → Add to Home Screen</a></div>
+<div id="dbg" hidden></div>
+<script>
+"use strict";
+// ---------------------------------------------------------------------------------
+// Margin speaker: plays what the companion says, shows a mouth, and listens all the
+// time. The same device plays and records, so the browser's echo cancellation takes
+// the companion's own voice out of the microphone. On top of that, speech only counts
+// when it is clearly louder than what is left of that echo, and the computer throws
+// away anything that turns out to be the line it was just reading.
+// ---------------------------------------------------------------------------------
+const Q = new URLSearchParams(location.search);
+const PALETTE = Q.get("palette") || "blue";
+const SENS = Math.max(0.25, Math.min(4, parseFloat(Q.get("sens") || "1")));   // ?sens=2 hears quieter speech
+// With several devices, only one should listen: ?listen=0 makes this one a mouth (and speaker) only.
+// It then needs no microphone, so plain http:// works too. ?mute=1 shows the mouth without sound.
+let LISTEN = Q.get("listen") !== "0", MUTE = Q.get("mute") === "1";
+const SID = Math.random().toString(36).slice(2, 10);
+let clockOffset = 0;                         // server time minus this device's time, in ms
+async function syncClock() {                 // a few round trips; the quickest one is the most exact
+  let best = null;
+  for (let i = 0; i < 5; i++) {
+    try {
+      const t0 = Date.now(), r = await fetch("/api/time", {cache: "no-store"}).then(r => r.json()), t1 = Date.now();
+      if (!best || t1 - t0 < best.rtt) best = {rtt: t1 - t0, off: r.t - (t0 + t1) / 2};
+    } catch (e) {}
+  }
+  if (best) clockOffset = best.off;
+}
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const tapEl = document.getElementById("tap"), dbgEl = document.getElementById("dbg");
+let debug = Q.has("debug");
+dbgEl.hidden = !debug;
+
+let AC = null, seq = 0, status = "idle", started = false;
+let cur = null;          // the clip playing: {id, src, gain, t0, at, dur, done}
+let outAn = null, outBuf = null;
+async function netFetch(url, options = {}, format = "json", timeout = 6000) {
+  const abort = new AbortController(), timer = setTimeout(() => abort.abort(), timeout);
+  try {
+    const response = await fetch(url, {...options, cache: "no-store", signal: abort.signal});
+    if (!response.ok) throw new Error(`${response.status} ${url}`);
+    return await response[format]();
+  } finally { clearTimeout(timer); }
+}
+const post = (url, body, type) => netFetch(url, {method: "POST", headers: {"Content-Type": type || "application/json"},
+  body: type ? body : JSON.stringify(body || {})}).catch(e => ({error: String(e)}));
+async function hello(claim = false) {
+  const result = await post("/api/speaker/hello", {sid: SID, mute: MUTE, listen: LISTEN, claim});
+  if (result.error) throw new Error(result.error);
+  if (!result.primary) {
+    LISTEN = false; MUTE = true;
+    const graph = window.marginMicGraph;
+    if (graph) graph.stream.getTracks().forEach(track => track.stop());
+    window.bedtimeMicReady = false;
+    if (cur && cur.gain) try { cur.gain.disconnect(AC.destination); } catch (e) {}
+  }
+  return result;
+}
+
+// ---- audio out ------------------------------------------------------------------
+function decode(buf) {
+  return new Promise((ok, fail) => { const p = AC.decodeAudioData(buf, ok, fail); if (p && p.catch) p.catch(fail); });
+}
+async function speak(d) {
+  if (V.cap || (cur && cur.id === d.id && !cur.done)) return;
+  stopClip();
+  const clip = {id: d.id, done: false, at: null, dur: d.seconds || 0};
+  cur = clip;
+  try {
+    const [buf, info] = await Promise.all([
+      netFetch("/api/clip/" + d.id, {}, "arrayBuffer").then(decode),
+      d.lips && window.DotLips ? netFetch("/api/clip/" + d.id + ".json?wait=12", {}, "json", 15000) : null
+    ]);
+    if (cur !== clip || clip.done) return;
+    if (d.lips && window.DotLips) {
+      if (!info || !info.ready || !info.timeline.length) throw new Error("mouth timing unavailable");
+      clip.at = DotLips.track(info.timeline);
+    }
+    if (AC.state !== "running") throw new Error("tap the screen to resume audio");
+    clip.src = AC.createBufferSource(); clip.src.buffer = buf;
+    clip.gain = AC.createGain();
+    clip.src.connect(clip.gain); clip.gain.connect(outAn);
+    if (!MUTE) clip.gain.connect(AC.destination);
+    clip.dur = buf.duration;
+    clip.src.onended = () => { if (!clip.done) { clip.done = true; if (cur === clip) cur = null; post("/api/speaker/done", {id: clip.id, sid: SID}); } };
+    // several devices: start at the moment the computer named, so they speak as one
+    let when = AC.currentTime + 0.03, skip = 0;
+    if (d.at) {
+      const wait = (d.at - (Date.now() + clockOffset)) / 1000;
+      if (wait >= 0) when = AC.currentTime + wait;
+      else if (MUTE || d.resume) skip = Math.min(-wait, Math.max(0, buf.duration - 0.01));
+      // The audible device retains the full sentence if download was late.
+    }
+    clip.t0 = when - skip;                     // where the start of the line falls on this device's clock
+    clip.src.start(when, skip);
+  } catch (e) {
+    note("clip failed: " + e);
+    clip.done = true; if (cur === clip) cur = null;
+    post("/api/speaker/done", {id: clip.id, sid: SID, error: String(e)});
+    document.getElementById("why").textContent = "Playback paused. Tap, then say continue or refresh.";
+    tapEl.hidden = false;
+  }
+}
+function stopClip(id) {
+  const c = cur;
+  if (!c || (id && c.id !== id)) return;
+  c.done = true; cur = null;
+  if (c.src) {
+    try { c.gain.gain.setTargetAtTime(0, AC.currentTime, 0.02); c.src.stop(AC.currentTime + 0.12); } catch (e) {}
+  }
+}
+const playing = () => !!(cur && cur.src && !cur.done);
+
+// ---- listening ------------------------------------------------------------------
+const V = {
+  frameMs: 21, nf: 0.004, erl: 0.06, recent: [], pre: [], cap: null, wait: 0,
+  mic: 0, out: 0, thr: 0, state: "off",
+};
+function rms(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return Math.sqrt(s / a.length); }
+function outLevel() { if (!outAn) return 0; outAn.getFloatTimeDomainData(outBuf); return rms(outBuf); }
+
+function onFrame(input) {
+  const mic = rms(input), out = playing() ? outLevel() : 0, now = performance.now();
+  V.mic = mic; V.out = out;
+  const busy = status === "thinking" || now < V.wait;
+  // background noise: follows quiet frames, rises only slowly
+  if (!V.cap && !playing()) V.nf = mic < V.nf * 2 ? V.nf * 0.99 + mic * 0.01 : V.nf * 1.002;
+  V.nf = Math.min(0.05, Math.max(0.0008, V.nf));
+  // what is left of our own voice after echo cancellation, relative to what we play
+  const fresh = playing() && AC.currentTime - cur.t0 < 0.35;
+  if (playing() && !V.cap && out > 0.003) V.erl = Math.min(0.6, Math.max(0.005, V.erl * 0.985 + Math.min(mic / out, V.erl * 2.5) * 0.015));
+  let thr = Math.max(V.nf * 3.2, 0.004);
+  if (playing()) thr = Math.max(thr, out * V.erl * (fresh ? 9 : 4.5), 0.008);
+  thr /= SENS;
+  V.thr = thr;
+  const voiced = mic > thr;
+  V.pre.push(input); if (V.pre.length > 28) V.pre.shift();            // ~0.6 s before the start of speech
+  V.recent.push(voiced ? 1 : 0); if (V.recent.length > 18) V.recent.shift();
+
+  if (V.cap) {                                                        // recording a question
+    V.cap.frames.push(input);
+    const quiet = mic < Math.max(V.nf * 2.4, 0.005);
+    V.cap.silent = quiet ? V.cap.silent + V.frameMs : 0;
+    if (!quiet) V.cap.voicedMs += V.frameMs;
+    const len = V.cap.frames.length * V.frameMs;
+    if ((V.cap.silent >= 700 && len > 700) || len > 15000) finishQuestion();
+    else flush(false);
+    return;
+  }
+  if (busy || !started) { V.state = busy ? "busy" : "off"; return; }
+  V.state = playing() ? "listening over voice" : "listening";
+  const need = playing() ? 14 : 10, of = playing() ? 18 : 14;          // ~0.3 s of speech (0.38 s over the voice)
+  const hits = V.recent.slice(-of).reduce((a, b) => a + b, 0);
+  if (hits >= need) startQuestion();
+}
+// While you talk, the audio goes to the computer in small pieces (about 8 per second), so a
+// realtime model is already listening; when you stop, only "that was it" has to be sent.
+function pcm24(frames, rate) {
+  const n = frames.reduce((a, c) => a + c.length, 0), ratio = rate / 24000, len = Math.floor(n / ratio);
+  const all = new Float32Array(n); let o = 0; for (const c of frames) { all.set(c, o); o += c.length; }
+  const out = new Int16Array(len);
+  for (let i = 0; i < len; i++) {   // average each window: a cheap low-pass before dropping samples
+    const a = Math.floor(i * ratio), b = Math.max(a + 1, Math.floor((i + 1) * ratio)); let s = 0;
+    for (let j = a; j < b; j++) s += all[j];
+    const v = Math.max(-1, Math.min(1, s / (b - a)));
+    out[i] = v < 0 ? v * 0x8000 : v * 0x7fff;
+  }
+  return out.buffer;
+}
+let chain = Promise.resolve(), qn = 0;
+function send(path, body, type) {        // in order, one after another
+  const p = chain.then(() => netFetch(path, {method: "POST", headers: {"Content-Type": type || "application/json"},
+    body: body}, "json", 6000).catch(e => ({error: String(e)})));
+  chain = p.then(() => {}, () => {});
+  return p;
+}
+function flush(final) {
+  const c = V.cap; if (!c) return;
+  if (c.frames.length - c.sent >= 6 || (final && c.frames.length > c.sent)) {
+    const piece = pcm24(c.frames.slice(c.sent), AC.sampleRate);
+    c.sent = c.frames.length;
+    send("/api/heard?q=" + c.qid + "&sid=" + SID, piece, "application/octet-stream");
+  }
+}
+function startQuestion() {
+  V.cap = {frames: V.pre.slice(), sent: 0, silent: 0, voicedMs: 0, qid: Date.now().toString(36) + (++qn)};
+  V.recent = [];
+  V.state = "hearing you";
+  stopClip();                    // stop talking at once, like a person would
+  send("/api/listen", JSON.stringify({sid: SID}));
+  flush(true);                   // what came just before the start of speech
+}
+function finishQuestion() {
+  const c = V.cap;
+  flush(true);
+  V.cap = null; V.recent = [];
+  if (c.voicedMs < 380) { V.state = "too short"; send("/api/heard/cancel?q=" + c.qid + "&sid=" + SID, "{}"); return; }
+  V.wait = performance.now() + 8000;    // until the answer starts (status events clear this)
+  V.state = "sending";
+  send("/api/heard/end?q=" + c.qid + "&sid=" + SID, "{}").then(r => {
+    note(r.error ? "error: " + r.error : r.ignored != null ? "ignored: " + r.ignored : r.live ? "asked (realtime)" : "asked: " + r.question);
+    if (r.error || r.ignored != null) {
+      V.wait = performance.now() + 300;
+      if (r.error) post("/api/heard/cancel?q=" + c.qid + "&sid=" + SID, {});
+    }
+  });
+}
+// ---- start (one tap: browsers only allow sound and microphone after a touch) -------
+async function begin() {
+  if (started) { if (AC.state !== "running") await AC.resume(); tapEl.hidden = true; return; }
+  try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+  await AC.resume();
+  await hello(Q.get("role") === "primary");
+  AC.addEventListener("statechange", () => {
+    if (started && AC.state !== "running") {
+      document.getElementById("why").textContent = "Tap to resume audio";
+      tapEl.hidden = false;
+    }
+  });
+  outAn = AC.createAnalyser(); outAn.fftSize = 1024; outBuf = new Float32Array(outAn.fftSize);
+  const sink = AC.createGain(); sink.gain.value = 0; outAn.connect(sink); sink.connect(AC.destination);  // keep it running when muted
+  if (LISTEN) try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true,
+      autoGainControl: true, channelCount: 1}});
+    const src = AC.createMediaStreamSource(stream);
+    const proc = AC.createScriptProcessor(1024, 1, 1);
+    V.frameMs = 1024 / AC.sampleRate * 1000;
+    proc.onaudioprocess = e => onFrame(new Float32Array(e.inputBuffer.getChannelData(0)));
+    const mute = AC.createGain(); mute.gain.value = 0;
+    src.connect(proc); proc.connect(mute); mute.connect(AC.destination);
+    window.marginMicGraph = {stream, src, proc, mute};
+    window.bedtimeMicReady = stream.getAudioTracks().some(track => track.readyState === "live");
+  } catch (e) {
+    document.getElementById("why").textContent = !window.isSecureContext
+      ? "the microphone needs the https:// address" : "microphone: " + e.message;
+    note("microphone unavailable: " + e);
+  }
+  started = true;
+  tapEl.hidden = true;
+  wake();
+  // no requestFullscreen(): on an iPad it leaves a close button on screen. Added to the home screen,
+  // the page opens without any browser bars instead.
+  await syncClock(); setInterval(syncClock, 60000);
+  setInterval(() => hello().catch(e => note(String(e))), 5000);
+  connect(LISTEN);
+}
+let lock = null;
+async function wake() {
+  try { if ("wakeLock" in navigator && !lock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } } catch (e) {}
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !started) return;
+  wake();
+  if (AC.state !== "running") AC.resume().catch(() => {}).then(() => { if (AC.state !== "running") tapEl.hidden = false; });
+});
+tapEl.addEventListener("click", e => { if (e.target.id !== "cert") begin().catch(error => { document.getElementById("why").textContent = String(error); tapEl.hidden = false; }); });
+if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches))
+  document.documentElement.classList.add("standalone");
+let lastTap = 0;
+cv.addEventListener("click", () => {                 // double-tap shows what the microphone hears
+  const t = performance.now();
+  if (t - lastTap < 350) { debug = !debug; dbgEl.hidden = !debug; }
+  lastTap = t;
+  if (AC && AC.state !== "running") AC.resume();
+});
+
+// ---- the line to the computer --------------------------------------------------------
+async function connect(first) {
+  for (;;) {
+    try {
+      const r = await fetch("/api/screen", {cache: "no-store"}).then(r => r.json());
+      seq = r.seq; status = r.screen.status;
+      if (r.active_clip) speak(r.active_clip);
+      // the tap that wakes the speaker also starts the reading (if it has not started yet)
+      if (first && (status === "paused" || status === "idle")) post("/api/control", {action: "play"});
+      else if (first && status === "done") post("/api/control", {action: "restart"});
+      return poll();
+    } catch (e) { note("cannot reach the computer"); await sleep(2000); }
+  }
+}
+async function poll() {
+  for (;;) {
+    try {
+      const r = await netFetch(`/api/poll?since=${seq}&wait=20&role=speaker&sid=${SID}&v=3`, {}, "json", 25000);
+      if (r.reset) {
+        status = r.screen.status;
+        const current = await netFetch("/api/screen");
+        if (current.active_clip) speak(current.active_clip);
+      }
+      else for (const ev of r.events) apply(ev);
+      seq = r.seq;
+    } catch (e) { note("reconnecting…"); await sleep(1500); }
+  }
+}
+function apply(ev) {
+  const d = ev.data;
+  if (ev.kind === "speak") speak(d);
+  else if (ev.kind === "hush") stopClip(d.id);
+  else if (ev.kind === "playback_error") {
+    note(d.message);
+    document.getElementById("why").textContent = "Playback paused. Tap, then say continue or refresh.";
+    tapEl.hidden = false;
+  }
+  else if (ev.kind === "status") {
+    status = d.state;
+    if (d.state !== "listening" && d.state !== "thinking") V.wait = 0;
+  }
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let lastNote = "";
+function note(m) { lastNote = m; }
+
+// ---- the mouth ----------------------------------------------------------------------
+const mc = document.createElement("canvas"), mctx = mc.getContext("2d");
+let W = 0, H = 0, glow = 0.25, env = 0;
+function size() {
+  const d = Math.min(2, window.devicePixelRatio || 1);
+  W = cv.width = Math.round(innerWidth * d); H = cv.height = Math.round(innerHeight * d);
+}
+addEventListener("resize", size); size();
+
+function loudnessPose(level, t) {
+  // no timeline: open with loudness, a little width change so it does not look like a hinge
+  const R = DotLips.MODEL.targets.REST, m = Object.assign({}, R);
+  const o = Math.min(1, level * 9);
+  m.jaw_open = R.jaw_open + 0.55 * o; m.lip_separation = R.lip_separation + 0.62 * o;
+  m.lower_lip_depress = R.lower_lip_depress + 0.3 * o; m.upper_lip_raise = R.upper_lip_raise + 0.12 * o;
+  m.mouth_width = R.mouth_width + 0.12 * Math.sin(t / 130) * o; m.lip_press = R.lip_press * (1 - o);
+  return {__monroe: true, muscle: DotLips.constrain(m), frame: 0, label: ""};
+}
+const REST_POSE = window.DotLips ? {__monroe: true, muscle: DotLips.MODEL.targets.REST, frame: 0, label: ""} : null;
+function frame(now) {
+  requestAnimationFrame(frame);
+  ctx.clearRect(0, 0, W, H);
+  const talking = playing() && AC.currentTime >= cur.t0;
+  const level = talking ? outLevel() : 0;
+  env += ((level) - env) * (level > env ? 0.6 : 0.25);
+  const target = talking ? 1 : (V.cap ? 0.55 : status === "thinking" ? 0.38 + 0.12 * Math.sin(now / 260) : 0.26);
+  glow += (target - glow) * 0.12;
+  const width = W > H ? Math.min(W * 0.8, H * 1.55) : W * 0.94;   // portrait phones: as wide as it goes
+  if (window.DotLips) {
+    let state;
+    if (talking && cur.at) {
+      const stamp = AC.getOutputTimestamp ? AC.getOutputTimestamp() : null;
+      const heardTime = stamp && stamp.contextTime > 0
+        ? stamp.contextTime + (performance.now() - stamp.performanceTime) / 1000
+        : AC.currentTime - (AC.outputLatency || AC.baseLatency || 0);
+      state = cur.at((heardTime - cur.t0) * 1000);
+    } else if (talking) state = loudnessPose(env, now);
+    else state = REST_POSE;
+    if (mc.width !== Math.round(width)) { mc.width = Math.round(width); mc.height = Math.round(width / 2); }
+    mctx.clearRect(0, 0, mc.width, mc.height);
+    DotLips.draw(mctx, 0, 0, mc.width, state, {profile: "screen", palette: PALETTE, t: now});
+    ctx.globalAlpha = glow;
+    ctx.drawImage(mc, (W - mc.width) / 2, (H - mc.height) / 2);
+    ctx.globalAlpha = 1;
+  } else {
+    simpleMouth(width, env, now);
+  }
+  if (debug) dbgEl.textContent =
+    `state   ${V.state}   (${status})\nmic     ${bar(V.mic)} ${V.mic.toFixed(4)}\nthresh  ${bar(V.thr)} ${V.thr.toFixed(4)}\n` +
+    `voice   ${bar(V.out)} ${V.out.toFixed(4)}\nnoise ${V.nf.toFixed(4)}  echo ratio ${V.erl.toFixed(3)}  lips ${cur && cur.at ? "timeline" : "loudness"}\n${lastNote}`;
+}
+function bar(v) { const n = Math.min(24, Math.round(Math.sqrt(v) * 60)); return "█".repeat(n) + "·".repeat(24 - n); }
+function simpleMouth(width, level, now) {
+  // a row of dots that opens into an ellipse with the voice
+  const n = 48, cx = W / 2, cy = H / 2, open = Math.min(1, level * 10) * width * 0.14, r = width / n * 0.32;
+  ctx.fillStyle = `rgba(56,152,255,${0.35 + 0.65 * glow})`;
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1) - 0.5), y = Math.sqrt(Math.max(0, 0.25 - x * x)) * 2 * open;
+    ctx.fillRect(cx + x * width - r, cy - y - r, 2 * r, 2 * r);
+    if (y > r) ctx.fillRect(cx + x * width - r, cy + y - r, 2 * r, 2 * r);
+  }
+}
+requestAnimationFrame(frame);
+if (!window.isSecureContext && LISTEN) document.getElementById("why").textContent = "open the https:// address so the microphone can listen";
+</script>
+</body></html>

@@ -1,0 +1,14 @@
+profiles:
+  esp32c3:
+    notes: Reproducible ESP32-C3 + SH1106 reference build
+    fqbn: esp32:esp32:esp32c3:CDCOnBoot=cdc
+    platforms:
+      - platform: esp32:esp32 (3.3.10)
+        platform_index_url: https://espressif.github.io/arduino-esp32/package_esp32_index.json
+    libraries:
+      - Adafruit GFX Library (1.12.6)
+      - Adafruit SH110X (2.1.14)
+      - Adafruit SSD1306 (2.5.17)
+      - dependency: Adafruit BusIO (1.17.4)
+
+default_profile: esp32c3

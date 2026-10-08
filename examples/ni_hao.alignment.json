@@ -1,0 +1,13 @@
+{
+  "text": "你好，世界。",
+  "language": "zh-CN",
+  "note": "Synthetic character timing for deterministic multilingual tests, not a provider benchmark.",
+  "spans": [
+    {"token": "你", "start_ms": 0, "duration_ms": 150},
+    {"token": "好", "start_ms": 150, "duration_ms": 170},
+    {"token": "，", "start_ms": 320, "duration_ms": 70},
+    {"token": "世", "start_ms": 390, "duration_ms": 150},
+    {"token": "界", "start_ms": 540, "duration_ms": 170},
+    {"token": "。", "start_ms": 710, "duration_ms": 70}
+  ]
+}

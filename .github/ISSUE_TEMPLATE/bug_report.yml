@@ -1,0 +1,24 @@
+name: Bug report
+description: A reproducible reader, phone or mouth problem.
+body:
+  - type: markdown
+    attributes:
+      value: "Please remove keys, personal speech and private article text before sharing logs. Mobile listening is currently experimental."
+  - type: textarea
+    id: devices
+    attributes:
+      label: Devices and software
+      description: Computer/Python, e-reader, phone/browser, foreground or home-screen mode.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps and observed result
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Relevant settings and sanitized logs
+      description: Voice/model and relevant MARGIN options, without credentials.

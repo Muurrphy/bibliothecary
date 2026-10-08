@@ -1,0 +1,31 @@
+# Local environments and credentials
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+# Generated files and local sessions
+.DS_Store
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+.margin-cache/
+.margin/
+*.log
+*.mp3
+*.wav
+*.pcm
+*.mp4
+*.mov
+recordings/
+sessions/
+voice-cache/

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "margin-reader"
+version = "0.2.0"
+description = "A reading companion across an old Kindle and a phone: articles, spoken questions and a multilingual digital mouth."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{name = "Muurrphy"}]
+keywords = ["kindle", "e-ink", "reading", "voice", "lip-sync", "multilingual"]
+dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55"]
+
+[project.optional-dependencies]
+# Compatibility aliases; the mouth and its language front ends are included.
+mouth = []
+english = ["cmudict>=1.0.32"]
+mandarin = ["pypinyin>=0.55"]
+multilingual = ["cmudict>=1.0.32", "pypinyin>=0.55"]
+elevenlabs = ["requests>=2.32"]
+serial = ["pyserial>=3.5"]
+dev = ["pytest>=8.3", "jsonschema>=4.23", "build>=1.2"]
+
+[project.urls]
+Homepage = "https://github.com/Muurrphy/margin"
+Repository = "https://github.com/Muurrphy/margin"
+Issues = "https://github.com/Muurrphy/margin/issues"
+
+[project.scripts]
+margin = "margin.cli:main"
+robot-lipsync = "robot_lipsync.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+margin = ["static/*"]
+robot_lipsync = ["data/*.json", "renderers/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["BLE001", "RUF012"]

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin</title>
+<style>
+/* Written for the Kindle "experimental browser": plain ES5, no images, no animation, no flexbox,
+   few DOM changes. E-ink redraws what changes, so we change as little as we can.
+   Layout: the article on the left, a real margin on the right for notes, diagrams under the
+   paragraph they belong to, and what is being said at the bottom. */
+html,body{margin:0;padding:0;background:#fff;color:#000}
+body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
+.sans{font-family:Helvetica,Arial,sans-serif}
+#top{height:38px;line-height:38px;padding:0 12px;font-family:Helvetica,Arial,sans-serif;font-size:13px;overflow:hidden;white-space:nowrap}
+#logo{background:#000;color:#fff;font-weight:bold;letter-spacing:3px;padding:3px 8px;margin-right:10px}
+#title{letter-spacing:1px;text-transform:uppercase}
+#meta{float:right;font-weight:bold;letter-spacing:1px}
+#bar{height:5px;margin:0 12px;border:1px solid #000}
+#fill{height:5px;width:0;background:#000}
+#art{overflow:hidden;position:relative;padding:0 12px;margin-top:6px}
+#col{width:64%}
+#art p{font-size:19px;line-height:1.6;margin:12px 0}
+#art h1{font-size:23px;line-height:1.25;margin:14px 0 2px}
+#art .src{font-family:Helvetica,Arial,sans-serif;font-size:12px;margin-bottom:4px;letter-spacing:.5px}
+.s.f{background:#cfcfcf;border-bottom:3px solid #000}
+.mk{border:3px solid #000;border-radius:16px;padding:0 4px;font-weight:bold;background:#fff}
+.lbl{background:#000;color:#fff;font:bold 11px Helvetica,Arial,sans-serif;letter-spacing:2px;padding:2px 6px}
+.note{position:absolute;left:67.5%;width:31%;box-sizing:border-box;-webkit-box-sizing:border-box;border:3px solid #000;background:#fff;padding:6px 8px 8px;font:15px/1.45 Helvetica,Arial,sans-serif}
+.note .lbl{display:inline-block;margin-bottom:5px}
+.lead{position:absolute;left:64.5%;width:3%;height:0;border-top:3px solid #000}
+.fig{border:2px solid #000;padding:8px 10px 10px;margin:8px 0 16px;font-family:Helvetica,Arial,sans-serif}
+.fig .ft{font-size:14px;font-weight:bold;margin:0 0 8px}
+.fig .ft .lbl{margin-right:6px}
+.fig table{border-collapse:collapse}
+.fig td{padding:3px 4px;vertical-align:middle;font-size:15px}
+.fig .rl{font-size:13px;font-weight:bold;padding-right:8px;white-space:nowrap}
+.bx{display:inline-block;border:2px solid #000;min-width:44px;padding:3px 6px;text-align:center;font-size:15px;margin:2px 3px 2px 0}
+.bx.hi{background:#000;color:#fff;font-weight:bold}
+.ar{font-size:18px;font-weight:bold;margin:0 3px}
+.tl td.w{font-weight:bold;border-right:3px solid #000;padding-right:8px;white-space:nowrap;text-align:right}
+.tl td.x{padding-left:10px}
+.tm td{border-bottom:1px solid #000}
+.tm td.t{font-weight:bold;padding-right:10px}
+#cap{border-top:3px solid #000;padding:9px 14px 0;overflow:hidden}
+#who{margin-bottom:7px}
+.pill{background:#000;color:#fff;font:bold 12px Helvetica,Arial,sans-serif;letter-spacing:2px;padding:3px 10px;border-radius:12px}
+#cb{overflow:hidden;position:relative}
+#q{font:bold 17px/1.4 Helvetica,Arial,sans-serif;margin:0 0 6px;display:none}
+#say{font-size:20px;line-height:1.5}
+.dark,.dark #art,.dark #cap,.dark .note,.dark .mk{background:#000;color:#fff}
+.dark #cap,.dark #bar,.dark .note,.dark .fig,.dark .bx,.dark .mk{border-color:#fff}
+.dark #fill,.dark #logo,.dark .lbl,.dark .pill,.dark .bx.hi{background:#fff;color:#000}
+.dark .s.f{background:#444;border-color:#fff}.dark .lead{border-color:#fff}
+</style></head>
+<body>
+<div id="top"><span id="meta">connecting…</span><span id="logo">MARGIN</span><span id="title"></span></div>
+<div id="bar"><div id="fill"></div></div>
+<div id="art"><div id="col"><p>Waiting for today's reading…</p></div></div>
+<div id="cap"><div id="who"><span class="pill">MARGIN</span></div><div id="cb"><div id="q"></div><div id="say"></div></div></div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var seq = 0, capPrev = '', S = null, focusEl = null, noteEl = null, leadEl = null, figEl = null, failures = 0;
+  if (/dark=1/.test(location.search)) document.body.className = 'dark';
+
+  function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function layout() {
+    var h = window.innerHeight || 800, d = document.documentElement.clientHeight;
+    if (d && d < h) h = d;                       // what is really visible
+    var cap = Math.round(h * 0.25);
+    $('cap').style.height = cap + 'px';
+    $('cb').style.height = (cap - 9 - 30) + 'px';
+    $('say').style.paddingBottom = (cap - 9 - 30) + 'px';   // room to bring the newest sentence to the top
+    $('art').style.height = (h - cap - 38 - 7 - 18) + 'px';
+  }
+  function sentenceHTML(s, marks) {
+    var text = esc(s.text);
+    for (var i = 0; i < marks.length; i++) {
+      if (marks[i].sentence !== s.id || !marks[i].phrase) continue;
+      var p = esc(marks[i].phrase), k = text.indexOf(p);
+      if (k >= 0) text = text.slice(0, k) + '<span class="mk">' + p + '</span>' + text.slice(k + p.length);
+    }
+    return text;
+  }
+  function renderLesson(L) {
+    if (!L) { $('col').innerHTML = '<p>Waiting for today’s reading…</p>'; return; }
+    var html = '<h1>' + esc(L.title) + '</h1>' + (L.source ? '<div class="src">' + esc(L.source) + '</div>' : '');
+    for (var i = 0; i < L.paragraphs.length; i++) {
+      var para = L.paragraphs[i], parts = [];
+      for (var j = 0; j < para.sentences.length; j++)
+        parts.push('<span class="s" id="' + para.sentences[j].id + '">' + esc(para.sentences[j].text) + '</span>');
+      html += '<p id="' + para.id + '">' + parts.join(' ') + '</p>';
+    }
+    $('col').innerHTML = html;
+    $('title').innerHTML = esc(L.title);
+    focusEl = null; removeNote(); figEl = null;
+  }
+  function scrollTo(el) {
+    if (!el) return;
+    var art = $('art'), target = Math.max(0, el.offsetTop - Math.round(art.clientHeight * 0.2));
+    if (Math.abs(art.scrollTop - target) > 30) { art.scrollTop = target; placeNote(); }
+  }
+  function setFocus(id) {
+    if (focusEl) focusEl.className = 's';
+    focusEl = id ? $(id) : null;
+    if (focusEl) { focusEl.className = 's f'; scrollTo(focusEl); }
+  }
+  function redrawMarks() {
+    if (!S || !S.lesson) return;
+    var ps = S.lesson.paragraphs;
+    for (var i = 0; i < ps.length; i++) for (var j = 0; j < ps[i].sentences.length; j++) {
+      var s = ps[i].sentences[j], el = $(s.id), html = sentenceHTML(s, S.marks);
+      if (el && el.innerHTML !== html) el.innerHTML = html;
+    }
+  }
+  // ---- margin note: sits in the right margin, level with its sentence, with a leader line
+  function removeNote() {
+    if (noteEl && noteEl.parentNode) noteEl.parentNode.removeChild(noteEl);
+    if (leadEl && leadEl.parentNode) leadEl.parentNode.removeChild(leadEl);
+    noteEl = null; leadEl = null;
+  }
+  function placeNote() {
+    if (!noteEl) return;
+    var anchor = (S.note && S.note.sentence && $(S.note.sentence)) || focusEl;
+    var top = anchor ? anchor.offsetTop : $('art').scrollTop + 10;
+    noteEl.style.top = Math.max(0, top - 4) + 'px';
+    leadEl.style.top = (Math.max(0, top - 4) + 12) + 'px';
+  }
+  function setNote(note) {
+    removeNote();
+    if (!note || !note.text) return;
+    noteEl = document.createElement('div');
+    noteEl.className = 'note';
+    noteEl.innerHTML = '<span class="lbl">NOTE</span><br>' + esc(note.text);
+    leadEl = document.createElement('div');
+    leadEl.className = 'lead';
+    $('art').appendChild(leadEl);
+    $('art').appendChild(noteEl);
+    placeNote();
+  }
+  // ---- figures: small diagrams of boxes and lines under their paragraph
+  function box(t, hi) { return '<span class="bx' + (hi ? ' hi' : '') + '">' + esc(t) + '</span>'; }
+  function figureHTML(f) {
+    var h = '<div class="ft"><span class="lbl">FIG</span>' + esc(f.title || '') + '</div>', i, j;
+    if (f.type === 'compare') {
+      h += '<table>';
+      for (i = 0; i < f.rows.length; i++) {
+        var r = f.rows[i], cells = '';
+        for (j = 0; j < r.items.length; j++) {
+          var hi = false;
+          for (var k = 0; k < (r.hi || []).length; k++) if (r.hi[k] === j) hi = true;
+          cells += box(r.items[j], hi);
+        }
+        h += '<tr><td class="rl">' + esc(r.label) + '</td><td>' + cells + '</td></tr>';
+      }
+      h += '</table>';
+    } else if (f.type === 'flow') {
+      for (i = 0; i < f.items.length; i++) h += (i ? '<span class="ar">→</span>' : '') + box(f.items[i], i === f.items.length - 1);
+    } else if (f.type === 'timeline') {
+      h += '<table class="tl">';
+      for (i = 0; i < f.items.length; i++) h += '<tr><td class="w">' + esc(f.items[i].when) + '</td><td class="x">' + esc(f.items[i].what) + '</td></tr>';
+      h += '</table>';
+    } else if (f.type === 'terms') {
+      h += '<table class="tm">';
+      for (i = 0; i < f.items.length; i++) h += '<tr><td class="t">' + esc(f.items[i].term) + '</td><td>' + esc(f.items[i].meaning) + '</td></tr>';
+      h += '</table>';
+    }
+    return h;
+  }
+  function setFigure(f) {
+    if (figEl && figEl.parentNode) figEl.parentNode.removeChild(figEl);
+    figEl = null;
+    if (!f || !f.type) return;
+    var anchor = (f.sentence && $(f.sentence)) || focusEl, para = anchor ? anchor.parentNode : null;
+    figEl = document.createElement('div');
+    figEl.className = 'fig';
+    figEl.innerHTML = figureHTML(f);
+    if (para && para.parentNode) para.parentNode.insertBefore(figEl, para.nextSibling);
+    else $('col').appendChild(figEl);
+    placeNote();
+    var art = $('art');                         // keep the new diagram on screen
+    if (figEl.offsetTop + figEl.offsetHeight > art.scrollTop + art.clientHeight)
+      { art.scrollTop = Math.max(0, figEl.offsetTop + figEl.offsetHeight - art.clientHeight + 10); placeNote(); }
+  }
+  var WHO = {idle: 'MARGIN', reading: 'READING', paused: 'PAUSED', listening: 'LISTENING…',
+             thinking: 'THINKING…', answering: 'ANSWERING', done: 'THE END'};
+  function renderCaption() {
+    var a = S.answer;
+    $('who').innerHTML = '<span class="pill">' + (a && S.status !== 'listening' ? 'YOU ASKED' : (WHO[S.status] || 'MARGIN')) + '</span>';
+    var text;
+    if (a) {
+      $('q').style.display = 'block';
+      $('q').innerHTML = '“' + esc(a.question) + '”';
+      text = a.text || (S.status === 'thinking' ? '…' : '');
+    } else {
+      $('q').style.display = 'none';
+      text = S.caption || '';
+    }
+    // Long answers: what was just added starts right under the label, and older lines move up
+    // out of view (one jump, no animation, so the e-ink panel redraws once).
+    if (text !== capPrev || !$('nw')) {
+      var kept = capPrev && text.indexOf(capPrev) === 0 ? capPrev : '';
+      // each newly spoken sentence starts on its own line, so it can sit right under the label
+      $('say').innerHTML = esc(kept) + (kept ? '<div id="nw">' : '<span id="nw">') + esc(text.slice(kept.length).replace(/^\s+/, '')) + (kept ? '</div>' : '</span>');
+      capPrev = text;
+      var cb = $('cb'), nw = $('nw');
+      var natural = cb.scrollHeight - cb.clientHeight;     // height without the extra room
+      cb.scrollTop = (kept && nw && natural > cb.clientHeight) ? Math.max(0, nw.offsetTop - 2) : 0;
+    }
+    var p = S.progress || [0, 0];
+    $('meta').innerHTML = p[1] ? p[0] + ' / ' + p[1] : '';
+    $('fill').style.width = (p[1] ? Math.round(100 * p[0] / p[1]) : 0) + '%';
+  }
+  function full(screen) {
+    S = screen;
+    renderLesson(S.lesson);
+    redrawMarks();
+    setFocus(S.focus);
+    setFigure(S.figure);
+    setNote(S.note);
+    renderCaption();
+  }
+  function apply(ev) {
+    var d = ev.data, k = ev.kind;
+    if (k === 'lesson') { S = {lesson: d, focus: null, marks: [], note: null, figure: null, caption: '', answer: null, status: 'idle', progress: [0, d.steps]}; full(S); return; }
+    if (!S) return;
+    if (k === 'focus') { S.focus = d.sentence; setFocus(d.sentence); placeNote(); }
+    else if (k === 'mark') { S.marks.push({sentence: d.sentence, phrase: d.phrase}); redrawMarks(); if (focusEl) focusEl.className = 's f'; }
+    else if (k === 'clear_marks') { if (S.marks.length) { S.marks = []; redrawMarks(); } }
+    else if (k === 'note') { S.note = {text: d.text, sentence: d.sentence}; setNote(S.note); }
+    else if (k === 'clear_note') { S.note = null; removeNote(); }
+    else if (k === 'figure') { S.figure = d; setFigure(d); }
+    else if (k === 'clear_figure') { S.figure = null; setFigure(null); placeNote(); }
+    else if (k === 'caption') { S.caption = d.text; renderCaption(); }
+    else if (k === 'answer') { S.answer = {question: d.question, text: d.text, done: d.done}; renderCaption(); }
+    else if (k === 'clear_answer') { S.answer = null; renderCaption(); }
+    else if (k === 'status') { S.status = d.state; renderCaption(); }
+    else if (k === 'progress') { S.progress = [d.step, d.of]; renderCaption(); }
+  }
+  function get(url, ok, fail) {
+    var x = new XMLHttpRequest();
+    x.open('GET', url + (url.indexOf('?') < 0 ? '?' : '&') + '_=' + new Date().getTime(), true);
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      if (x.status === 200) { var data; try { data = JSON.parse(x.responseText); } catch (e) { fail(); return; } ok(data); }
+      else fail();
+    };
+    x.send(null);
+  }
+  function poll() {
+    get('/api/poll?since=' + seq + '&wait=20', function (r) {
+      failures = 0;
+      if (r.reset) { full(r.screen); }
+      else for (var i = 0; i < r.events.length; i++) apply(r.events[i]);
+      seq = r.seq;
+      setTimeout(poll, 30);
+    }, function () {
+      failures++;
+      $('meta').innerHTML = 'reconnecting…';
+      setTimeout(start, Math.min(10000, 1500 * failures));
+    });
+  }
+  function start() {
+    get('/api/screen', function (r) { seq = r.seq; full(r.screen); poll(); },
+        function () { failures++; $('meta').innerHTML = 'cannot reach the computer'; setTimeout(start, Math.min(10000, 1500 * failures)); });
+  }
+  layout();
+  window.onresize = layout;
+  start();
+})();
+</script>
+</body></html>

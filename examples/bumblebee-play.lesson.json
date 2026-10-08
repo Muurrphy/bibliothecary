@@ -1,0 +1,110 @@
+{
+  "title": "Do Bumble Bees Play with Toys?",
+  "source": "Original primer for Margin · Galpayage Dona et al., Animal Behaviour (2022), doi:10.1016/j.anbehav.2022.08.013.",
+  "language": "en",
+  "explain_language": "Simplified Chinese",
+  "paragraphs": [
+    {
+      "sentences": [
+        "Could an insect play with a toy?",
+        "In a 2022 study, bumble bees repeatedly rolled small wooden balls without getting food for doing it."
+      ]
+    },
+    {
+      "sentences": [
+        "The bees could walk straight to a feeding area along a clear path.",
+        "They could also take a detour into areas containing balls.",
+        "The balls were not blocking their route."
+      ]
+    },
+    {
+      "sentences": [
+        "Researchers followed 45 bees.",
+        "Some returned to roll balls on several days, and one rolled them 117 times over the experiment.",
+        "Younger bees rolled more than older bees."
+      ]
+    },
+    {
+      "sentences": [
+        "A second experiment used two differently coloured chambers.",
+        "One contained movable balls during training; the other had no objects.",
+        "Later, with both chambers empty, bees preferred the colour associated with the balls."
+      ]
+    },
+    {
+      "sentences": [
+        "The team checked whether rolling was a way to search for food, clear obstacles or attempt mating.",
+        "Their observations supported an interpretation of object play under established behavioural criteria."
+      ]
+    },
+    {
+      "sentences": [
+        "This does not directly reveal what a bee feels.",
+        "A preference suggests that rolling was rewarding, but it cannot tell us whether that experience feels like human happiness."
+      ]
+    },
+    {
+      "sentences": [
+        "A toy offers a small window into an animal’s behaviour.",
+        "Even an insect may do more than the work needed to get through the day."
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "focus": "p1.s2",
+      "say": "今晚想跟你讲讲熊蜂玩球的实验。研究者发现这些毛茸茸的小昆虫会反复滚动木球，即使这样做得不到食物奖励。",
+      "mark": "without getting food"
+    },
+    {
+      "focus": "p2.s2",
+      "say": "实验里有条直通食物的路，熊蜂沿着它走就能吃到东西，可它们经常主动绕到旁边去滚那些没有挡路的小木球。",
+      "mark": "take a detour",
+      "note": "detour 绕路"
+    },
+    {
+      "focus": "p3.s2",
+      "say": "研究者跟踪了四十五只熊蜂，发现有些会连续几天回来滚球，其中有只熊蜂在整个实验期间滚了一百一十七次。",
+      "mark": "117 times",
+      "clear_note": true
+    },
+    {
+      "focus": "p3.s3",
+      "say": "他们还发现年轻的熊蜂比年纪大的滚得更多。",
+      "mark": "Younger bees"
+    },
+    {
+      "focus": "p4.s2",
+      "say": "为了看看滚球本身是否能吸引熊蜂，研究者让它们进入颜色不同的两间小房间，并只在其中一间放了能滚动的球。"
+    },
+    {
+      "focus": "p4.s3",
+      "say": "后来他们把球拿走，熊蜂依然更喜欢之前有球的那种颜色，尽管那间房已经没有什么可玩了。",
+      "mark": "preferred the colour",
+      "figure": {
+        "type": "flow",
+        "title": "记得在哪儿玩过",
+        "items": [
+          "一种颜色的房间有球",
+          "后来两间都空着",
+          "偏向之前有球的颜色"
+        ]
+      }
+    },
+    {
+      "focus": "p5.s2",
+      "say": "团队还检查了滚球是否与觅食或求偶有关，并通过实验设计排除了清理障碍的需要。综合这些观察，他们认为滚球符合动物行为学中判断玩耍的标准。",
+      "mark": "object play",
+      "note": "object play 玩弄物体的游戏行为"
+    },
+    {
+      "focus": "p6.s2",
+      "say": "这让人很想知道熊蜂玩球的时候会不会开心，不过实验目前能告诉我们的是它们愿意反复滚球，还会偏向曾经有球的地方，至于那种感受和人的快乐有多像，我们还没有直接的证据。",
+      "clear_note": true
+    },
+    {
+      "say": "今晚先讲到这里，晚安。"
+    }
+  ],
+  "questions": []
+}

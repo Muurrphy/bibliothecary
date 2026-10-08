@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Muurrphy/robot-lipsync/schemas/latency-trace-v1.schema.json",
+  "title": "Robot LipSync Physical Latency Trace v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "session_id", "milliseconds", "counters", "metadata"],
+  "properties": {
+    "schema": {"const": "robot-lipsync/latency-trace/v1"},
+    "session_id": {"type": "string", "minLength": 1},
+    "milliseconds": {"type": "object", "additionalProperties": {"type": "number"}},
+    "counters": {"type": "object", "additionalProperties": {"type": "number"}},
+    "metadata": {"type": "object", "additionalProperties": {"type": ["string", "number", "boolean", "null"]}}
+  }
+}

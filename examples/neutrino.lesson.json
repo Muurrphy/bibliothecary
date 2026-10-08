@@ -1,0 +1,68 @@
+{
+  "title": "A Cosmic Alarm That Set Telescopes Racing",
+  "source": "Original primer based on https://icecube.wisc.edu/news/awards/2026/10/francis-halzen-icecube-principal-investigator-wins-2026-physics-nobel-prize/ and https://www.nasa.gov/news-release/nasas-fermi-traces-source-of-cosmic-neutrino-to-monster-black-hole/",
+  "language": "en",
+  "explain_language": "Simplified Chinese",
+  "paragraphs": [
+    {
+      "sentences": [
+        "On 6 October 2026, Francis Halzen received the Nobel Prize in Physics for contributions to IceCube and the discovery of high-energy astrophysical neutrinos.",
+        "IceCube uses a cubic kilometre of Antarctic ice to detect traces left by elusive particles from space."
+      ]
+    },
+    {
+      "sentences": [
+        "On 22 September 2017, IceCube recorded the track of a particle produced by a high-energy neutrino.",
+        "An automated alert went out just 43 seconds later."
+      ]
+    },
+    {
+      "sentences": [
+        "Observatories followed the direction in the alert.",
+        "NASA’s Fermi telescope identified a flaring galaxy in that direction, and MAGIC detected very-high-energy gamma rays from it."
+      ]
+    },
+    {
+      "sentences": [
+        "The galaxy, TXS 0506+056, contains a supermassive black hole whose jet points towards Earth.",
+        "Together, the observations linked the neutrino to activity in a galaxy billions of light-years away."
+      ]
+    },
+    {
+      "sentences": [
+        "A tiny trace in Antarctic ice had started an international search across the sky.",
+        "This was evidence connecting a cosmic neutrino to a distant source, rather than the first discovery of neutrinos themselves."
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "focus": "p1.s1",
+      "mark": "Nobel Prize in Physics",
+      "say": "二〇二六年公布的诺贝尔物理学奖，颁给了推动南极冰立方观测站的科学家。它追踪的是几乎可以穿透地球的中微子。"
+    },
+    {
+      "focus": "p2.s2",
+      "mark": "43 seconds",
+      "say": "二〇一七年九月二十二日，冰立方捕捉到高能中微子留下的踪迹，四十三秒后就向全球发出了警报。"
+    },
+    {
+      "focus": "p3.s2",
+      "mark": "a flaring galaxy",
+      "say": "望远镜随即接力追踪。费米太空望远镜找到了同方向正在爆发的星系，地面望远镜随后也观测到了它的高能伽马射线。",
+      "note": "MAGIC：位于加那利群岛的伽马射线望远镜"
+    },
+    {
+      "focus": "p4.s1",
+      "mark": "jet points towards Earth",
+      "say": "线索共同指向那座星系中心的超大质量黑洞，它喷出的高速物质正朝着地球。"
+    },
+    {
+      "focus": "p4.s2",
+      "mark": "billions of light-years away",
+      "say": "我们把到达南极的微小粒子，和几十亿光年外的剧烈活动联系起来。宇宙送来线索，人类用地球和太空中的观测站追到了它的来处。",
+      "clear_note": true
+    }
+  ],
+  "questions": []
+}

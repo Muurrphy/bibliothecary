@@ -1,0 +1,216 @@
+{
+  "title": "A Village Where Everyone Signs",
+  "source": "Written for Margin from Sandler, Meir, Padden & Aronoff, PNAS 2005",
+  "language": "en",
+  "explain_language": "Simplified Chinese",
+  "paragraphs": [
+    {
+      "text": "About two hundred years ago, a Bedouin family settled in the Negev desert, in what is now southern Israel. Today the Al-Sayyid community has about 3,500 members and is in its seventh generation."
+    },
+    {
+      "text": "Because of a recessive gene, many children there have been born deaf: about 150 in the last three generations. The village did not shut them out. It learned to sign, and deaf and hearing people alike use Al-Sayyid Bedouin Sign Language every day."
+    },
+    {
+      "text": "In 2005 the linguists Wendy Sandler, Irit Meir, Carol Padden and Mark Aronoff looked at how second-generation signers build sentences. When a sentence names two people or things, the subject comes first, then the object, and the verb comes last."
+    },
+    {
+      "text": "That order is a surprise. The Arabic spoken in the village, like the Hebrew around it, puts the verb in the middle: subject, verb, object. The deaf children could not hear those languages, so they did not borrow the order from them."
+    },
+    {
+      "text": "Subject-object-verb is the most common word order among the world's languages. Deaf children who invent their own gestures at home, with no one to sign with, also tend to put the action last. Within one generation, the village had a language with a grammar of its own."
+    }
+  ],
+  "steps": [
+    {
+      "say": "今晚不讲 AI 了，讲一个村子的故事。听着听着睡着也没关系。"
+    },
+    {
+      "focus": "p1.s1",
+      "say": "两百年前，一个贝都因家庭在以色列南边的内盖夫沙漠住了下来。",
+      "note": "Negev 内盖夫沙漠 · Bedouin 贝都因人"
+    },
+    {
+      "focus": "p1.s2",
+      "mark": "seventh generation",
+      "say": "现在这个部落叫 Al-Sayyid，三千五百人，已经是第七代了。",
+      "figure": {
+        "type": "timeline",
+        "title": "Al-Sayyid",
+        "items": [
+          {
+            "when": "~200 年前",
+            "what": "一个贝都因家庭在内盖夫定居"
+          },
+          {
+            "when": "今天",
+            "what": "约 3,500 人 · 第七代"
+          },
+          {
+            "when": "2005",
+            "what": "语言学家来研究村里的手语"
+          }
+        ]
+      }
+    },
+    {
+      "focus": "p2.s1",
+      "mark": "about 150",
+      "say": "因为一种隐性基因，最近三代里，有大约一百五十个孩子生下来就听不见。"
+    },
+    {
+      "focus": "p2.s3",
+      "mark": "deaf and hearing people alike",
+      "say": "村子没把这些孩子隔开，大家一起学了手语。听得见的人也天天在用。",
+      "note": "听人也打手语：在这里，手语是全村的语言。"
+    },
+    {
+      "focus": "p3.s1",
+      "say": "2005 年，四位语言学家去研究第二代人是怎么用手语造句的。"
+    },
+    {
+      "focus": "p3.s2",
+      "mark": "the verb comes last",
+      "say": "他们发现，在这门手语里，一句话有两个人或东西的时候，先说谁，再说什么，动词放最后。比如：女孩、球、扔。",
+      "note": "S – O – V：主语 · 宾语 · 动词",
+      "figure": {
+        "type": "compare",
+        "title": "Word order 语序",
+        "rows": [
+          {
+            "label": "ABSL 手语",
+            "items": [
+              "S 女孩",
+              "O 球",
+              "V 扔"
+            ],
+            "hi": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "focus": "p4.s2",
+      "mark": "subject, verb, object",
+      "say": "可村里说的阿拉伯语，还有周围的希伯来语，都是动词在中间：女孩、扔、球。",
+      "figure": {
+        "type": "compare",
+        "title": "Word order 语序",
+        "rows": [
+          {
+            "label": "Arabic 阿拉伯语",
+            "items": [
+              "S 女孩",
+              "V 扔",
+              "O 球"
+            ],
+            "hi": [
+              1
+            ]
+          },
+          {
+            "label": "ABSL 手语",
+            "items": [
+              "S 女孩",
+              "O 球",
+              "V 扔"
+            ],
+            "hi": [
+              2
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "focus": "p5.s1",
+      "mark": "the most common word order",
+      "say": "主语、宾语、动词这个顺序，在全世界的语言里最常见，日语、韩语就是这样。"
+    },
+    {
+      "focus": "p5.s2",
+      "say": "家里没人会手语、只能自己比划的聋孩子，也多半把动作放在最后。"
+    },
+    {
+      "focus": "p5.s3",
+      "mark": "Within one generation",
+      "say": "只用了一代人，这个村子就有了一门有自己语法的语言。没有老师，也没有课本。",
+      "note": "语言不一定是教出来的，也可以是一群人每天想说话，自己长出来的。",
+      "figure": {
+        "type": "flow",
+        "title": "一代人",
+        "items": [
+          "听不见",
+          "没人可学",
+          "自己比划",
+          "有语法的语言"
+        ]
+      }
+    },
+    {
+      "say": "好啦，今天就讲到这儿。晚安。",
+      "clear_note": true
+    }
+  ],
+  "questions": [
+    {
+      "match": [
+        "语序",
+        "阿拉伯",
+        "希伯来",
+        "不一样",
+        "word order",
+        "arabic",
+        "hebrew",
+        "different"
+      ],
+      "steps": [
+        {
+          "focus": "p4.s2",
+          "mark": "subject, verb, object",
+          "say": "因为第一代聋孩子根本听不到阿拉伯语。",
+          "figure": {
+            "type": "compare",
+            "title": "Word order 语序",
+            "rows": [
+              {
+                "label": "Arabic 阿拉伯语",
+                "items": [
+                  "S 女孩",
+                  "V 扔",
+                  "O 球"
+                ],
+                "hi": [
+                  1
+                ]
+              },
+              {
+                "label": "ABSL 手语",
+                "items": [
+                  "S 女孩",
+                  "O 球",
+                  "V 扔"
+                ],
+                "hi": [
+                  2
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "focus": "p4.s3",
+          "mark": "could not hear",
+          "say": "他们身边也没有现成的手语可学，所以没法照着阿拉伯语的顺序来。"
+        },
+        {
+          "focus": "p5.s1",
+          "mark": "the most common word order",
+          "say": "作者给了两个线索：主宾谓本来就是世界上最常见的语序；自己比划的聋孩子，也总把动作放在最后。",
+          "note": "一种可能：从零长出来的语言，会先摆出“谁”和“什么”，最后才说“发生了什么”。"
+        }
+      ]
+    }
+  ]
+}

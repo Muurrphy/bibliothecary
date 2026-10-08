@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use Margin in your work, please cite this software."
+title: "Margin: a reading companion across devices"
+type: software
+authors:
+  - name: Muurrphy
+repository-code: "https://github.com/Muurrphy/margin"
+version: 0.2.0
+date-released: 2026-10-08
+license: MIT

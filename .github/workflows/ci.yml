@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: python -m pip install -e ".[dev,elevenlabs,serial]"
+      - run: python -m pytest
+      - name: Check lessons and mouth tools without API keys
+        run: |
+          for lesson in examples/*.lesson.json; do margin check "$lesson"; done
+          robot-lipsync demo --output build/demo.html
+          robot-lipsync compile examples/good_evening.alignment.json --output build/timeline.json
+          robot-lipsync benchmark-run --adapter-command "python benchmarks/stub_agent.py" --output build/stub.jsonl --limit 5 --warmups 1 --timeout 5
+          robot-lipsync benchmark-report build/stub.jsonl
+      - name: Build and inspect the combined wheel
+        run: |
+          python -m build
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'margin/static/speaker.html' in n; assert 'robot_lipsync/renderers/monroe_model.js' in n; assert 'robot_lipsync/data/english_v1.json' in n"
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "1.5.1"
+      - name: Compile optional OLED firmware
+        run: |
+          arduino-cli compile --profile esp32c3 firmware/esp32_oled
+          arduino-cli compile --profile esp32c3 --build-property compiler.cpp.extra_flags=-DROBOT_LIPSYNC_OLED_SH1106=0 firmware/esp32_oled

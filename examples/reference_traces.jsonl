@@ -1,0 +1,8 @@
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-01","milliseconds":{"physical_audio_start":1969},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-02","milliseconds":{"physical_audio_start":1966},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-03","milliseconds":{"physical_audio_start":2588},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-04","milliseconds":{"physical_audio_start":2247},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-05","milliseconds":{"physical_audio_start":4573},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32","note":"observed long tail"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-06","milliseconds":{"physical_audio_start":1908},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-07","milliseconds":{"physical_audio_start":1992},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}
+{"schema":"robot-lipsync/latency-trace/v1","session_id":"lilyput-08","milliseconds":{"physical_audio_start":2674},"counters":{"underruns":0},"metadata":{"source":"uncontrolled_reference_run","hardware":"dual-esp32"}}

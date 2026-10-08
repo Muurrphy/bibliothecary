@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin · remote</title>
+<style>
+:root{--ink:#16181d;--paper:#f6f6f3;--line:#d9d9d2;--accent:#e2483d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:28px 18px}
+h1{font:600 13px ui-monospace,Menlo,monospace;letter-spacing:.2em;text-transform:uppercase;margin:0 0 18px}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button{font:inherit;border:1.5px solid var(--ink);background:#fff;color:var(--ink);border-radius:10px;padding:10px 14px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#talk{width:100%;padding:26px;font-size:18px;border-radius:16px;user-select:none;-webkit-user-select:none;touch-action:none}
+#talk.on{background:var(--accent);border-color:var(--accent);color:#fff}
+form{display:flex;gap:8px;margin:14px 0}
+input{flex:1;font:inherit;padding:10px 12px;border:1.5px solid var(--ink);border-radius:10px;background:#fff;min-width:0}
+#state{font:13px ui-monospace,Menlo,monospace;color:#555;margin-top:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.hint{font-size:13px;color:#666}
+</style></head>
+<body><main>
+<h1>Margin · remote</h1>
+<div class="row">
+  <button data-a="toggle">Play / pause</button><button data-a="prev">Back</button><button data-a="next">Skip</button><button data-a="restart">Start over</button>
+</div>
+<button id="talk">Hold to ask (or hold the space bar)</button>
+<p class="hint">Speak while holding. Margin stops talking as soon as you press.</p>
+<form id="f"><input id="t" placeholder="…or type a question" autocomplete="off"><button>Ask</button></form>
+<div id="state">—</div>
+</main>
+<script>
+const post = (url, body, type = 'application/json') =>
+  fetch(url, {method: 'POST', headers: {'Content-Type': type}, body: type === 'application/json' ? JSON.stringify(body || {}) : body})
+    .then(r => r.json()).catch(e => ({error: String(e)}));
+document.querySelectorAll('[data-a]').forEach(b => b.onclick = () => post('/api/control', {action: b.dataset.a}));
+document.getElementById('f').onsubmit = e => { e.preventDefault(); const t = document.getElementById('t'); if (t.value.trim()) post('/api/ask', {text: t.value}); t.value = ''; };
+
+// Recording: plain 16 kHz WAV built here from raw samples, so every browser
+// (Safari's MediaRecorder makes files some speech APIs refuse) sends the same thing.
+let ctx = null, source = null, node = null, stream = null, buf = [], held = false;
+const talk = document.getElementById('talk');
+async function mic() {
+  if (stream) return;
+  stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true}});
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  source = ctx.createMediaStreamSource(stream);
+  node = ctx.createScriptProcessor(4096, 1, 1);
+  node.onaudioprocess = e => { if (held) buf.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+  source.connect(node); node.connect(ctx.destination);
+}
+function wav(chunks, rate) {
+  const n = chunks.reduce((a, c) => a + c.length, 0), ratio = rate / 16000, len = Math.floor(n / ratio);
+  const all = new Float32Array(n); let o = 0; for (const c of chunks) { all.set(c, o); o += c.length; }
+  const out = new DataView(new ArrayBuffer(44 + len * 2)), w = (i, t) => [...t].forEach((ch, k) => out.setUint8(i + k, ch.charCodeAt(0)));
+  w(0, 'RIFF'); out.setUint32(4, 36 + len * 2, true); w(8, 'WAVE'); w(12, 'fmt '); out.setUint32(16, 16, true);
+  out.setUint16(20, 1, true); out.setUint16(22, 1, true); out.setUint32(24, 16000, true); out.setUint32(28, 32000, true);
+  out.setUint16(32, 2, true); out.setUint16(34, 16, true); w(36, 'data'); out.setUint32(40, len * 2, true);
+  for (let i = 0; i < len; i++) { const v = Math.max(-1, Math.min(1, all[Math.floor(i * ratio)])); out.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true); }
+  return new Blob([out], {type: 'audio/wav'});
+}
+async function down() {
+  if (held) return;
+  talk.classList.add('on');
+  post('/api/listen');
+  try { await mic(); if (ctx.state === 'suspended') await ctx.resume(); }
+  catch (e) { show('microphone: ' + e); talk.classList.remove('on'); post('/api/control', {action: 'cancel'}); return; }
+  buf = []; held = true;
+}
+async function up() {
+  if (!held) return;
+  held = false; talk.classList.remove('on');
+  const seconds = buf.reduce((a, c) => a + c.length, 0) / (ctx ? ctx.sampleRate : 48000);
+  if (seconds < 0.4) { show('too short — hold while you speak'); post('/api/control', {action: 'cancel'}); return; }
+  show('sending ' + seconds.toFixed(1) + ' s of audio…');
+  const r = await post('/api/ask', wav(buf, ctx.sampleRate), 'audio/wav');
+  show(r.error ? 'error: ' + r.error : 'asked: ' + r.question);
+}
+talk.addEventListener('pointerdown', down); talk.addEventListener('pointerup', up); talk.addEventListener('pointerleave', up);
+addEventListener('keydown', e => { if (e.code === 'Space' && !e.repeat && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); down(); } });
+addEventListener('keyup', e => { if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); up(); } });
+
+let last = '';
+function show(msg) { last = msg; }
+async function watch() {
+  try {
+    const r = await fetch('/api/screen').then(r => r.json()), s = r.screen;
+    document.getElementById('state').textContent =
+      `${s.status} · step ${s.progress[0]}/${s.progress[1]}\n${s.answer ? 'Q: ' + s.answer.question + '\nA: ' + s.answer.text : s.caption}${last ? '\n\n' + last : ''}`;
+  } catch (e) {}
+  setTimeout(watch, 700);
+}
+watch();
+</script>
+</body></html>

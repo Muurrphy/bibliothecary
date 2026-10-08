@@ -1,0 +1,196 @@
+{
+  "title": "What an Octopus Does in Its Sleep",
+  "source": "Written for Margin from Medeiros et al., iScience 2021, and Pophale et al., Nature 2023",
+  "language": "en",
+  "explain_language": "Simplified Chinese",
+  "paragraphs": [
+    {
+      "text": "Octopuses sleep. In 2021, Sylvia Medeiros, Sidarta Ribeiro and their colleagues in Brazil filmed four octopuses resting in the lab. A resting octopus turns pale, its pupils narrow to thin slits, and it stops moving."
+    },
+    {
+      "text": "That is quiet sleep. But every 30 to 40 minutes something else happens. For about forty seconds the skin darkens and changes colour and texture, the eyes move, the suckers tighten and the body twitches. Then the animal goes pale and still again."
+    },
+    {
+      "text": "To check that this was really sleep, the team showed the octopuses a video of a crab and tapped on the tank. In both states the animals needed a stronger push before they reacted than when they were awake."
+    },
+    {
+      "text": "In 2023, Sam Reiter and his team at the Okinawa Institute of Science and Technology filmed another species in 8K and recorded its brain. Active sleep came about once an hour and lasted about a minute. During it, the brain looked much like an awake brain, and the skin ran through the same patterns the animal uses for camouflage during the day."
+    },
+    {
+      "text": "When the researchers kept the octopuses from sleeping, the animals later went into active sleep sooner and more often, as if they had to make up for it."
+    },
+    {
+      "text": "No one knows whether octopuses dream. If they do, the dreams are short, and perhaps they are about hiding and hunting. Octopuses and humans parted ways more than 500 million years ago, and yet both ended up with two kinds of sleep."
+    }
+  ],
+  "steps": [
+    {
+      "say": "今晚讲章鱼睡觉。听着听着睡着也没关系。"
+    },
+    {
+      "focus": "p1.s1",
+      "say": "章鱼也睡觉。"
+    },
+    {
+      "focus": "p1.s2",
+      "mark": "four octopuses",
+      "say": "2021 年，巴西的一个团队在实验室里拍了四只章鱼睡觉。"
+    },
+    {
+      "focus": "p1.s3",
+      "mark": "turns pale",
+      "say": "章鱼睡着的时候会变白，瞳孔缩成一条细缝，一动不动。",
+      "note": "quiet sleep 安静睡眠：变白、不动"
+    },
+    {
+      "focus": "p2.s2",
+      "mark": "every 30 to 40 minutes",
+      "say": "可每隔三四十分钟，会出现另一种睡眠。"
+    },
+    {
+      "focus": "p2.s3",
+      "mark": "about forty seconds",
+      "say": "大概四十秒里，它的皮肤变深、变色、起纹理，眼睛在动，吸盘收紧，身体一抽一抽的。",
+      "figure": {
+        "type": "terms",
+        "title": "两种睡眠",
+        "items": [
+          {
+            "term": "quiet 安静",
+            "meaning": "变白 · 瞳孔一条缝 · 不动"
+          },
+          {
+            "term": "active 活跃",
+            "meaning": "变色 · 眼睛动 · 吸盘收紧 · 约 40 秒"
+          }
+        ]
+      }
+    },
+    {
+      "focus": "p2.s4",
+      "say": "然后又变回白色，安静下来。"
+    },
+    {
+      "focus": "p3.s1",
+      "mark": "a video of a crab",
+      "say": "怎么知道它是真睡着了？研究的人给它放螃蟹的视频，还敲鱼缸。"
+    },
+    {
+      "focus": "p3.s2",
+      "mark": "a stronger push",
+      "say": "两种状态下，章鱼都要更大的动静才有反应。醒着的时候可不是这样。"
+    },
+    {
+      "focus": "p4.s1",
+      "mark": "in 8K",
+      "say": "2023 年，日本冲绳的一个团队用 8K 摄像头拍章鱼，同时记录它的大脑。"
+    },
+    {
+      "focus": "p4.s3",
+      "mark": "the same patterns",
+      "say": "活跃睡眠的时候，它的大脑跟醒着差不多，皮肤上闪过的，正是它白天用来伪装的那些花纹。",
+      "note": "睡着的时候，把白天的伪装又过了一遍。",
+      "figure": {
+        "type": "flow",
+        "title": "活跃睡眠",
+        "items": [
+          "大脑像醒着",
+          "皮肤闪过伪装花纹",
+          "约一小时一次"
+        ]
+      }
+    },
+    {
+      "focus": "p5.s1",
+      "mark": "sooner and more often",
+      "say": "研究的人不让章鱼睡，后来它们会更快、更频繁地进入活跃睡眠，像在补觉。"
+    },
+    {
+      "focus": "p6.s1",
+      "say": "章鱼会不会做梦，现在没人知道。"
+    },
+    {
+      "focus": "p6.s2",
+      "mark": "hiding and hunting",
+      "say": "就算会，梦也很短，可能是在躲藏，或者在抓东西吃。"
+    },
+    {
+      "focus": "p6.s3",
+      "mark": "two kinds of sleep",
+      "say": "章鱼和人，五亿多年前就分开了。可两边各自长出了两种睡眠。",
+      "figure": {
+        "type": "timeline",
+        "title": "章鱼和人",
+        "items": [
+          {
+            "when": "5 亿多年前",
+            "what": "从同一个祖先分开"
+          },
+          {
+            "when": "今天",
+            "what": "都有安静睡眠和活跃睡眠"
+          }
+        ]
+      }
+    },
+    {
+      "say": "好啦，今天就讲到这儿。晚安。",
+      "clear_note": true
+    }
+  ],
+  "questions": [
+    {
+      "always": true,
+      "match_all": [
+        [
+          "样子",
+          "什么样",
+          "看看",
+          "看一下",
+          "视频",
+          "show me",
+          "look like"
+        ],
+        [
+          "睡",
+          "sleep"
+        ]
+      ],
+      "steps": [
+        {
+          "focus": "p4.s3",
+          "mark": "the same patterns",
+          "say": "你看，这就是章鱼睡觉的样子。",
+          "cue": "octopus_video"
+        },
+        {
+          "say": "这只正在活跃睡眠，皮肤上的花纹一直在变。"
+        }
+      ]
+    },
+    {
+      "match": [
+        "情感",
+        "感情",
+        "感受",
+        "疼",
+        "痛",
+        "情绪",
+        "feel",
+        "emotion",
+        "pain"
+      ],
+      "steps": [
+        {
+          "say": "很可能有某种感受。"
+        },
+        {
+          "say": "2021 年英国政府委托的一份研究综述认为，章鱼这类动物能感到疼。之后英国的动物福利法，也把章鱼算进了有感受的动物。"
+        }
+      ]
+    }
+  ],
+  "cues": {
+    "octopus_video": "a short real video of an octopus changing colour in its sleep (OIST, 2023)"
+  }
+}
