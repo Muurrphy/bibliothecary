@@ -85,8 +85,10 @@ biblio report --show    # 最近一篇的读书报告
 ```bash
 cp .env.example .env      # 填你自己的 OpenAI、ElevenLabs 密钥和音色 ID
 biblio prepare https://example.com/文章 --explain "Simplified Chinese" --bedtime
-biblio read --voice elevenlabs --paused
+biblio read --paused
 ```
+
+声音会自动选：填了 ElevenLabs 密钥和 `MARGIN_ELEVEN_VOICE`（或 `ELEVENLABS_VOICE_ID`），手机上就有声音、嘴也会动；没填就只显示文字，启动时会明确打印 `voice: SILENT…` 告诉你缺什么。`biblio telegram` 开着的阅览室也一样。任何 ElevenLabs 音色都能用，包括你自己克隆的声音；想故意静音就加 `--voice silent`。
 
 `biblio read` 不带名字时，打开最早一篇还没读完的。手机打开终端打印的 `https://…:8765/speaker`，点一下屏幕。手机用麦克风需要先装电脑生成的本地证书（步骤见[配置说明](docs/configuration.md#https-on-the-phone)）。在 Safari 里把这个地址的「网站设置 → 麦克风」设成「允许」，不然每次打开都会再问一遍。
 

@@ -85,8 +85,10 @@ biblio report --show    # the latest reading report
 ```bash
 cp .env.example .env      # add your OpenAI and ElevenLabs keys and a voice id
 biblio prepare https://example.com/article --explain "Simplified Chinese" --bedtime
-biblio read --voice elevenlabs --paused
+biblio read --paused
 ```
+
+The voice is picked for you: with an ElevenLabs key and `MARGIN_ELEVEN_VOICE` (or `ELEVENLABS_VOICE_ID`) set, it speaks on the phone and the mouth moves; without them it reads silently and says so when it starts (`voice: SILENT…`). The same goes for the reading room that `biblio telegram` keeps open. Any ElevenLabs voice works, including one you cloned yourself; `--voice silent` keeps it quiet on purpose.
 
 `biblio read` without a name opens the oldest reading not finished yet. On the phone, open the printed `https://…:8765/speaker` address and tap the screen once. The phone needs the computer's local certificate for the microphone (steps in [setup](docs/configuration.md#https-on-the-phone)). In Safari, set **Website Settings → Microphone → Allow** for this address, or it asks again every time the page opens.
 

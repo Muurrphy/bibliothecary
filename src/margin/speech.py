@@ -376,13 +376,33 @@ class ElevenLabsVoice(_ProcessVoice):
             os.unlink(path)
 
 
+def _eleven_voice_id() -> str:
+    return os.environ.get("MARGIN_ELEVEN_VOICE") or os.environ.get("ELEVENLABS_VOICE_ID") or ""
+
+
+def auto_voice(client: OpenAICompatible | None = None, **options) -> tuple[object, str]:
+    """The voice to use when none was asked for, and a line saying which and why.
+
+    An ElevenLabs voice when one is set up: it is the one that plays on the phone with the mouth
+    moving. Otherwise silence, said plainly, so a reader who hears nothing knows what to add."""
+    voice_id = options.get("voice") or _eleven_voice_id()
+    if voice_id:
+        try:
+            return ElevenLabsVoice(voice_id), f"ElevenLabs voice {voice_id}"
+        except Exception as err:                         # no key, no network: read on, without sound
+            return SilentVoice(options.get("speed", 1.0)), f"SILENT, the ElevenLabs voice did not start: {err}"
+    return SilentVoice(options.get("speed", 1.0)), ("SILENT: no voice is set up, so the phone stays quiet and "
+                                                    "the mouth still. Add an ElevenLabs key and MARGIN_ELEVEN_VOICE "
+                                                    "(see docs/configuration.md)")
+
+
 def make_voice(kind: str, client: OpenAICompatible | None = None, **options) -> object:
     if kind == "silent":
         return SilentVoice(options.get("speed", 1.0))
     if kind == "say":
         return SayVoice(options.get("voice"), options.get("rate"))
     if kind == "elevenlabs":
-        return ElevenLabsVoice(options.get("voice") or os.environ.get("MARGIN_ELEVEN_VOICE", ""))
+        return ElevenLabsVoice(options.get("voice") or _eleven_voice_id())
     if kind == "openai":
         if client is None:
             raise RuntimeError("the openai voice needs an API key (OPENAI_API_KEY)")

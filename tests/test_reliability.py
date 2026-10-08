@@ -248,3 +248,32 @@ def test_selected_voice_settings_cannot_silently_fall_back(monkeypatch):
     assert len(requests) == 1
     assert requests[0]['voice_settings'] == selected
     assert v.settings == selected
+
+
+def test_the_voice_is_chosen_for_you_and_silence_is_said_out_loud(monkeypatch):
+    from margin import speech
+
+    monkeypatch.delenv("MARGIN_ELEVEN_VOICE", raising=False)
+    monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "silent" and "SILENT" in note and "MARGIN_ELEVEN_VOICE" in note
+
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "v123")
+    monkeypatch.setattr(speech, "ElevenLabsVoice", lambda voice_id: type("V", (), {"name": "elevenlabs", "id": voice_id})())
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "elevenlabs" and voice.id == "v123" and "v123" in note
+
+    def broken(voice_id):
+        raise RuntimeError("no ElevenLabs key found")
+    monkeypatch.setattr(speech, "ElevenLabsVoice", broken)
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "silent" and "no ElevenLabs key found" in note
+
+
+def test_serving_defaults_to_the_automatic_voice():
+    import argparse
+    from margin import cli
+
+    p = argparse.ArgumentParser()
+    cli.add_serve_options(p)
+    assert p.parse_args([]).voice == "auto"

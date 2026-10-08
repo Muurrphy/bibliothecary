@@ -54,4 +54,4 @@ Copy `.env.example` to `.env` and use your own credentials. `margin` loads `.env
 
 The `.env.example` prefers native timing, one primary device and local alignment fallback. It does not contain the author's voice settings, voice ID, credentials or local IP address. If you do not copy it, the existing code defaults remain in effect.
 
-Voice choices: `silent` for an offline reader demo; `say` for the macOS system voice; `openai` for OpenAI TTS; `elevenlabs` for audio with character timing. The mouth/audio integration is most directly exercised by the ElevenLabs path. A generic `say` or `openai` voice does not establish full synchronized mobile-mouth support.
+Voice choices: `auto` (the default) uses ElevenLabs when a key and `MARGIN_ELEVEN_VOICE` (or `ELEVENLABS_VOICE_ID`) are set and otherwise stays silent, printing `voice: SILENT…` with what is missing; `silent` for an offline reader demo; `say` for the macOS system voice; `openai` for OpenAI TTS; `elevenlabs` for audio with character timing. The mouth/audio integration is most directly exercised by the ElevenLabs path. A generic `say` or `openai` voice does not establish full synchronized mobile-mouth support.

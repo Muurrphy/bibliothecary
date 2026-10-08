@@ -14,7 +14,7 @@ from .llm import OpenAICompatible
 from .player import Player
 from .server import App, lan_address, serve
 from .speaker import SpeakerHub, lipsync_available
-from .speech import make_voice
+from .speech import auto_voice, make_voice
 from .tls import ensure_certificate, local_hostname
 
 LOG_FILE = "margin.log"
@@ -93,7 +93,11 @@ def start(lesson: Lesson | None, args, *, client: OpenAICompatible | None = None
     client = client or OpenAICompatible.from_env()
     if client is not None:
         client.warm()                     # open the connection before the first question
-    voice = make_voice(args.voice, client, voice=args.voice_name, rate=args.rate)
+    if getattr(args, "voice", "auto") == "auto":
+        voice, note = auto_voice(client, voice=args.voice_name)
+        _log(f"voice: {note}")
+    else:
+        voice = make_voice(args.voice, client, voice=args.voice_name, rate=args.rate)
 
     def answerer(lesson, question, current, position=None, history=None, review=None):
         command = brain.quick_intent(question)          # "继续", "等一下", "再说一遍": no model needed
@@ -187,7 +191,8 @@ def cmd_check(args) -> int:
 
 
 def add_serve_options(s: argparse.ArgumentParser) -> None:
-    s.add_argument("--voice", default="silent", choices=["silent", "say", "openai", "elevenlabs"])
+    s.add_argument("--voice", default="auto", choices=["auto", "silent", "say", "openai", "elevenlabs"],
+                   help="auto (default): ElevenLabs when a key and MARGIN_ELEVEN_VOICE are set, else silent")
     s.add_argument("--voice-name", help="Tingting (macOS say), coral (OpenAI) or an ElevenLabs voice id")
     s.add_argument("--rate", type=int, help="words per minute (say)")
     s.add_argument("--host", default="0.0.0.0")
