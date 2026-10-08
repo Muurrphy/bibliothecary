@@ -1,6 +1,6 @@
 # Bibliothecary — requirements
 
-> Status: draft v0.1, 2026-10-08. Requirements only; nothing here is implemented yet.
+> Status: draft v0.2, 2026-10-08. Requirements only; nothing here is implemented yet.
 > [中文](requirements.zh-CN.md)
 
 ## 0. In one sentence
@@ -18,6 +18,7 @@ collection → choose together → prepare (guide, notes) → bedtime reading �
 | Name | What it is |
 |---|---|
 | **Bibliothecary** (Chinese: **图书管理员**) | The whole project. An older English word for librarian, in use since the 1610s, from Latin *bibliothecarius*. |
+| Command | `bibliothecary`, short form `biblio` |
 | **Margin** | The reading room: the existing Kindle page, prepared talk and interruptible questions. Keeps its name as a component. |
 | **robot_lipsync** (the mouth) | The talking mouth on a phone, iPad or OLED. Kept as an optional component. |
 
@@ -82,9 +83,23 @@ Requirements:
 
 ### 4.3 Cataloguing
 
-- R4.1 Each item records title, author, source, type, language, length (estimated reading minutes), topic tags, difficulty, classic or new, date added, and status (to read, read, dropped, in progress at chapter n).
+- R4.1 Each item records title, author, source, type, language, length (estimated reading minutes), topic tags, difficulty, classic or new, date added, and status (to read, in progress, read, paused).
 - R4.2 Deduplication: different links to the same work (arXiv and journal version, reposts) are recognised as one item.
 - R4.3 Items already read are not suggested again unless you ask to reread or they are due for review.
+- R4.4 No separate shelves per language. Language is just a catalogue field; readers who want only one language can add a filter.
+
+### 4.4 In progress and paused
+
+A book usually takes many evenings, and switching to something else halfway is normal. Like a real librarian who remembers that you still have a book out, Bibliothecary remembers every unfinished book.
+
+- R4.5 Progress is kept automatically: the chapter and paragraph reached, plus what was already explained and asked, all stored with the book's entry. When you return, it opens with a sentence or two on where you left off.
+- R4.6 Once a day it checks the books in progress and mentions one when the moment is right, for example:
+  - a book has been untouched for more than a week;
+  - something you said today relates to it;
+  - this week's rhythm has a free "book" evening.
+  Reminders are restrained: at most once a week per book, and longer after you say "not now".
+- R4.7 If you say you don't want to read it, the book moves to the **paused shelf**: greyed out in the collection, no more reminders, progress and records kept. You can take it back at any time.
+- R4.8 After a few months the librarian may ask once whether you still want a paused book. If you say no, it doesn't ask again.
 
 ## 5. Choosing and scheduling (readers' advisory)
 
@@ -94,7 +109,7 @@ Requirements:
 |---|---|
 | Once during the day | The librarian messages you: what would you like to read tonight? It offers 2–3 suggestions, each with a one-line reason |
 | During the day | You answer, change your mind, drop links, or just talk; it also learns how familiar you are with the ideas involved |
-| Evening cut-off (e.g. 19:00) | Tonight's piece is settled. If you haven't replied, it picks one by the plan |
+| Evening cut-off (e.g. 19:00) | Tonight's piece is settled. If you haven't replied, it picks one by the plan and prepares and reads as usual |
 | Before bedtime | It sends the reading guide and notes to the chat, and prepares the talk for the reading room |
 | Bedtime | The reading session on a Kindle, phone or iPad (section 6) |
 | Afterwards | The evening's reading report is written and filed |
@@ -108,6 +123,7 @@ Bedtime is the default; it can be moved to the morning or any other time.
 - One book in chapters, about a month
 - One essay a week
 - One "review night" a week: nothing new, just this week's questions
+- A book in progress is continued before a new one is started (see 4.4)
 - A monthly report on the last day: what you read, where your questions clustered, how the knowledge map changed, suggestions for next month
 
 Requirements:
@@ -171,6 +187,7 @@ Requirements:
 - R7.1 Questions and answers are kept verbatim, never replaced by a lossy summary; summaries sit alongside the originals.
 - R7.2 The guide and notes are written before the session (the "before bedtime" step in section 5); the questions, answers and review are added after.
 - R7.3 Reports can be read and searched over MCP; read access is on by default, write access needs the user's consent.
+- R7.4 Reports are written in the explanation language, whatever language the reader asked it to explain in. Quotations from the article stay in the original.
 
 ## 8. The knowledge map (knowing the reader)
 
@@ -239,10 +256,12 @@ Each dependency's licence is recorded in `docs/third-party.md`. No copyleft code
 | **v0.7 Knowledge map** | Concept records, preview chosen per reader, spaced review, monthly report |
 | Rename | Before v0.3: repository, package, commands, README |
 
-## 13. Open questions
+## 13. Decisions
 
-1. Command name: `bibliothecary` is long. Add a short alias such as `biblio`?
-2. If there's no reply by the evening cut-off: pick one automatically, or skip tonight?
-3. If you switch away from a book halfway, how is its progress kept?
-4. Should the default collection have separate shelves per language?
-5. Which language are reports written in: the article's, or the explanation's?
+| Question | Decision |
+|---|---|
+| Command name | Both the full `bibliothecary` and the short `biblio` |
+| No reply by the evening cut-off | Pick one by the plan; prepare and read as usual |
+| Switching away from a half-read book | See 4.4: progress is kept, the librarian picks a good moment to suggest finishing; if you really don't want it, it goes to the paused shelf, greyed out |
+| Separate shelves per language | No. Language is only a catalogue field (R4.4); readers who want to filter by language set that up themselves |
+| Language of the reading reports | The explanation language (R7.4) |
