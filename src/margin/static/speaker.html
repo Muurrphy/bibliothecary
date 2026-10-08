@@ -108,7 +108,7 @@ async function speak(d) {
     ]);
     if (cur !== clip || clip.done) return;
     // no timing for this line: the mouth follows loudness instead (never hold the voice back for it)
-    if (d.lips && window.DotLips && info && info.timeline && info.timeline.length) clip.at = DotLips.track(info.timeline);
+    if (d.lips && window.DotLips && info && info.timeline && info.timeline.length) clip.at = DotLips.track(info.timeline, {speechWindows: info.speech_windows});
     if (AC.state !== "running") { try { await AC.resume(); } catch (e) {} }
     if (AC.state !== "running") { needTap("tap to resume audio"); throw new Error("audio is suspended"); }
     clip.src = AC.createBufferSource(); clip.src.buffer = buf;

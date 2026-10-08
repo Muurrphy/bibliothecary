@@ -349,8 +349,10 @@
   const smooth = p => p * p * (3 - 2 * p);
   function mixMuscle(a, b, p) { const o = {}; for (const c of CH) o[c] = a[c] * (1 - p) + b[c] * p; return o; }
 
-  function track(events) {
-    const keys = events.map(e => {
+  function track(events, options = {}) {
+    // Null means no acoustic analysis. An empty list means verified silence.
+    const windows = Array.isArray(options.speechWindows) ? options.speechWindows : null;
+    const keys = events.filter(e => e.duration_ms > 0).map(e => {
       const glide = (MODEL.glides || MODEL.zhGlides)[e.viseme];
       const target = targetFor(e.viseme) || muscleFromArticulation(e.articulation);
       const k = cls(e.viseme);
@@ -396,11 +398,19 @@
       for (const c of CH) m[c] = JAW.has(c) ? jawSum[c] / wj : lipSum[c] / wl;
       if (lock) m = mixMuscle(m, lock, 0.85);              // a closure is categorical, never averaged away
       m = constrain(m);
+      let gate = windows ? 0 : 1;
+      if (windows) {
+        for (const [start, end] of windows) {
+          const a = start * 1000, b = end * 1000;
+          gate = Math.max(gate, smooth(clamp((t-a+20)/20)) * smooth(clamp((b+20-t)/20)));
+        }
+        m = mixMuscle(rest, m, gate);
+      }
       // oled: like the board, one frame per event, short gaps hold the previous frame
       let i = -1;
       for (let j = 0; j < keys.length; j++) { if (keys[j].s <= t) i = j; else break; }
       let frame = REST_FRAME, label = "REST";
-      if (i >= 0) {
+      if (i >= 0 && gate > 0) {
         const q = keys[i], next = keys[i + 1];
         const hold = next && next.s >= q.e && next.s - q.e <= 90;
         if (t < q.e || hold) { frame = q.frame; label = q.v; }

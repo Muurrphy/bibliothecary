@@ -13,14 +13,17 @@ If no tablet is connected, the computer plays the clip itself.
 
 from __future__ import annotations
 
+import io
 import itertools
 import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
+import wave
 from collections import OrderedDict, deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -43,11 +46,30 @@ class Clip:
     align: object = field(default=None, repr=False)        # a Future that gives ``alignment`` later
     ready: threading.Event = field(default_factory=threading.Event, repr=False)
 
+    speech_windows: list | None = field(default=None, repr=False)
+    alignment_status: str = "unverified"
+    audio_duration: float | None = None
+
     def make_timeline(self, log: Callable[[str], None] = lambda _m: None) -> None:
         """Work out the mouth shapes (may wait for the alignment). Sets ``ready`` either way."""
+        if self.ready.is_set():
+            return
         try:
+            from .alignment import reconcile, speech_windows, valid_alignment
             if self.alignment is None and self.align is not None:
                 self.alignment = self.align.result(timeout=30)
+            decoded = _decode(self.audio)
+            if decoded:
+                samples, rate = decoded
+                self.audio_duration = len(samples) / rate
+                self.speech_windows = speech_windows(samples, rate)
+                self.alignment, self.alignment_status = reconcile(
+                    self.alignment, self.speech_windows, self.audio_duration)
+            elif valid_alignment(self.alignment):
+                self.alignment_status = "provider_unverified_decoder_unavailable"
+            else:
+                self.alignment = None
+                self.alignment_status = "unavailable"
             self.timeline = lip_timeline(self.text, self.alignment) or []
         except Exception as err:   # a mouth problem must never stop the voice
             log(f"lip timeline failed: {err}")
@@ -56,6 +78,8 @@ class Clip:
             self.ready.set()
 
     def seconds(self) -> float | None:
+        if self.audio_duration is not None:
+            return self.audio_duration
         a = self.alignment or {}
         ends = a.get("character_end_times_seconds") or []
         return float(ends[-1]) if ends else None
@@ -63,7 +87,8 @@ class Clip:
 
 def lip_timeline(text: str, alignment: dict | None) -> list | None:
     """Mouth shapes for a clip, if the optional robot-lipsync package is installed."""
-    if not alignment:
+    from .alignment import valid_alignment
+    if not valid_alignment(alignment):
         return None
     try:
         from robot_lipsync.phonemes import alignment_to_phonemes, spans_from_elevenlabs
@@ -73,14 +98,26 @@ def lip_timeline(text: str, alignment: dict | None) -> list | None:
     language = "zh" if CJK.search(text) else "en"
     spans = spans_from_elevenlabs(alignment, language)
     events = phonemes_to_articulation("margin", alignment_to_phonemes(spans),
-        visual_lead_ms=float(os.environ.get("MARGIN_VISUAL_LEAD_MS", "42")))
+        visual_lead_ms=float(os.environ.get("MARGIN_VISUAL_LEAD_MS", "0")))
     return [e.to_dict() for e in events]
 
 
 def _decode(audio: bytes) -> tuple[list[int], int] | None:
-    """16 kHz mono samples from an mp3, with whatever decoder the computer has."""
-    import wave
+    """Mono PCM16 samples and rate; WAV is native, compressed audio needs a decoder."""
+    import array
 
+    # PCM WAV needs no platform decoder (also useful for offline regression tests).
+    try:
+        with wave.open(io.BytesIO(audio), "rb") as source:
+            if source.getsampwidth() == 2 and source.getcomptype() == "NONE":
+                pcm = array.array("h", source.readframes(source.getnframes()))
+                if sys.byteorder != "little":
+                    pcm.byteswap()
+                channels = source.getnchannels()
+                mono = [round(sum(pcm[i:i+channels])/channels) for i in range(0,len(pcm),channels)]
+                return mono, source.getframerate()
+    except (wave.Error, EOFError):
+        pass
     tool = shutil.which("afconvert") or shutil.which("ffmpeg")
     if not tool:
         return None
@@ -97,10 +134,10 @@ def _decode(audio: bytes) -> tuple[list[int], int] | None:
         with wave.open(dst, "rb") as w:
             frames = w.readframes(w.getnframes())
             rate = w.getframerate()
-    import array
-
     samples = array.array("h")
     samples.frombytes(frames[: len(frames) // 2 * 2])
+    if sys.byteorder != "little":
+        samples.byteswap()
     return list(samples), rate
 
 

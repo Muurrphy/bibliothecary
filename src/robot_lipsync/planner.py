@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 from .events import Articulation, ArticulationEvent
@@ -218,11 +219,17 @@ def phonemes_to_articulation(
     session_id: str,
     phonemes: list[TimedPhoneme],
     *,
-    visual_lead_ms: float = 42.0,
-    minimum_readable_ms: float = 70.0,
+    visual_lead_ms: float = 0.0,
+    minimum_readable_ms: float = 0.0,
 ) -> list[ArticulationEvent]:
-    """Compile phonemes into causal, readable articulation events."""
+    """Compile phones without extending their acoustic end boundaries.
 
+    ``minimum_readable_ms`` is retained for call compatibility but no longer
+    imposes a duration floor. The renderer smooths short phones in place.
+    """
+
+    if any(not math.isfinite(v) or v < 0 for v in (visual_lead_ms, minimum_readable_ms)):
+        raise ValueError("timing parameters must be finite and non-negative")
     expanded: list[tuple[TimedPhoneme, str, float, float]] = []
     for phoneme in phonemes:
         names = _targets(phoneme.symbol)
@@ -232,6 +239,16 @@ def phonemes_to_articulation(
         for index, name in enumerate(names):
             expanded.append((phoneme, name, phoneme.start_ms + index * duration, duration))
 
+    # Anticipation is opt-in, bounded by the preceding acoustic onset. It must
+    # not reorder events or make a short phone displace its neighbour.
+    starts = []
+    for i, (phone, name, onset, _duration) in enumerate(expanded):
+        family = phone.language.lower().replace("_", "-").split("-", 1)[0]
+        final = family in {"zh", "cmn"} and _mandarin_role(name) == "final"
+        vowel = family == "es" and _bare(phone.symbol) in _ES_NUCLEI
+        lead = 0 if final or vowel else visual_lead_ms
+        previous = expanded[i-1][2] if i else 0
+        starts.append(max(0, onset-lead, previous))
     events: list[ArticulationEvent] = []
     for index, (phoneme, name, audio_start, duration) in enumerate(expanded):
         family = phoneme.language.lower().replace("_", "-").split("-", 1)[0]
@@ -282,16 +299,19 @@ def phonemes_to_articulation(
             metadata["tone"] = phoneme.tone
         if role:
             metadata["syllable_role"] = role
-        # A Mandarin final takes over at its acoustic onset; only the initial
-        # keeps the visual lead, so b/p/m and f stay readable for a frame.
-        # Spanish vowels do the same: the consonant before them leads, the vowel
-        # lands on its sound, so fast syllables do not run ahead of the voice.
-        lead = 0.0 if role == "final" or es_vowel else visual_lead_ms
+        # Optional anticipation applies to initials/consonants; Mandarin finals
+        # and Spanish vowels still take over at their acoustic onset.
+        start = starts[index]
+        end = audio_start + duration
+        if index + 1 < len(starts):
+            end = min(end, starts[index + 1])
+        # Retain minimum_readable_ms as an API-compatible argument, but never
+        # extend a phone past its acoustic end or into the next visual target.
         events.append(
             ArticulationEvent(
                 session_id=session_id,
-                start_ms=max(0.0, audio_start - lead),
-                duration_ms=max(minimum_readable_ms, duration + lead),
+                start_ms=start,
+                duration_ms=max(0.0, end - start),
                 viseme=name,
                 articulation=shape,
                 intensity=intensity,
