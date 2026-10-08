@@ -232,7 +232,7 @@ def test_classic_papers_must_be_well_cited():
 
 def test_the_chat_is_a_librarian_with_its_own_model(home, monkeypatch):
     shelves_seen = []
-    monkeypatch.setattr(search, "web", lambda client, q, shelf: (shelves_seen.append(shelf), [])[1])
+    monkeypatch.setattr(search, "web_report", lambda client, q, shelf: (shelves_seen.append(shelf), ([], ""))[1])
     client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "Nobel Prize physics 2025"}},
                             {"reply": "你最近在忙什么？读这篇是为了拍 demo 吗？", "remember": ["在拍 demo"]})
     bot = FakeBot()
@@ -252,8 +252,8 @@ def test_the_chat_is_a_librarian_with_its_own_model(home, monkeypatch):
 def test_biblio_chat_shows_its_searches(home, monkeypatch, capsys):
     from bibliothecary import cli
 
-    monkeypatch.setattr(search, "web", lambda client, q, shelf: [
-        {"title": "How octopuses sleep", "url": "https://www.quantamagazine.org/octopus-sleep", "about": ""}])
+    monkeypatch.setattr(search, "web_report", lambda client, q, shelf: ([
+        {"title": "How octopuses sleep", "url": "https://www.quantamagazine.org/octopus-sleep", "about": ""}], ""))
     client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "octopus sleep"}},
                             {"reply": "1. How octopuses sleep (Quanta)"},
                             vets=[{"keep": [{"n": 1, "why": "a lively long read"}]}])
@@ -263,3 +263,46 @@ def test_biblio_chat_shows_its_searches(home, monkeypatch, capsys):
     assert "search shelf science: 'octopus sleep' → 1 found, 1 kept" in out and "a lively long read" in out
     assert "librarian> 1. How octopuses sleep (Quanta)" in out
     assert "今晚读什么" in (home / "chat.jsonl").read_text(encoding="utf-8")
+
+
+def test_what_the_search_reported_reaches_the_vetter_and_the_chat(home, monkeypatch):
+    """A prize newer than the model's training: the search's own words carry the winners."""
+    report = "The 2026 prize went to A, B and C for optogenetics. ([nature.com](https://www.nature.com/x?utm_source=openai))"
+
+    class Client:
+        def web_search(self, query, domains=None):
+            return {"text": report, "sources": [
+                {"title": "Light-gated channels", "url": "https://www.nature.com/articles/nn1525?utm_source=openai"},
+                {"title": "Off the shelf", "url": "https://example.com/a?utm_source=openai"}]}
+
+    found, text = search.web_report(Client(), "2026 Nobel medicine")
+    assert [r["url"] for r in found] == ["https://www.nature.com/articles/nn1525"]
+    assert "utm_source" not in text and "optogenetics" in text
+
+    monkeypatch.setattr(search, "web_report", lambda client, q, shelf: (found, text))
+    client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "2026 Nobel medicine"}},
+                            {"reply": "1. Light-gated channels"},
+                            vets=[{"keep": [{"n": 1, "why": "the founding paper"}]}])
+    from bibliothecary.desk import Desk
+    answer = Desk(client, language="English").reply("this year's Nobel in medicine, the papers")
+    vet_system = client.vetted[0][0]
+    assert "optogenetics" in vet_system and "out of date" in vet_system
+    assert "The search reported" in client.prompts[1][1] and "optogenetics" in client.prompts[1][1]
+    assert "1 kept" in answer.trace[0]
+
+
+def test_the_librarian_can_look_up_facts_on_the_open_web(home):
+    asked = []
+
+    class Client(ScriptedClient):
+        def web_search(self, query, domains=None):
+            asked.append(domains)
+            return {"text": "The 2026 medicine prize went to D, H and N for optogenetics.", "sources": []}
+
+    client = Client({"search": {"where": "facts", "query": "2026 Nobel medicine winners"}},
+                    {"reply": "It went to D, H and N, for optogenetics."})
+    from bibliothecary.desk import Desk
+    answer = Desk(client, language="English").reply("this year's Nobel in medicine")
+    assert asked == [None] and "optogenetics" in client.prompts[1][1]
+    assert answer.trace[0].startswith("search facts:") and not client.vetted
+    assert '"where": "facts"' in client.prompts[0][0] and "search the facts" in client.prompts[0][0]

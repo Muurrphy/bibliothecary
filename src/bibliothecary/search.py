@@ -137,8 +137,19 @@ def on_shelf(url: str, sites: list[str]) -> bool:
     return any(host == site or host.endswith("." + site) for site in sites)
 
 
-def web(client, query: str, shelf: str = "science") -> list[dict]:
-    """Pages from one shelf's sites, found by the model's own web search: [{"title", "url", "about"}]."""
+def _clean(url: str) -> str:
+    """Drop tracking parameters (``utm_…``, ``trk``) that the search adds to links."""
+    parts = urllib.parse.urlsplit(url)
+    query = [(k, v) for k, v in urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
+             if not k.lower().startswith("utm_") and k.lower() != "trk"]
+    return urllib.parse.urlunsplit(parts._replace(query=urllib.parse.urlencode(query)))
+
+
+def web_report(client, query: str, shelf: str = "science") -> tuple[list[dict], str]:
+    """Pages from one shelf's sites, found by the model's own web search, and what the search said.
+
+    The text matters on its own: for recent events (this year's prizes, new discoveries) it carries
+    facts newer than the chat model's training, even when few of its links are on the shelf."""
     collection = shelves()
     if shelf not in collection:
         raise SearchError(f"no shelf called {shelf!r}; the shelves are {', '.join(collection)}")
@@ -147,12 +158,27 @@ def web(client, query: str, shelf: str = "science") -> list[dict]:
     seen, out = set(), []
     for source in answer.get("sources") or []:
         url = source.get("url")
-        if url and url not in seen and on_shelf(url, sites):
+        if not url:
+            continue
+        url = _clean(url)
+        if url not in seen and on_shelf(url, sites):
             seen.add(url)
             out.append({"title": source.get("title") or url, "url": url, "about": ""})
-    if out and answer.get("text"):
-        out[0]["about"] = answer["text"][:600]
-    return out
+    text = str(answer.get("text") or "").replace("?utm_source=openai", "").replace("&utm_source=openai", "")
+    if out and text:
+        out[0]["about"] = text[:600]
+    return out, text
+
+
+def facts(client, query: str) -> str:
+    """What the open web says about something (no shelf): facts for the librarian, not readings."""
+    text = str(client.web_search(query).get("text") or "")
+    return text.replace("?utm_source=openai", "").replace("&utm_source=openai", "")[:2500]
+
+
+def web(client, query: str, shelf: str = "science") -> list[dict]:
+    """Pages from one shelf's sites, found by the model's own web search: [{"title", "url", "about"}]."""
+    return web_report(client, query, shelf)[0]
 
 
 def describe(results: list[dict[str, Any]]) -> str:

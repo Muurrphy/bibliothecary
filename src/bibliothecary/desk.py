@@ -47,6 +47,12 @@ Choosing:
   new means notable.
 - A prize, a discovery or an event: the primary source (for a Nobel Prize, nobelprize.org's popular
   information) or the original paper, not a news item about it.
+- Anything recent (this year's prizes, new discoveries, news) may be newer than what you know: first
+  search the facts to learn what happened (who won, for what), then look for the readings by name
+  (the laureates' original papers, the official explanation). Never tell the reader something has not
+  happened, or that you cannot find it, before you have searched the facts. What the facts search
+  reports is current and good enough to act on: official sites are often indexed days late, so do
+  not hold back or ask the reader for proof because an official page did not turn up.
 - Never market, finance, celebrity or listicle pieces, or anything too thin for twenty minutes.
 - Search with different angles until you have something genuinely good. Results below have been
   vetted; offer only those. Every link you give must come from them or from the reader; never
@@ -61,6 +67,9 @@ Return JSON with one of these shapes:
   {{"search": {{"where": "web", "shelf": "<shelf>", "query": "<what to look for>"}}}}
       one shelf of the collection; only its sites are searched. Shelves:
 {shelves}
+  {{"search": {{"where": "facts", "query": "<what to find out>"}}}}
+      the open web, to learn what happened (who won a prize this year, what a discovery was);
+      it gives you facts to use, not readings to offer.
   {{"reply": "...", "prepare": "<url>"}}   they chose a piece: prepare it now
   {{"reply": "..."}}
 Any of them may also carry "remember": ["..."], short lasting facts about the reader worth keeping
@@ -69,6 +78,12 @@ Any of them may also carry "remember": ["..."], short lasting facts about the re
 
 VET_SYSTEM = """You vet search results for a librarian, strictly. The reader wants: {want}
 What is known about them: {who}
+Today is {today}. Your own knowledge may be out of date: prizes, discoveries and events newer than your
+training are real. What the search itself reported is below; trust it over your memory for recent facts.
+For a prize or a discovery, the winners' original key papers (even decades old) and the official
+explanations of the work are on topic.
+What the search reported:
+{report}
 
 For each numbered result, decide whether it is genuinely about what they want and worth an evening:
 a real, substantial piece (an article, essay, chapter or paper) from a credible source, on the topic in
@@ -160,17 +175,22 @@ class Desk:
         return "\n".join(lines)
 
     # ---- looking things up -----------------------------------------------------------
-    def look_up(self, ask: dict) -> list[dict]:
+    def look_up(self, ask: dict) -> tuple[list[dict], str]:
+        """Results, and what the search itself said (web searches only)."""
         if ask.get("where") == "papers":
-            return search.papers(str(ask["query"]), str(ask.get("prefer") or "any"), limit=12)
-        return search.web(self.client, str(ask["query"]), str(ask.get("shelf") or "science"))
+            return search.papers(str(ask["query"]), str(ask.get("prefer") or "any"), limit=12), ""
+        if ask.get("where") == "facts":
+            return [], search.facts(self.client, str(ask["query"]))
+        return search.web_report(self.client, str(ask["query"]), str(ask.get("shelf") or "science"))
 
-    def vet(self, want: str, results: list[dict]) -> tuple[list[dict], str]:
+    def vet(self, want: str, results: list[dict], report: str = "") -> tuple[list[dict], str]:
         """Only results that are really about it and worth reading, each with why; plus advice."""
         if not results:
             return [], ""
         who = "; ".join(self.reader()) or "nothing yet"
-        data = self.client.chat_json(VET_SYSTEM.format(want=want, who=who), search.describe(results),
+        system = VET_SYSTEM.format(want=want, who=who, today=f"{self.now():%Y-%m-%d}",
+                                   report=report[:2000] or "(nothing beyond the list)")
+        data = self.client.chat_json(system, search.describe(results),
                                      model=self.model, max_tokens=900)
         kept = []
         for item in data.get("keep") or []:
@@ -185,7 +205,7 @@ class Desk:
     # ---- a turn of conversation ------------------------------------------------------
     def reply(self, text: str) -> Reply:
         """Answer what the reader just said (already in the chat log), searching as needed."""
-        context, work, trace, allowed = self.context(), "", [], set()
+        context, work, trace, allowed, learned = self.context(), "", [], set(), ""
         shelves = "\n".join(f"        {name}: {shelf['about']}" for name, shelf in search.shelves().items())
         for left in range(self.searches, -1, -1):
             budget = (f"You may search {left} more time{'s' if left != 1 else ''} before replying." if left
@@ -196,18 +216,23 @@ class Desk:
             ask = data.get("search")
             if isinstance(ask, dict) and ask.get("query") and left > 0:
                 where = ("papers, " + str(ask.get("prefer") or "any") if ask.get("where") == "papers"
+                         else "facts" if ask.get("where") == "facts"
                          else f"shelf {ask.get('shelf') or 'science'}")
                 try:
-                    results = self.look_up(ask)
-                    kept, advice = self.vet(text, results)
+                    results, report = self.look_up(ask)
+                    if report:
+                        learned = (learned + "\n" + report)[-3000:]
+                    kept, advice = self.vet(text, results, learned)
                 except Exception as err:
                     self.log(f"search failed: {err}")
-                    results, kept, advice = [], [], f"(the search failed: {err})"
+                    results, report, kept, advice = [], "", [], f"(the search failed: {err})"
                 allowed.update(r["url"] for r in kept)
                 trace.append(f"search {where}: {ask['query']!r} → {len(results)} found, {len(kept)} kept"
                              + "".join(f"\n    ✓ {r['title']} — {r['url']}\n      {r['why']}" for r in kept))
                 work += (f"\n\nYou searched ({where}): {ask['query']}\n"
-                         f"Vetted: {len(kept)} of {len(results)} results are worth offering.\n"
+                         + (f"The search reported (facts you may use; its links are not offerable "
+                            f"unless vetted below):\n{report[:1500]}\n" if report else "")
+                         + f"Vetted: {len(kept)} of {len(results)} results are worth offering.\n"
                          + "".join(f"- {r['title']}"
                                    + (f" ({r.get('year')}, {r.get('venue')})" if r.get("venue") else "")
                                    + f"\n  {r['url']}\n  {r['why']}\n" for r in kept)
