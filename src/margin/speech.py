@@ -21,6 +21,7 @@ import threading
 import time
 import urllib.error
 from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeout  # not the builtin one before 3.11
 
 from . import net
 from .llm import OpenAICompatible
@@ -342,7 +343,7 @@ class ElevenLabsVoice(_ProcessVoice):
                 try:
                     clip = future.result(timeout=0.1)
                     break
-                except TimeoutError:
+                except (TimeoutError, FutureTimeout):
                     if future.done():
                         raise
                     if time.monotonic() > deadline:
