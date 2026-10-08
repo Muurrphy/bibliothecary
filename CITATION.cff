@@ -4,7 +4,7 @@ title: "Bibliothecary: a personal librarian"
 type: software
 authors:
   - name: Muurrphy
-repository-code: "https://github.com/Muurrphy/margin"
+repository-code: "https://github.com/Muurrphy/bibliothecary"
 version: 0.3.0
 date-released: 2026-10-08
 license: MIT

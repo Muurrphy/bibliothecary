@@ -4,7 +4,7 @@ The multilingual mouth is now included in Margin. This page documents its lower-
 
 **Real-time, muscle-aware lip sync for robots and constrained displays.**
 
-[![CI](https://github.com/Muurrphy/margin/actions/workflows/ci.yml/badge.svg)](https://github.com/Muurrphy/margin/actions/workflows/ci.yml)
+[![CI](https://github.com/Muurrphy/bibliothecary/actions/workflows/ci.yml/badge.svg)](https://github.com/Muurrphy/bibliothecary/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f)](../LICENSE)
 [![Status: alpha](https://img.shields.io/badge/status-alpha-f5a623)](../CHANGELOG.md)
@@ -22,8 +22,8 @@ It is one project with one promise:
 ## Five-minute demo — no API key or hardware
 
 ```bash
-git clone https://github.com/Muurrphy/margin.git
-cd margin
+git clone https://github.com/Muurrphy/bibliothecary.git
+cd bibliothecary
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .

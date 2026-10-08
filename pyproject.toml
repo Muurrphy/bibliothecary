@@ -24,9 +24,9 @@ serial = ["pyserial>=3.5"]
 dev = ["pytest>=8.3", "jsonschema>=4.23", "build>=1.2"]
 
 [project.urls]
-Homepage = "https://github.com/Muurrphy/margin"
-Repository = "https://github.com/Muurrphy/margin"
-Issues = "https://github.com/Muurrphy/margin/issues"
+Homepage = "https://github.com/Muurrphy/bibliothecary"
+Repository = "https://github.com/Muurrphy/bibliothecary"
+Issues = "https://github.com/Muurrphy/bibliothecary/issues"
 
 [project.scripts]
 bibliothecary = "bibliothecary.cli:main"

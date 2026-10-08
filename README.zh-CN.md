@@ -47,8 +47,8 @@
 需要 Python 3.11 或更新版本。
 
 ```bash
-git clone https://github.com/Muurrphy/margin.git
-cd margin
+git clone https://github.com/Muurrphy/bibliothecary.git
+cd bibliothecary
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
