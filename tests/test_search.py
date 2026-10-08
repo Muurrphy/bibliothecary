@@ -164,8 +164,8 @@ def test_the_librarian_searches_vets_and_prepares_the_choice(home, monkeypatch):
 
 
 def test_a_dropped_or_invented_link_is_never_prepared(home, monkeypatch):
-    monkeypatch.setattr(search, "web", lambda client, q, shelf: [
-        {"title": "Junk", "url": "https://www.quantamagazine.org/junk", "about": ""}])
+    monkeypatch.setattr(search, "web_report", lambda client, q, shelf: ([
+        {"title": "Junk", "url": "https://www.quantamagazine.org/junk", "about": ""}], ""))
     client = ScriptedClient({"search": {"where": "web", "shelf": "science", "query": "x"}},
                             {"reply": "读这个吧", "prepare": "https://www.quantamagazine.org/junk"},
                             {"reply": "或者这个", "prepare": "https://made-up.example/paper"})
@@ -306,3 +306,29 @@ def test_the_librarian_can_look_up_facts_on_the_open_web(home):
     assert asked == [None] and "optogenetics" in client.prompts[1][1]
     assert answer.trace[0].startswith("search facts:") and not client.vetted
     assert '"where": "facts"' in client.prompts[0][0] and "search the facts" in client.prompts[0][0]
+
+
+def test_a_piece_is_offered_first_and_prepared_only_once_chosen(home, monkeypatch):
+    found = [{"title": "Octopus sleep", "url": "https://example.org/octopus.pdf", "about": ""}]
+    monkeypatch.setattr(search, "papers", lambda q, prefer="any", limit=5: found)
+    client = ScriptedClient({"search": {"where": "papers", "query": "octopus sleep"}},
+                            {"reply": "就读这篇吧 https://example.org/octopus.pdf",
+                             "prepare": "https://example.org/octopus.pdf"},
+                            vets=[{"keep": [{"n": 1, "why": "fits"}]}])
+    prepared = []
+    lib, bot = librarian(client, prepared)
+    lib.handle({"message": {"chat": {"id": ME}, "text": "章鱼睡觉"}})
+    assert prepared == [] and "octopus.pdf" in bot.sent[-1]
+
+
+def test_paywalled_pieces_are_not_offered(home, monkeypatch):
+    found = [{"title": "Locked", "url": "https://journal.example/abstract", "about": ""},
+             {"title": "Open", "url": "https://repo.example/full.pdf", "about": ""}]
+    monkeypatch.setattr(search, "papers", lambda q, prefer="any", limit=5: found)
+    monkeypatch.setattr(search, "readable", lambda url: url.endswith(".pdf"))
+    client = ScriptedClient({"search": {"where": "papers", "query": "x"}}, {"reply": "ok"},
+                            vets=[{"keep": [{"n": 1, "why": "a"}, {"n": 2, "why": "b"}]}])
+    from bibliothecary.desk import Desk
+    answer = Desk(client).reply("x")
+    assert "1 kept" in answer.trace[0] and "repo.example" in answer.trace[0]
+    assert "paywall" in client.prompts[1][1] and "Locked" in client.prompts[1][1]

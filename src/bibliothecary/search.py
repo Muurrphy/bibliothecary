@@ -181,6 +181,18 @@ def web(client, query: str, shelf: str = "science") -> list[dict]:
     return web_report(client, query, shelf)[0]
 
 
+def readable(url: str) -> bool:
+    """Whether the whole piece can be read at this link, not just an abstract behind a paywall."""
+    from margin.ingest import load_article
+
+    try:
+        _title, text, _source = load_article(url)
+    except Exception:
+        return False
+    han = sum(1 for ch in text if "\u3400" <= ch <= "\u9fff")
+    return len(text.split()) >= 600 or han >= 1500
+
+
 def describe(results: list[dict[str, Any]]) -> str:
     """Results as plain lines for the model to choose from."""
     if not results:

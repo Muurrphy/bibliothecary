@@ -291,6 +291,11 @@ class Librarian:
                                  review=self.review, log=self.log)
         except Exception as err:
             self.log(f"preparing {article} failed: {err}")
+            if "almost no text" in str(err):
+                return self.send(self.t("这篇只读到了很少的文字，多半是付费墙或者只有摘要，没法备成讲稿。"
+                                        "要不要我找一篇能读全文的？",
+                                        "I could only reach a few lines of that one (probably a paywall or "
+                                        "just the abstract). Shall I find one that can be read in full?"))
             return self.send(self.t(f"这篇没备成：{err}", f"I couldn't prepare that one: {err}"))
         how, buttons = self.read_here(folder)
         with self._lock:

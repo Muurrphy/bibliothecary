@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, wait
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -70,7 +71,8 @@ Return JSON with one of these shapes:
   {{"search": {{"where": "facts", "query": "<what to find out>"}}}}
       the open web, to learn what happened (who won a prize this year, what a discovery was);
       it gives you facts to use, not readings to offer.
-  {{"reply": "...", "prepare": "<url>"}}   they chose a piece: prepare it now
+  {{"reply": "...", "prepare": "<url>"}}   the reader has picked a piece you offered earlier (or gave
+      you a link): prepare it now. Never in the same reply where you first recommend it; wait for them.
   {{"reply": "..."}}
 Any of them may also carry "remember": ["..."], short lasting facts about the reader worth keeping
 (interests, projects, why they read, what they dislike, how much they know of a field). Only new ones.
@@ -200,7 +202,25 @@ class Desk:
                 continue
             if 1 <= n <= len(results) and results[n - 1] not in kept:
                 kept.append({**results[n - 1], "why": str(item.get("why") or "").strip()})
-        return kept, str(data.get("advice") or "").strip()
+        advice = str(data.get("advice") or "").strip()
+        kept, locked = self.openable(kept)
+        if locked:
+            advice = (f"Dropped because only an abstract or a paywall was reachable: "
+                      f"{'; '.join(r['title'] for r in locked)}. Look for an open copy or another piece. "
+                      + advice).strip()
+        return kept, advice
+
+    def openable(self, kept: list[dict]) -> tuple[list[dict], list[dict]]:
+        """Split vetted pieces into those readable in full and those that are not (checked in parallel;
+        a site too slow to answer gets the benefit of the doubt)."""
+        if not kept:
+            return [], []
+        pool = ThreadPoolExecutor(max_workers=6)
+        jobs = [pool.submit(search.readable, r["url"]) for r in kept]
+        wait(jobs, timeout=25)
+        pool.shutdown(wait=False, cancel_futures=True)
+        ok = [not job.done() or job.exception() is not None or job.result() for job in jobs]
+        return ([r for r, good in zip(kept, ok) if good], [r for r, good in zip(kept, ok) if not good])
 
     # ---- a turn of conversation ------------------------------------------------------
     def reply(self, text: str) -> Reply:
@@ -240,7 +260,7 @@ class Desk:
                 continue
             reply = str(data.get("reply") or "").strip()
             url = str(data.get("prepare") or "").strip()
-            given = url and (url in allowed or url.rstrip("/") in context)
+            given = url and url.rstrip("/") in context        # offered earlier, or the reader's own link
             if url and not given:
                 self.log(f"ignored a link that was neither found nor given: {url}")
             return Reply(reply, url if given else None, trace)

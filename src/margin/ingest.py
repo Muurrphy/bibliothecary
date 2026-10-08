@@ -82,7 +82,11 @@ def from_pdf(data: bytes) -> tuple[str, str]:
     """Text from a PDF, with lines joined back into paragraphs and the reference list left out."""
     import io
 
+    import logging
+
     from pypdf import PdfReader
+
+    logging.getLogger("pypdf").setLevel(logging.ERROR)      # odd fonts are common and harmless here
 
     reader = PdfReader(io.BytesIO(data))
     lines = [line.strip() for page in reader.pages for line in (page.extract_text() or "").splitlines()]
