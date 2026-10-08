@@ -88,11 +88,13 @@ class ArticulationEvent:
         _unit(self.confidence, "confidence")
 
     def to_dict(self) -> dict[str, Any]:
+        start = round(float(self.start_ms), 3)
+        end = round(float(self.start_ms + self.duration_ms), 3)
         return {
             "schema": "robot-lipsync/articulation-event/v1",
             "session_id": self.session_id,
-            "start_ms": round(float(self.start_ms), 3),
-            "duration_ms": round(float(self.duration_ms), 3),
+            "start_ms": start,
+            "duration_ms": round(end - start, 3),
             "viseme": self.viseme,
             "articulation": self.articulation.to_dict(),
             "intensity": float(self.intensity),

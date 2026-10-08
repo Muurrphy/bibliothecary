@@ -15,7 +15,7 @@ class IncrementalArticulationCompiler:
     strictly append-only contract suitable for small hardware event queues.
     """
 
-    def __init__(self, session_id: str, *, visual_lead_ms: float = 42.0) -> None:
+    def __init__(self, session_id: str, *, visual_lead_ms: float = 0.0) -> None:
         self.session_id = session_id
         self.visual_lead_ms = visual_lead_ms
         self.alignment = AlignmentBuffer()

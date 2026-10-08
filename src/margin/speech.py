@@ -268,13 +268,8 @@ class ElevenLabsVoice(_ProcessVoice):
 
     @staticmethod
     def _valid_alignment(alignment) -> bool:
-        if not isinstance(alignment, dict):
-            return False
-        chars = alignment.get("characters") or []
-        starts = alignment.get("character_start_times_seconds") or []
-        ends = alignment.get("character_end_times_seconds") or []
-        return bool(chars) and len(chars) == len(starts) == len(ends) and all(
-            0 <= a <= b for a, b in zip(starts, ends)) and all(a <= b for a, b in zip(starts, starts[1:]))
+        from .alignment import valid_alignment
+        return valid_alignment(alignment)
 
     def _synthesize_uncached(self, text: str) -> Clip:
         """Audio plus, when the model offers it, when each character is spoken (for a mouth)."""

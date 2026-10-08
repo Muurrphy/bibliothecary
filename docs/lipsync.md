@@ -72,7 +72,7 @@ The intermediate representation exposes jaw opening, lip separation, width, roun
 
 ### 3. Muscle constraints survive low-DOF rendering
 
-Extreme width and extreme vertical opening cannot occur simultaneously. Bilabial closure, labiodental contact, rounding, diphthong paths, and minimum readable dwell receive explicit protection.
+Extreme width and extreme vertical opening cannot occur simultaneously. Bilabial closure, labiodental contact, rounding and diphthong paths receive explicit protection. Short phonemes keep their acoustic boundaries; smoothing must not extend their timeline into the following phoneme.
 
 ### 4. Latency ends at the physical device
 
@@ -171,6 +171,21 @@ Mandarin, install both extras with `pip install -e ".[elevenlabs,mandarin]"`.
 The mouth module is included in Margin. A phone or iPad provides the voice, microphone and digital mouth while the Kindle shows the article. Margin sends character timing through `alignment_to_phonemes` and `phonemes_to_articulation`; the page renders the resulting mouth events against its audio clock. Real mobile listening is still intermittent; see [known issues](known-issues.md).
 
 Both packages are distributed together. The `robot_lipsync` API and `robot-lipsync` command remain available for mouth previews and hardware tools.
+
+### Timing checks in the reading companion
+
+Prepared voice clips, including cached clips, pass through the same local checks before playback:
+
+1. Reject malformed, non-finite or out-of-recording character timestamps.
+2. Decode the audio and measure speech activity and pauses in 10 ms blocks. When punctuation-separated phrases match the measured activity windows in count, position and duration, rescale their character times to those phrase edges. Ambiguous matches retain the provider's timing.
+3. Compile mouth events with no fixed visual lead by default and no 70 ms minimum duration. A short event cannot extend into the next event. The legacy `minimum_readable_ms` parameter is accepted for compatibility but no longer imposes a duration floor.
+4. Draw against the browser's audio output clock and blend back to rest during measured pauses. This pause handling applies to the browser screen and OLED preview; physical OLED firmware does not receive these waveform windows.
+
+PCM16 WAV needs no decoder dependency. MP3 and other compressed audio need `afconvert` or `ffmpeg`. The waveform check is local, adds no model/API calls, and keeps the existing mouth design. Missing timing or a failed decoder must not prevent the voice from playing; without usable timing, the browser uses its existing audio-level fallback.
+
+Clip metadata exposes `speech_windows` (seconds) and `alignment_status`. `waveform_phrase_edges` means all phrase edges were matched, `waveform_partial_edges` means only some were matched, and `provider_unverified` means no phrase correction was justified. `provider_unverified_decoder_unavailable` means no waveform analysis was possible. A `null` window list means no analysis; `[]` means detected silence.
+
+These checks are **not speech recognition or forced phoneme alignment**. Character times inside a phrase are rescaled; phoneme durations still come from language rules. Low-volume speech, noise, music and unusual pauses can confuse activity detection. A correctly synchronized fixed recording does not establish live mobile accuracy. Use the generated-audio regressions in `tests/test_audio_sync.py` for offline checks, and separately test listening and playback on the target phone or iPad.
 
 ## Existing systems and project boundary
 

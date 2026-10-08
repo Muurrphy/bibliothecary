@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Mouth timing: remove the default visual lead and the 70 ms event floor that let short phonemes overlap their neighbours. Serialized event boundaries remain non-overlapping after rounding.
+- Prepared and cached reading-companion clips now check character timestamps against locally decoded audio. Clearly matched phrase boundaries can be corrected; uncertain matches retain provider timing. This is phrase-edge correction, not forced phoneme alignment.
+- Send measured speech windows and timing status to the speaker page. The browser mouth returns to rest during detected pauses and continues to follow its audio output clock.
+- Add offline regressions for short phonemes, invalid timing, waveform correction, silence and the shared browser renderer. No personal recordings or credentials are included.
+
 ## 0.2.2 — 2026-10-08
 
 - One repository: the former robot-lipsync repository now holds Margin, with the mouth project's history kept. READMEs rewritten around the two parts (reading companion, mouth) that work alone or together.

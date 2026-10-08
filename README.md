@@ -86,7 +86,7 @@ computer: lesson + your question → answer → voice + character timing
 - **The model never draws on the screen directly.** It returns the same small steps a hand-written lesson uses, and every step is checked against the article.
 - **Voice questions use a realtime model.** The phone streams audio through the computer to OpenAI. A stalled turn can fall back to transcription and a text model.
 - **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
-- **The mouth follows real timing.** The voice service returns when each character is spoken; the mouth module turns that into mouth shapes, and the phone draws them on its audio clock.
+- **The mouth uses speech timestamps and the audio clock.** Local waveform checks correct phrase edges when pauses match clearly and close the mouth during detected silence. Phoneme timing within each character is still estimated; this is not phoneme-accurate forced alignment. See [mouth timing](docs/lipsync.md#timing-checks-in-the-reading-companion).
 
 More: [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
 

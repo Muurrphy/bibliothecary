@@ -4,7 +4,7 @@
 
 Run `margin serve <lesson.json> ...` in a terminal on the computer. It is a local foreground service. Keep that terminal open while using the companion; close its session or press Ctrl+C to stop. This repository does not install a background service or copy the author's personal launcher.
 
-Python 3.11+ is required. `openssl` is needed to generate local HTTPS certificates. Local audio playback uses `afplay` on macOS or `ffplay` / `mpg123`; the mobile ElevenLabs path plays audio in the browser. Local alignment estimation needs `afconvert` or `ffmpeg`.
+Python 3.11+ is required. `openssl` is needed to generate local HTTPS certificates. Local audio playback uses `afplay` on macOS or `ffplay` / `mpg123`; the mobile ElevenLabs path plays audio in the browser. Local waveform checks and alignment estimation read PCM16 WAV directly. Compressed audio such as MP3 needs `afconvert` (macOS) or `ffmpeg`; without a decoder, valid provider timing remains available but is not checked against the waveform.
 
 ## Phone and Kindle
 
@@ -46,12 +46,12 @@ Copy `.env.example` to `.env` and use your own credentials. `margin` loads `.env
 | `MARGIN_ELEVENLABS_KEYCHAIN` | Optional macOS Keychain service for the credential. |
 | `MARGIN_ELEVEN_SETTINGS` | JSON object of voice settings. An explicit profile overrides Margin's built-in settings. |
 | `MARGIN_ELEVEN_STRICT_SETTINGS` | `1` prevents a rejected voice profile from being silently reduced. |
-| `MARGIN_NATIVE_TIMING` | `1` requires native character timestamps and a prepared mouth timeline. Unsupported models pause with an error. |
-| `MARGIN_ALIGN` | `local` estimates alignment locally when strict timing is off. `elevenlabs` permits a forced-alignment audio upload. |
-| `MARGIN_VISUAL_LEAD_MS` | Overall visual offset; the example sets `0`. |
+| `MARGIN_NATIVE_TIMING` | `1` prefers native character timestamps. If they are unavailable, the voice continues with alignment fallback. |
+| `MARGIN_ALIGN` | `local` estimates missing alignment on this computer. `elevenlabs` permits a forced-alignment audio upload. Neither is needed for the local waveform checks on native timestamps. |
+| `MARGIN_VISUAL_LEAD_MS` | Optional consonant anticipation in milliseconds, bounded by neighbouring events. Defaults to `0`; it does not repair incorrect timestamps. |
 | `MARGIN_SINGLE_SPEAKER` | `1` restricts capture and playback acknowledgements to one primary device. |
 | `MARGIN_VOICE_CACHE_DIR` | Optional local generated-audio/text cache. Keep it out of Git. |
 
-The `.env.example` uses strict native timing, one primary device and local alignment fallback. It does not contain the author's voice settings, voice ID, credentials or local IP address. If you do not copy it, the existing code defaults remain in effect.
+The `.env.example` prefers native timing, one primary device and local alignment fallback. It does not contain the author's voice settings, voice ID, credentials or local IP address. If you do not copy it, the existing code defaults remain in effect.
 
 Voice choices: `silent` for an offline reader demo; `say` for the macOS system voice; `openai` for OpenAI TTS; `elevenlabs` for audio with character timing. The mouth/audio integration is most directly exercised by the ElevenLabs path. A generic `say` or `openai` voice does not establish full synchronized mobile-mouth support.
