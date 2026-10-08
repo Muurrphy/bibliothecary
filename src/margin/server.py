@@ -156,7 +156,8 @@ class App:
                     if name.endswith(".json"):
                         clip.ready.wait(min(20.0, float((parse_qs(url.query).get("wait") or ["0"])[0] or 0)))
                         return self._json({"id": clip.id, "text": clip.text, "ready": clip.ready.is_set(),
-                                           "timeline": clip.timeline or []})
+                                           "timeline": clip.timeline or [], "speech_windows": clip.speech_windows,
+                                           "alignment_status": clip.alignment_status})
                     return self._send(200, clip.audio, clip.mime)
                 if url.path == "/margin-ca.crt" and app.ca_file:
                     with open(app.ca_file, "rb") as f:

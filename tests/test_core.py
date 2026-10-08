@@ -258,7 +258,7 @@ def test_mandarin_initial_keeps_lead_and_final_starts_at_onset():
     from robot_lipsync.planner import phonemes_to_articulation
 
     phones = alignment_to_phonemes([AlignmentSpan("爸", 1000, 200, "zh-CN")])
-    events = phonemes_to_articulation("ba", phones)
+    events = phonemes_to_articulation("ba", phones, visual_lead_ms=42)
     initial, final = events[0], events[1]
     assert initial.viseme == "ZH_BPM" and initial.metadata["syllable_role"] == "initial"
     # initial: 28% of the syllable, shown 42 ms early; final: at its acoustic onset
