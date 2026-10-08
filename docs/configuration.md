@@ -2,7 +2,7 @@
 
 ## Foreground process
 
-Run `margin serve <lesson.json> ...` in a terminal on the computer. It is a local foreground service. Keep that terminal open while using the companion; close its session or press Ctrl+C to stop. This repository does not install a background service or copy the author's personal launcher.
+Run `biblio read` (or `margin serve <lesson.json> ...` without records) in a terminal on the computer. It is a local foreground service. Keep that terminal open while using the companion; close its session or press Ctrl+C to stop. This repository does not install a background service or copy the author's personal launcher.
 
 Python 3.11+ is required. `openssl` is needed to generate local HTTPS certificates. Local audio playback uses `afplay` on macOS or `ffplay` / `mpg123`; the mobile ElevenLabs path plays audio in the browser. Local alignment estimation needs `afconvert` or `ffmpeg`.
 

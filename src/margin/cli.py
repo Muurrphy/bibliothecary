@@ -9,7 +9,7 @@ import time
 from . import brain
 from .bus import Bus
 from .ingest import load_article
-from .lesson import Lesson
+from .lesson import Lesson, Step
 from .llm import OpenAICompatible
 from .player import Player
 from .server import App, lan_address, serve
@@ -47,15 +47,20 @@ def load_env(path: str = ".env") -> None:
 
 
 def cmd_serve(args) -> int:
-    lesson = Lesson.load(args.lesson)
+    return run(Lesson.load(args.lesson), args)
+
+
+def run(lesson: Lesson, args, *, client: OpenAICompatible | None = None, record=None,
+        title: str = "Margin is ready.") -> int:
+    """Serve a lesson until Ctrl-C. ``record`` keeps the session (see ``player.Recorder``)."""
     for issue in lesson.problems():
         _log(f"warning: {issue}")
-    client = OpenAICompatible.from_env()
+    client = client or OpenAICompatible.from_env()
     if client is not None:
         client.warm()                     # open the connection before the first question
     voice = make_voice(args.voice, client, voice=args.voice_name, rate=args.rate)
 
-    def answerer(lesson, question, current, position=None, history=None):
+    def answerer(lesson, question, current, position=None, history=None, review=None):
         command = brain.quick_intent(question)          # "继续", "等一下", "再说一遍": no model needed
         if command:
             return {"steps": [], "then": command}
@@ -64,7 +69,9 @@ def cmd_serve(args) -> int:
             return {"steps": planned, "then": "continue"}
         if client is not None:            # steps are spoken while the model is still writing the rest
             return brain.answer_stream(client, lesson, question, current=current, position=position,
-                                       history=history)
+                                       history=history, review=review)
+        if review and review.get("expect"):               # no model: say what a good answer says
+            return {"steps": [Step(say=review["expect"])], "then": "continue"}
         return brain.scripted_answer(lesson, question)
 
     transcriber = (lambda audio, mime: client.transcribe(audio, mime=mime, filename="question." + {"audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/mpeg": "mp3"}.get(mime, mime.split("/")[-1]))) if client else None
@@ -74,7 +81,7 @@ def cmd_serve(args) -> int:
         voice.hub = hub
     if hasattr(voice, "want_alignment"):
         voice.want_alignment = lipsync_available()   # timing for the mouth is only worth fetching with one
-    player = Player(bus, voice, answerer, log=_log)
+    player = Player(bus, voice, answerer, log=_log, record=record)
     player.forced = brain.forced_answer
     player.load(lesson)
     ip = lan_address()
@@ -94,7 +101,7 @@ def cmd_serve(args) -> int:
 
         app.ears.link = RealtimeLink(client.api_key, log=_log)
         app.ears.instructions = lambda: brain.live_instructions(player.lesson, player.focus, player.index,
-                                                                player.history)
+                                                                player.history, player.review)
     # one port for everything: the Kindle uses http://, the tablet https:// (same port)
     server = serve(app, args.host, args.port, tls=tls[:2] if tls else None)
     secure = serve(app, args.host, args.https_port, tls=tls[:2]) if tls else None   # older bookmarks
@@ -106,7 +113,7 @@ def cmd_serve(args) -> int:
     else:
         speaker = "(needs openssl for HTTPS)"
     print(f"""
-  Margin is ready.
+  {title}
 
     On the Kindle, type exactly (with http://):   http://{ip}:{args.port}/
     On the tablet (voice, microphone, mouth):    {speaker}
@@ -132,7 +139,8 @@ def cmd_build(args) -> int:
     title, text, source = load_article(args.article)
     _log(f"writing a lesson for “{args.title or title}” ({len(text.split())} words)…")
     lesson = brain.build_lesson(client, args.title or title, text, explain_language=args.explain,
-                                source=source, language=args.language, bedtime=args.bedtime)
+                                source=source, language=args.language, bedtime=args.bedtime,
+                                preview=args.preview, review=args.review)
     lesson.save(args.output)
     _log(f"{len(lesson.steps)} steps → {args.output}")
     for issue in lesson.problems():
@@ -150,12 +158,7 @@ def cmd_check(args) -> int:
     return 1 if issues else 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="margin", description="An AI reading companion for old e-readers.")
-    sub = p.add_subparsers(dest="cmd", required=True)
-
-    s = sub.add_parser("serve", help="serve a lesson to the e-reader")
-    s.add_argument("lesson")
+def add_serve_options(s: argparse.ArgumentParser) -> None:
     s.add_argument("--voice", default="silent", choices=["silent", "say", "openai", "elevenlabs"])
     s.add_argument("--voice-name", help="Tingting (macOS say), coral (OpenAI) or an ElevenLabs voice id")
     s.add_argument("--rate", type=int, help="words per minute (say)")
@@ -164,15 +167,32 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--https-port", type=int, default=8766, help="for the tablet page (browsers only allow the microphone over HTTPS); 0 = off")
     s.add_argument("--paused", action="store_true", help="wait for Play on the remote")
     s.add_argument("--delay", type=float, default=3.0, help="seconds before starting")
+
+
+def add_build_options(b: argparse.ArgumentParser) -> None:
+    b.add_argument("--title")
+    b.add_argument("--explain", default="English", help="language of the explanation, e.g. 'Simplified Chinese'")
+    b.add_argument("--language", default="en", help="language of the article")
+    b.add_argument("--bedtime", action="store_true", help="end with a good night")
+    b.add_argument("--no-preview", dest="preview", action="store_false",
+                   help="no background before the reading")
+    b.add_argument("--review", type=int, default=3, metavar="N",
+                   help="review questions after the reading (default 3, 0 = none)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="margin", description="An AI reading companion for old e-readers.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("serve", help="serve a lesson to the e-reader")
+    s.add_argument("lesson")
+    add_serve_options(s)
     s.set_defaults(fn=cmd_serve)
 
     b = sub.add_parser("build", help="write a lesson for an article with a language model")
     b.add_argument("article", help="URL, .txt, .md or .html")
     b.add_argument("-o", "--output", default="lesson.json")
-    b.add_argument("--title")
-    b.add_argument("--explain", default="English", help="language of the explanation, e.g. 'Simplified Chinese'")
-    b.add_argument("--language", default="en", help="language of the article")
-    b.add_argument("--bedtime", action="store_true", help="end with a good night")
+    add_build_options(b)
     b.set_defaults(fn=cmd_build)
 
     c = sub.add_parser("check", help="validate a lesson file")

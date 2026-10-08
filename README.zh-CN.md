@@ -1,34 +1,46 @@
-# Margin（页边）
+# Bibliothecary（图书管理员）
 
-**旧 Kindle 上的 AI 伴读，手机上有一张会说话的数码嘴。**
+**一个私人图书管理员。** 它为你备好今晚睡前读的文章，在旧 Kindle 或手机上陪你读，把你问的每个问题、它的每个回答都整理进读书报告，下一次就从你已经懂的地方接着来。
 
-Kindle 显示文章，并标出当前讲到的句子。手机或 iPad 播放讲解，接收语音提问，按语音时间显示口型。伴读目前选择中文或英文，单独使用的口型工具也支持西班牙语。
+*Bibliothecary* 是英语里"图书管理员"的旧词，1610 年代进入英语，来自拉丁文 *bibliothecarius*。中文名就叫"图书管理员"。
 
-Kindle 不用越狱，也不用装任何东西。Kindle 和手机都只是打开网页，真正干活的是你电脑上的一个小程序。
+[English](README.md) · [需求文档](docs/requirements.zh-CN.md) · [配置说明](docs/configuration.md) · [已知问题](docs/known-issues.md)
 
-[English](README.md) · [配置说明](docs/configuration.md) · [已知问题](docs/known-issues.md)
+## 从图书管理员的职责出发
 
-## 两部分：可以合起来用，也可以单独用
+我们不是从"AI 能做什么"出发，而是从"一个好的图书管理员应该做什么"出发，把每一项职责对应到一项功能。
 
-| 部分 | 是什么 | 单独拿来做什么 |
-|---|---|---|
-| **伴读**（`margin`） | Kindle 阅读页：划线、圈词、页边批注、小图示；提前备好的讲稿，可以随时打断；开口提问由大模型回答。 | 用电子书读文章，打字或说话提问，不需要嘴。 |
-| **嘴型**（`robot_lipsync`） | 把语音的时间信息变成嘴型，支持中文、英文、西班牙语。可以画在网页上，也可以显示在 128×64 的 OLED 小屏上（带 ESP32 固件）。 | 任何需要“嘴跟着 TTS 声音动”的机器人、虚拟形象或小屏幕。 |
-
-合在一起时，伴读说话，嘴就在手机上动。放在床头的手机，就变成一张给你讲书的小脸。
-
-这个仓库原来叫 **robot-lipsync**。2026 年 10 月，嘴型项目和 Kindle 伴读合并到了这里，因为两个东西放在一起才最有意思。嘴型项目原来的提交历史都保留着。
-
-## 每台设备干什么
-
-| 设备 | 干什么 |
+| 图书管理员的职责 | 对应到我们的功能 |
 |---|---|
-| Kindle（已在第 10 代，固件 5.16 上使用） | 显示文章、划线和批注。不录音。 |
-| 手机或 iPad | 放声音、听你提问、显示嘴。 |
-| 电脑 | 跑讲稿，调用模型，准备声音和嘴型时间。 |
-| 更多手机或平板（可选） | 当额外的嘴，和主设备同时开口，不开麦克风。 |
+| **馆藏建设**：决定收什么、从哪收 | 书库：一份有品味的官方来源清单，分论文、新闻与长报道、书、散文；只收经典，或又新又好的 |
+| **参考咨询**：先弄清读者真正想知道什么 | 每天在聊天框里主动问你一次今晚想读什么；第一次使用时了解你的兴趣和目标 |
+| **读者顾问**：按人推荐，经典和新作搭配 | 选书规则：经典与新作交替、难易交替、按月节奏排布，不会天天塞论文 |
+| **编目**：每本书都有记录、能查到 | 每篇文章入库时编目：来源、类型、主题、难度、是否读过，避免重复推荐 |
+| **借阅记录** | 每晚的问答完整存档，写成当天的读书报告 |
+| **读者教育**：教人读懂、会读 | 讲读有结构：先补先验知识，再讲正文，最后复习并提问 |
+| **了解读者的知识水平** | 知识地图：从白天聊天和过往读书报告里判断你哪里懂、哪里有空缺 |
+| **为读者保密** | 真正的图书管理员不会泄露借阅记录，所以只存在本地 |
 
-所有设备连同一个 Wi-Fi。
+图书管理员的职责几百年来变了很多。早期的 *bibliothecary*——亚历山大图书馆、中世纪修道院、17 世纪牛津的博德利图书馆——首先是守书人：收集、编目、别让书丢，有时还把书用链子锁在书架上。1627 年，诺代（Gabriel Naudé）主张既收古典名著，也收新作。现代图书管理员则是为读者服务：解答疑问、推荐书、教人读书，并为每个人的阅读记录保密。我们两头都取：从古代取认真编目、有品味地收书，从现代取围着一个人服务、保护他的隐私。
+
+## 现在能做什么，接下来做什么
+
+0.3 版做好了讲读、读者教育和借阅记录。书库、每日聊天和知识地图都写在[需求文档](docs/requirements.zh-CN.md)里，接下来做。
+
+| | |
+|---|---|
+| **现在能用** | `biblio prepare` 把一篇文章做成三段式讲读：预习背景、正读、复习提问。`biblio read` 在 Kindle 和手机上讲读，接收语音提问，复习时等你回答，结束时自动归档一份读书报告。 |
+| **接下来** | v0.4 书库（编目、去重、默认书架）· v0.5 图书管理员每天在 Telegram 里问你想读什么 · v0.6 给你自己的 agent 用的 MCP 接口 · v0.7 知识地图和间隔复习 |
+
+## 三部分：可以合起来用，也可以单独用
+
+| 部分 | 是什么 |
+|---|---|
+| **图书管理员**（`biblio`） | 备课、保管记录、写读书报告。 |
+| **Margin**（`margin`，页边） | 阅览室：Kindle 阅读页，有划线、圈词、页边批注、小图示；提前备好的讲稿，可以随时打断；开口提问由大模型回答。 |
+| **嘴型**（`robot_lipsync`） | 把语音的时间信息变成嘴型，支持中文、英文、西班牙语。可以画在网页上，也可以显示在 128×64 的 OLED 小屏上（带 ESP32 固件）。可选。 |
+
+设备怎么组合都可以：只用手机；Kindle 加电脑；Kindle 加手机；手机加 iPad；更多屏幕当额外的嘴。
 
 ## 跑起来
 
@@ -40,44 +52,66 @@ cd margin
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# 不用密钥、不花钱：用示例课程打开阅读页
-margin serve examples/village.lesson.json --voice silent --paused
+# 不用密钥、不花钱：今晚的示例是"章鱼怎么睡觉"
+biblio read examples/octopus.lesson.json --voice silent --paused
 ```
 
-Kindle 的「实验性浏览器」打开终端里打印的 `http://<电脑地址>:8765/`；电脑打开 `http://localhost:8765/remote`，可以播放、暂停、打字提问。
-
-只看嘴型：
+Kindle 用"体验版网页浏览器"打开终端打印的 `http://<电脑地址>:8765/`，电脑打开 `http://localhost:8765/remote`，就能播放、暂停、打字提问。讲完（或按 Ctrl+C）时，读书报告就归档了：
 
 ```bash
-robot-lipsync demo --text "你好，世界。" --language zh-CN --output build/mouth.html
+biblio records          # 读过的全部篇目
+biblio report --show    # 最近一篇的读书报告
 ```
 
-这个预览用的是编出来的时间；接上真实配音后，时间来自配音服务。详见[嘴型说明](docs/lipsync.md)。
+`bibliothecary` 和 `biblio` 是同一个命令。
 
-## 接上声音和语音提问
+## 今晚读什么
 
 ```bash
 cp .env.example .env      # 填你自己的 OpenAI、ElevenLabs 密钥和音色 ID
-margin serve examples/octopus.lesson.json --voice elevenlabs --paused
+biblio prepare https://example.com/文章 --explain "Simplified Chinese" --bedtime
+biblio read --voice elevenlabs --paused
 ```
 
-手机打开终端打印的 `https://…:8765/speaker`，点一下屏幕。手机用麦克风需要先装电脑生成的本地证书（步骤见[配置说明](docs/configuration.md#https-on-the-phone)）。在 Safari 里把这个地址的「网站设置 → 麦克风」设成「允许」，不然每次打开都会再问一遍。
+`biblio read` 不带名字时，打开最早一篇还没读完的。手机打开终端打印的 `https://…:8765/speaker`，点一下屏幕。手机用麦克风需要先装电脑生成的本地证书（步骤见[配置说明](docs/configuration.md#https-on-the-phone)）。在 Safari 里把这个地址的「网站设置 → 麦克风」设成「允许」，不然每次打开都会再问一遍。
 
-你可以用语音询问文章内容，回答后继续播放讲稿。简单播放指令由程序直接处理，包括「继续」「等一下」「再说一遍」「跳过」「从头讲」「刷新」。最后被点过的那台设备负责听，其他设备只当安静的嘴。
+一次讲读分三段：
 
-## 换成自己的文章
+1. **预习。** 读这篇之前你可能不知道的背景：术语、人物、原理。`biblio prepare --no-preview` 可以不要。
+2. **正读。** 按文章顺序讲：这篇讲什么、主要观点、为什么重要。随时可以打断提问。
+3. **复习。** 问你几个问题（`biblio prepare --review N`，默认 3 个）。图书管理员会等你回答，告诉你哪里答对了、还缺什么。说**继续**就跳过这一题。
 
-```bash
-margin build https://example.com/文章 --explain "Simplified Chinese" --bedtime -o tonight.json
-margin serve tonight.json --voice elevenlabs --paused
+简单播放指令由程序直接处理：「继续」「等一下」「再说一遍」「跳过」「从头讲」「刷新」。最后被点过的那台设备负责听，其他设备只当安静的嘴。
+
+## 读书报告
+
+每篇文章一个文件夹，全部在你自己的电脑上：
+
+```text
+~/Bibliothecary/readings/2026-10-08-how-octopuses-sleep/     （用 $BIBLIOTHECARY_HOME 换位置）
+  lesson.json      要讲的内容：预习、正读、复习
+  session.jsonl    每个问题和回答的原文，说出口就立刻写下
+  summary.json     模型对这次讲读的整理（可选）
+  report.md        读书报告
 ```
 
-讲稿是提前备好的（这篇讲什么 → 需要的背景 → 按顺序讲要点 → 为什么重要），一句不问也能听完整个故事。示例课程有：人人都会手语的村子、章鱼怎么睡觉、熊蜂玩小球、诺奖中微子。
+读书报告分两次写。`biblio prepare` 在读之前写好导读（背景和要点笔记）；讲完后补上每一问每一答的原文、你的复习回答和参考答案；有模型时，再加上"我还没弄懂的"和"值得追的线索"。摘要和原文分开放，从不用摘要代替原文。报告用讲解语言写。格式是带 YAML 头的 Markdown：任何笔记软件都能打开，可以放进 git，agent 也能读。
+
+## 每台设备干什么
+
+| 设备 | 干什么 |
+|---|---|
+| Kindle（已在第 10 代，固件 5.16 上使用） | 显示文章、划线和批注。不录音。 |
+| 手机或 iPad | 放声音、听你提问、显示嘴。 |
+| 电脑 | 备课，调用模型，保管记录。 |
+| 更多手机或平板（可选） | 当额外的嘴，和主设备同时开口，不开麦克风。 |
+
+所有设备连同一个 Wi-Fi，讲读时电脑要开着。
 
 ## 原理
 
 ```text
-电脑：讲稿 + 你的问题 → 回答 → 声音 + 每个字的时间
+电脑：讲稿 + 你的问题 → 回答 → 声音 + 每个字的时间 → 借阅记录
    ├─ Kindle：文章、划线、批注      （一个长轮询网页，老式 JavaScript）
    └─ 手机：声音 + 嘴（robot_lipsync）  麦克风 → 实时模型
 ```
@@ -87,12 +121,29 @@ margin serve tonight.json --voice elevenlabs --paused
 - **语音问题交给实时模型。** 手机通过电脑持续上传声音，OpenAI 处理问题并生成回答。请求卡住时，程序可改用语音转文字和文字模型。
 - **回答一句一句地念。** 第一句先出声，后面的边念边准备。
 - **嘴型跟着真实时间走。** 配音服务返回每个字在第几毫秒，嘴型模块把它变成口型，手机按自己的音频时钟画出来。
+- **说过的话一句不丢。** 每一问每一答说出口就追加进这篇的记录，读书报告从记录重新生成。
 
-更多：[原理](docs/device-companion.md) · [嘴型模块](docs/lipsync.md) · [多语言](docs/multilingual.md) · [数据流向](SECURITY.md)
+更多：[需求文档](docs/requirements.zh-CN.md) · [原理](docs/device-companion.md) · [嘴型模块](docs/lipsync.md) · [多语言](docs/multilingual.md) · [数据流向](SECURITY.md)
+
+## 隐私
+
+真正的图书管理员不会泄露借阅记录，所以只存在本地。篇目、记录和读书报告都在本地文件夹里。你配置的模型和语音服务每次只收到这一次请求需要的内容（文章和当前的问题，或者一句要念的话），不会收到你的记录库。见 [SECURITY.md](SECURITY.md)。
+
+## 单独用阅览室或嘴
+
+```bash
+margin serve examples/village.lesson.json --voice silent --paused     # 只用阅览室，不留记录
+margin build https://example.com/文章 -o tonight.json                  # 只生成讲稿文件
+robot-lipsync demo --text "你好，世界。" --language zh-CN --output build/mouth.html
+```
+
+见[嘴型说明](docs/lipsync.md)。
 
 ## 现状
 
-早期原型，已在第 10 代 Kindle（固件 5.16）上演示，语音端使用过 iPhone 和 iPad。0.2.2 更新了连接恢复和语音上传处理，手机长时间使用仍在测试。见[已知问题](docs/known-issues.md)。
+早期原型，已在第 10 代 Kindle（固件 5.16）上演示，语音端使用过 iPhone 和 iPad。手机长时间使用仍在测试。见[已知问题](docs/known-issues.md)。
+
+这个仓库最早叫 **robot-lipsync**；2026 年 10 月嘴型项目和 Kindle 伴读合并，改名 **Margin**；伴读长成图书管理员后，改名 **Bibliothecary**。完整的提交历史都保留着（[合并历史](docs/migration.md)）。
 
 ## 开发
 
@@ -101,7 +152,7 @@ pip install -e ".[dev,elevenlabs,serial]"
 python -m pytest
 ```
 
-测试全部离线：不用密钥、不开麦克风、不动电机。[参与贡献](CONTRIBUTING.md) · [更新记录](CHANGELOG.md) · [合并历史](docs/migration.md)
+测试全部离线：不用密钥、不开麦克风、不动电机。[参与贡献](CONTRIBUTING.md) · [更新记录](CHANGELOG.md)
 
 ## 许可
 

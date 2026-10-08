@@ -36,12 +36,21 @@ e-ink reader, sentence by sentence, the way a good friend who already read it wo
 what it says, translate when they read in a second language, point at the words that matter, and
 skip what does not. You are not a summarizer and not a lecturer.
 
-Return JSON: {{"steps": [ ... ]}}.
+Return JSON: {{"preview": [ ... ], "steps": [ ... ], "review": [ ... ], "goodbye": "..."}}.
 {shape}
 
-Rules:
+"preview": {n_preview} steps said BEFORE the reading, in {explain}, without "focus": the background
+knowledge someone needs to follow this piece and may not have. Terms, people, places, the field, how
+something works. Only what the article relies on; not a summary of the article. [] if nothing is needed.
+{known}
+"review": {n_review} questions asked AFTER the reading, to check the main points stuck:
+  [{{"question": "...", "answer": "..."}}], both in {explain}. Short questions that can be answered
+  aloud in a sentence or two; "answer" is what a good answer says. [] when asked for none.
+"goodbye": one short line said at the very end, after the review{goodnight}.
+
+Rules for "steps" (the reading itself):
 - It is a short talk with a clear arc: say what the piece is and why it is interesting (no focus),
-  give the background it needs, walk through the main points in the order of the article, and close
+  give whatever background the preview did not, walk through the main points in the order of the article, and close
   with why it matters. Someone who never interrupts should still get the whole story.
 - Go through the article in order. Every paragraph gets at least one step; long or dense ones more.
 - Explain, do not just repeat. When the article is in another language than {explain},
@@ -49,7 +58,7 @@ Rules:
 - Numbers, names and claims must come from the article. Do not invent facts.
 {style}
 - Mark at most one phrase per step, and only when pointing at it helps.
-- End with one short step that says what to remember{goodnight}.
+- End with one short step that says what to remember.
 - About {n_steps} steps in total."""
 
 ANSWER_SYSTEM = """You are a reading companion on an e-ink reader, going through an article with a friend.
@@ -146,23 +155,60 @@ def _shape(explain: str) -> str:
 
 
 def build_lesson(client: OpenAICompatible, title: str, text: str, *, explain_language: str = "English",
-                 source: str = "", language: str = "en", bedtime: bool = False) -> Lesson:
+                 source: str = "", language: str = "en", bedtime: bool = False, preview: bool = True,
+                 review: int = 3, known: str = "") -> Lesson:
+    """A session in three parts: background first (preview), the reading, then a few questions (review).
+
+    ``known``: what the reader is already known to understand, so the preview can skip it."""
     paragraphs = [p for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
     lesson = Lesson.from_dict({"title": title, "source": source, "language": language,
                                "explain_language": explain_language, "paragraphs": paragraphs, "steps": []})
     n = max(4, min(40, len(lesson.sentence_ids()) // 2 + 2))
-    system = LESSON_SYSTEM.format(shape=_shape(explain_language), explain=explain_language, n_steps=n, style=STYLE,
-                                  goodnight=", then wish them good night" if bedtime else "")
+    system = LESSON_SYSTEM.format(
+        shape=_shape(explain_language), explain=explain_language, n_steps=n, style=STYLE,
+        n_preview="2-4" if preview else "0", n_review=str(max(0, review)),
+        known=f"The listener already understands: {known}. Do not explain these again.\n" if known else "",
+        goodnight=", and wish them good night" if bedtime else "")
     data = client.chat_json(system, lesson.context())
-    lesson.steps = clean_steps(lesson, data.get("steps", []))
+    lesson.steps = assemble(lesson, data, preview=preview, review=review)
     return lesson
 
 
+def assemble(lesson: Lesson, data: dict[str, Any], *, preview: bool = True, review: int = 3) -> list[Step]:
+    """The model's three parts as one list of steps: preview, reading, review questions, goodbye."""
+    steps = []
+    if preview:
+        for step in clean_steps(lesson, data.get("preview") or []):
+            step.focus, step.mark, step.part = None, None, "preview"
+            if step.say:
+                steps.append(step)
+    steps += clean_steps(lesson, data.get("steps") or [])
+    for item in (data.get("review") or [])[:max(0, review)]:
+        if isinstance(item, dict) and str(item.get("question") or "").strip():
+            steps.append(Step(say=str(item["question"]).strip(), part="review",
+                              expect=str(item.get("answer") or "").strip() or None))
+    if str(data.get("goodbye") or "").strip():
+        steps.append(Step(say=str(data["goodbye"]).strip(), part="review"))
+    return steps
+
+
+def _review(review: dict | None) -> str:
+    if not review:
+        return ""
+    good = f"\nA good answer says: {review['expect']}" if review.get("expect") else ""
+    return (f"\n\nYou have finished reading and just asked them a review question: {review['question']}{good}"
+            "\nWhat they say now is most likely their answer. In one or two sentences, tell them plainly what"
+            " they got right and add what is missing; if it was wrong, give the right answer kindly. Then"
+            " \"then\": \"continue\". If they did not answer (they want to skip, or go on), handle it as usual.")
+
+
 def _answer_prompt(lesson: Lesson, question: str, current: str | None, position: int | None,
-                   explain_language: str | None, history: list[dict] | None = None) -> tuple[str, str]:
+                   explain_language: str | None, history: list[dict] | None = None,
+                   review: dict | None = None) -> tuple[str, str]:
     explain = explain_language or lesson.explain_language
     system = ANSWER_SYSTEM.format(shape=_shape(explain), explain=explain, style=STYLE)
     where = f"\n\nYou were explaining {current}: {lesson.sentence(current)}" if current else ""
+    where += _review(review)
     context = f"{lesson.context()}{plan_summary(lesson, position)}{_history(history)}{where}"
     if lesson.cues:
         system += ("\nYou can also show things on the computer screen: add \"cue\": \"<name>\" to the step "
@@ -172,9 +218,9 @@ def _answer_prompt(lesson: Lesson, question: str, current: str | None, position:
 
 
 def live_instructions(lesson: Lesson, current: str | None, position: int | None,
-                      history: list[dict] | None = None) -> str:
+                      history: list[dict] | None = None, review: dict | None = None) -> str:
     """Everything a realtime model needs; the listener's words come as audio."""
-    system, user = _answer_prompt(lesson, "(see the audio)", current, position, None, history)
+    system, user = _answer_prompt(lesson, "(see the audio)", current, position, None, history, review)
     return (system + "\nReply with the JSON object only.\n\n" + user.replace(
         "The listener said: (see the audio)", "What the listener said is the audio input."))
 
@@ -186,9 +232,9 @@ def _then(value: Any) -> str:
 
 def answer(client: OpenAICompatible, lesson: Lesson, question: str, *, current: str | None,
            position: int | None = None, explain_language: str | None = None,
-           history: list[dict] | None = None) -> dict[str, Any]:
+           history: list[dict] | None = None, review: dict | None = None) -> dict[str, Any]:
     """{"steps": [Step, ...], "then": "continue" | "pause" | "back" | "skip" | "restart" | "ignore"}"""
-    system, user = _answer_prompt(lesson, question, current, position, explain_language, history)
+    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review)
     data = client.chat_json(system, user, max_tokens=900)
     return {"steps": clean_steps(lesson, data.get("steps", []), current=current), "then": _then(data.get("then"))}
 
@@ -313,14 +359,14 @@ class StreamedAnswer:
 
 def answer_stream(client: OpenAICompatible, lesson: Lesson, question: str, *, current: str | None,
                   position: int | None = None, explain_language: str | None = None,
-                  history: list[dict] | None = None) -> StreamedAnswer:
+                  history: list[dict] | None = None, review: dict | None = None) -> StreamedAnswer:
     """Like ``answer`` but streamed. If streaming fails: a plain request, then the lesson's own answers."""
-    system, user = _answer_prompt(lesson, question, current, position, explain_language, history)
+    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review)
 
     def fallback() -> dict:
         try:
             return answer(client, lesson, question, current=current, position=position,
-                          explain_language=explain_language, history=history)
+                          explain_language=explain_language, history=history, review=review)
         except Exception:
             return {"steps": scripted_answer(lesson, question) or [], "then": "continue"}
 

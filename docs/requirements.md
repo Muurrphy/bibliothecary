@@ -1,6 +1,6 @@
 # Bibliothecary — requirements
 
-> Status: draft v0.2, 2026-10-08. Requirements only; nothing here is implemented yet.
+> Status: draft v0.2, 2026-10-08. v0.3 (records, three-part sessions) and the rename are implemented; the rest is not yet.
 > [中文](requirements.zh-CN.md)
 
 ## 0. In one sentence

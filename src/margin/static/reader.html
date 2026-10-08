@@ -182,7 +182,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
       { art.scrollTop = Math.max(0, figEl.offsetTop + figEl.offsetHeight - art.clientHeight + 10); placeNote(); }
   }
   var WHO = {idle: 'MARGIN', reading: 'READING', paused: 'PAUSED', listening: 'LISTENING…',
-             thinking: 'THINKING…', answering: 'ANSWERING', done: 'THE END'};
+             thinking: 'THINKING…', answering: 'ANSWERING', waiting: 'YOUR TURN', done: 'THE END'};
   function renderCaption() {
     var a = S.answer;
     $('who').innerHTML = '<span class="pill">' + (a && S.status !== 'listening' ? 'YOU ASKED' : (WHO[S.status] || 'MARGIN')) + '</span>';

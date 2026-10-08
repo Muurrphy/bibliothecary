@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 — 2026-10-08
+
+The project is now **Bibliothecary**, a personal librarian (Chinese: 图书管理员). Margin stays as the name of the reading room, and the mouth stays optional. See the [requirements](docs/requirements.md).
+
+- `biblio` (also `bibliothecary`): `prepare` an article, `read` it, rewrite its `report`, list the `records`.
+- Three-part sessions: background before the reading (preview), the reading, and review questions after it. The player waits for your answer to each review question; "继续 / go on" skips one. The Kindle shows YOUR TURN meanwhile.
+- Circulation records: every question and answer is appended to the reading's `session.jsonl` as it is said, and a Markdown reading report is written when the session ends or the program is stopped. With a model, the report adds what still seems unclear and which threads are worth following, next to the verbatim record.
+- Readings are kept in `~/Bibliothecary` (or `$BIBLIOTHECARY_HOME`), on this computer only.
+- `margin build` takes `--no-preview` and `--review N`; the octopus example has a preview and two review questions.
+- The Python package is published as `bibliothecary`; the `margin` and `robot-lipsync` commands are unchanged.
+
 ## 0.2.2 — 2026-10-08
 
 - One repository: the former robot-lipsync repository now holds Margin, with the mouth project's history kept. READMEs rewritten around the two parts (reading companion, mouth) that work alone or together.

@@ -1,6 +1,6 @@
 # Known issues — 2026-10-08 snapshot
 
-Margin is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.
+Bibliothecary is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.
 
 | Area | Current status |
 |---|---|

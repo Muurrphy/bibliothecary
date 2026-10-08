@@ -25,6 +25,7 @@ jobs:
       - name: Check lessons and mouth tools without API keys
         run: |
           for lesson in examples/*.lesson.json; do margin check "$lesson"; done
+          biblio --version && biblio records
           robot-lipsync demo --output build/demo.html
           robot-lipsync compile examples/good_evening.alignment.json --output build/timeline.json
           robot-lipsync benchmark-run --adapter-command "python benchmarks/stub_agent.py" --output build/stub.jsonl --limit 5 --warmups 1 --timeout 5
@@ -32,7 +33,7 @@ jobs:
       - name: Build and inspect the combined wheel
         run: |
           python -m build
-          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'margin/static/speaker.html' in n; assert 'robot_lipsync/renderers/mouth_model.js' in n; assert 'robot_lipsync/data/english_v1.json' in n"
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'margin/static/speaker.html' in n; assert 'bibliothecary/report.py' in n; assert 'robot_lipsync/renderers/mouth_model.js' in n; assert 'robot_lipsync/data/english_v1.json' in n"
 
   firmware:
     runs-on: ubuntu-latest

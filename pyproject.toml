@@ -3,14 +3,14 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "margin-reader"
-version = "0.2.2"
-description = "A reading companion across an old Kindle and a phone: articles, spoken questions and a multilingual digital mouth."
+name = "bibliothecary"
+version = "0.3.0"
+description = "A personal librarian: it helps choose what to read, reads it with you at bedtime on a Kindle or phone, and keeps a reading report of every question and answer."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{name = "Muurrphy"}]
-keywords = ["kindle", "e-ink", "reading", "voice", "lip-sync", "multilingual"]
+keywords = ["librarian", "reading", "kindle", "e-ink", "voice", "reading-report", "lip-sync", "multilingual"]
 dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55"]
 
 [project.optional-dependencies]
@@ -29,6 +29,8 @@ Repository = "https://github.com/Muurrphy/margin"
 Issues = "https://github.com/Muurrphy/margin/issues"
 
 [project.scripts]
+bibliothecary = "bibliothecary.cli:main"
+biblio = "bibliothecary.cli:main"
 margin = "margin.cli:main"
 robot-lipsync = "robot_lipsync.cli:main"
 

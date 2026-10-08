@@ -1,0 +1,131 @@
+"""Command line: ``bibliothecary`` (or ``biblio``) prepare / read / report / records."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from margin import brain
+from margin import cli as margin_cli
+from margin.ingest import load_article
+from margin.lesson import Lesson
+from margin.llm import OpenAICompatible
+
+from . import __version__, library, report
+from .records import Ledger
+
+_log = margin_cli._log
+
+
+def _folder(where: str | None, *, fallback) -> Path:
+    """A reading folder from a path (folder or lesson file inside one), or the default."""
+    if not where:
+        folder = fallback()
+        if folder is None:
+            raise SystemExit(f"no readings yet in {library.readings_dir()}; start with: biblio prepare <article>")
+        return folder
+    path = Path(where).expanduser()
+    if path.is_dir() and (path / "lesson.json").is_file():
+        return path
+    if path.is_file() and path.name == "lesson.json":
+        return path.parent
+    named = library.readings_dir() / where
+    if (named / "lesson.json").is_file():
+        return named
+    raise SystemExit(f"not a reading: {where}")
+
+
+def cmd_prepare(args) -> int:
+    client = OpenAICompatible()
+    title, text, source = load_article(args.article)
+    _log(f"preparing “{args.title or title}” ({len(text.split())} words)…")
+    lesson = brain.build_lesson(client, args.title or title, text, explain_language=args.explain,
+                                source=source, language=args.language, bedtime=args.bedtime,
+                                preview=args.preview, review=args.review)
+    for issue in lesson.problems():
+        _log(f"warning: {issue}")
+    folder = library.new_reading(lesson)
+    path = report.write(folder)
+    parts = {p: sum(1 for s in lesson.steps if s.part == p) for p in ("preview", "review")}
+    print(f"\n  Ready for tonight: {folder}\n"
+          f"    {parts['preview']} background steps, {len(lesson.steps) - parts['preview'] - parts['review']} reading steps,"
+          f" {sum(1 for s in lesson.steps if s.expect)} review questions\n"
+          f"    reading guide: {path}\n\n  Read it with: biblio read\n")
+    return 0
+
+
+def cmd_read(args) -> int:
+    where = Path(args.reading).expanduser() if args.reading else None
+    if where and where.is_file() and where.name != "lesson.json":
+        lesson = Lesson.load(where)               # a lesson from elsewhere (e.g. examples/): file it first
+        folder = library.new_reading(lesson)
+        _log(f"filed {where.name} as {folder.name}")
+    else:
+        folder = _folder(args.reading, fallback=library.next_unread)
+        lesson = Lesson.load(folder / "lesson.json")
+    if not (folder / "report.md").exists():
+        report.write(folder)
+    client = OpenAICompatible.from_env()
+    ledger = Ledger(folder, lesson, client=client, log=_log)
+    try:
+        return margin_cli.run(lesson, args, client=client, record=ledger.record,
+                              title=f"Bibliothecary is ready: “{lesson.title}”\n  Records: {folder}")
+    finally:
+        _log("filing tonight's reading report…")
+        ledger.close()
+
+
+def cmd_report(args) -> int:
+    folder = _folder(args.reading, fallback=library.latest)
+    client = None if args.no_summary else OpenAICompatible.from_env()
+    path = report.write(folder, client=client)
+    print(path)
+    if args.show:
+        print(path.read_text(encoding="utf-8"))
+    return 0
+
+
+def cmd_records(args) -> int:
+    found = library.readings()
+    print(f"{library.readings_dir()}  ({len(found)} readings)")
+    for folder in found:
+        lesson = Lesson.load(folder / "lesson.json")
+        asked = sum(1 for e in library.events(folder) if e.get("kind") == "exchange" and not e.get("review"))
+        status = library.status(folder)
+        print(f"  {folder.name[:10]}  {status:<8}  {asked:>2} questions  {lesson.title}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="biblio", description="Bibliothecary: a personal librarian. "
+                                "Readings and reports are kept in " + str(library.readings_dir()))
+    p.add_argument("--version", action="version", version=f"bibliothecary {__version__}")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pr = sub.add_parser("prepare", help="prepare a reading: background, explanation, review questions")
+    pr.add_argument("article", help="URL, .txt, .md or .html")
+    margin_cli.add_build_options(pr)
+    pr.set_defaults(fn=cmd_prepare)
+
+    r = sub.add_parser("read", help="read with the librarian and keep the record (default: the next unread)")
+    r.add_argument("reading", nargs="?", help="a reading folder, its name, or any lesson .json")
+    margin_cli.add_serve_options(r)
+    r.set_defaults(fn=cmd_read)
+
+    rp = sub.add_parser("report", help="rewrite a reading report (default: the latest reading)")
+    rp.add_argument("reading", nargs="?")
+    rp.add_argument("--no-summary", action="store_true", help="do not ask a model for the summary")
+    rp.add_argument("--show", action="store_true", help="print the report")
+    rp.set_defaults(fn=cmd_report)
+
+    rc = sub.add_parser("records", help="list the readings kept so far")
+    rc.set_defaults(fn=cmd_records)
+
+    args = p.parse_args(argv)
+    margin_cli.load_env()
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
