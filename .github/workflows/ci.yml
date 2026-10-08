@@ -32,7 +32,7 @@ jobs:
       - name: Build and inspect the combined wheel
         run: |
           python -m build
-          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'margin/static/speaker.html' in n; assert 'robot_lipsync/renderers/monroe_model.js' in n; assert 'robot_lipsync/data/english_v1.json' in n"
+          python -c "import zipfile,glob; n=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); assert 'margin/static/speaker.html' in n; assert 'robot_lipsync/renderers/mouth_model.js' in n; assert 'robot_lipsync/data/english_v1.json' in n"
 
   firmware:
     runs-on: ubuntu-latest

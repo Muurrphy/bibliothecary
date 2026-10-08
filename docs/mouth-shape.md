@@ -1,4 +1,4 @@
-# Monroe lips (梦露嘴唇)
+# Dot-matrix mouth
 
 The mouth every renderer in this project draws. It was designed for the
 128×64 chest OLED of the Lilyput robot and is now the only mouth in the
@@ -23,26 +23,26 @@ package; the earlier generic dot-matrix geometry was removed.
 
 | Profile | Where | What it draws |
 |---|---|---|
-| `oled` | 128×64 one-bit OLED (firmware, preview) | The 44 designed frames: Monroe v1 (0–26) and the muscle-channel targets (27–43). Clean 2×2 cells with 1 px gutters, one frame per event. |
+| `oled` | 128×64 one-bit OLED (firmware, preview) | The 44 designed frames: frame bank v1 (0–26) and the muscle-channel targets (27–43). Clean 2×2 cells with 1 px gutters, one frame per event. |
 | `screen` | tablets, monitors | The same landmark contours rebuilt every frame on a 64x32 LED grid from blended muscle poses, drawn as a flat, saturated LED fill like the OLED: a quiet lip line, a dimmer parting and one small gloss mark. The Cupid's bow and tubercle are relaxed 60% toward the gentler tension outline. Gestures are bigger than on the OLED (wider jaw drop, narrower rounding, harder press, a squeezed kiss for u/ü/o), stronger syllables open further, and a mouth that would leave the panel is scaled to fit. |
 
 ## Files
 
 | File | Role |
 |---|---|
-| `tools/monroe/make_lips.py` | Original Monroe v1 generator (Pillow, NumPy). Kept verbatim. |
-| `tools/monroe/make_v2.py` | Original muscle-channel generator (English v2). Kept verbatim except the path to `make_lips.py`. |
-| `tools/monroe/build_bank.py` | Writes the 44-frame bank: `firmware/esp32_oled/monroe_frames.h` and `src/robot_lipsync/renderers/monroe_frames.js`. Byte-identical to the Lilyput chest header. |
-| `src/robot_lipsync/monroe.py` | Muscle targets (English and Mandarin), viseme map, OLED frame rules, nearest-frame choice. Runtime, no dependencies. |
-| `tools/monroe/build_tables.py` | Writes `firmware/esp32_oled/monroe_select.h` and `src/robot_lipsync/renderers/monroe_model.js` from `monroe.py`. |
+| `tools/mouth/make_lips.py` | Original frame generator (Pillow, NumPy). |
+| `tools/mouth/make_v2.py` | Original muscle-channel generator (English v2). Uses the geometry in `make_lips.py`. |
+| `tools/mouth/build_bank.py` | Writes the 44-frame bank: `firmware/esp32_oled/mouth_frames.h` and `src/robot_lipsync/renderers/mouth_frames.js`. Byte-identical to the Lilyput chest header. |
+| `src/robot_lipsync/mouth.py` | Muscle targets (English and Mandarin), viseme map, OLED frame rules, nearest-frame choice. Runtime, no dependencies. |
+| `tools/mouth/build_tables.py` | Writes `firmware/esp32_oled/mouth_select.h` and `src/robot_lipsync/renderers/mouth_model.js` from `mouth.py`. |
 | `src/robot_lipsync/renderers/dotmatrix.js` | Both profiles for the browser, plus `DotLips.track(events)`. |
 
 Regenerate after changing the design:
 
 ```bash
 pip install pillow numpy
-python tools/monroe/build_bank.py
-python tools/monroe/build_tables.py
+python tools/mouth/build_bank.py
+python tools/mouth/build_tables.py
 pytest
 ```
 

@@ -32,7 +32,7 @@ robot-lipsync demo
 
 Open `build/demo.html`. The command also writes the exact device-independent timeline to `build/demo.timeline.json`.
 
-The preview draws the **Monroe lips** (梦露嘴唇), the dot-matrix mouth designed for the Lilyput robot's chest OLED: two sculpted upper lobes with a natural tubercle, outer shoulders that curve inward before the corners, a fuller lower cushion, and muscle rules that never let the mouth open fully and stretch fully at once. `--profile oled` shows the exact 128x64 frames the ESP32 firmware flashes (44 designed frames, one per event); `--profile screen` (default) rebuilds the same geometry continuously at twice the resolution for tablets and monitors, drawn as flat pixel art. `--palette red|blue` picks the LED colour. See [Monroe lips](monroe-lips.md).
+The preview draws the **dot-matrix mouth** designed for the Lilyput robot's chest OLED: two sculpted upper lobes with a natural tubercle, outer shoulders that curve inward before the corners, a fuller lower cushion, and muscle rules that never let the mouth open fully and stretch fully at once. `--profile oled` shows the exact 128x64 frames the ESP32 firmware flashes (44 designed frames, one per event); `--profile screen` (default) rebuilds the same geometry continuously at twice the resolution for tablets and monitors, drawn as flat pixel art. `--palette red|blue` picks the LED colour. See [mouth geometry](mouth-shape.md).
 
 The built-in demo uses synthetic character timing only to make CI and first use deterministic. Real integrations should consume TTS alignment, forced alignment, or another timestamp provider.
 
@@ -182,11 +182,11 @@ Both packages are distributed together. The `robot_lipsync` API and `robot-lipsy
 | [Columbia Robot Lip Sync](https://www.creativemachineslab.com/lipsync.html) | Learned motion on a dedicated 10-DoF silicone face | Reproducible low-DOF budgets, accessible hardware, LeRobot path |
 | [LiveKit Agents](https://github.com/livekit/agents) / [Pipecat](https://github.com/pipecat-ai/pipecat) | Full voice-agent orchestration | An articulation layer and physical audio-motion measurement that can plug into them |
 
-We do not claim to have invented visemes, coarticulation, real-time voice agents, or learned robot lips. See [Third-party systems and research boundary](third-party.md).
+See [background references and possible adapters](third-party.md).
 
 ## ESP32/OLED firmware
 
-[`firmware/esp32_oled`](../firmware/esp32_oled) is a reproducible ESP32-C3 build for SH1106/SSD1306-class 128×64 displays. It shows the Monroe lips: the same 44 one-bit frames as the Lilyput chest board. The host may send a frame hint with each event; without one the board picks the nearest frame from the eight continuous articulation channels, with the same arithmetic as the preview. Commands and replies use a complete `LIP/` namespace, bounded integer fields, session checks, queue limits, and a `VISIBLE_START` hardware event.
+[`firmware/esp32_oled`](../firmware/esp32_oled) is a reproducible ESP32-C3 build for SH1106/SSD1306-class 128×64 displays. It shows the dot-matrix mouth: the same 44 one-bit frames as the Lilyput chest board. The host may send a frame hint with each event; without one the board picks the nearest frame from the eight continuous articulation channels, with the same arithmetic as the preview. Commands and replies use a complete `LIP/` namespace, bounded integer fields, session checks, queue limits, and a `VISIBLE_START` hardware event.
 
 ```bash
 arduino-cli compile --profile esp32c3 firmware/esp32_oled
@@ -206,8 +206,8 @@ The included stub is only a deterministic test instrument: all its traces say `s
 src/robot_lipsync/       versioned core, providers, renderers, serial backend
 schemas/                 Articulation IR and latency-trace JSON Schemas
 examples/                no-key fixtures and reference traces
-firmware/                reproducible ESP32-C3/OLED firmware (Monroe lips)
-tools/monroe/            original Monroe lip generators and table builders
+firmware/                reproducible ESP32-C3/OLED firmware (dot-matrix mouth)
+tools/mouth/            original mouth generators and table builders
 benchmarks/              controlled suite, persistent adapter protocol, CI stub
 docs/                    architecture, biomechanics, latency, research boundary
 tests/                   deterministic tests with no paid calls

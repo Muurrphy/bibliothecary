@@ -55,7 +55,7 @@ def _static(name: str) -> bytes:
     return resources.files("margin").joinpath("static", name).read_bytes()
 
 
-FACE_FILES = {"dotmatrix.js", "monroe_model.js"}
+FACE_FILES = {"dotmatrix.js", "mouth_model.js"}
 STATIC_FILES = {"/speaker.webmanifest": "application/manifest+json", "/speaker-icon-180.png": "image/png",
                 "/speaker-icon-512.png": "image/png"}
 

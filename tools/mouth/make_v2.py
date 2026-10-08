@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Generate the first English Monroe v2 muscle preview.
+"""Generate the first English Mouth v2 muscle preview.
 
 This experiment deliberately lives outside the live runtime.  It reuses the
-approved Monroe raster style, but drives it through a richer, display-neutral
+approved Mouth raster style, but drives it through a richer, display-neutral
 muscle model and a small coarticulated English phrase.  It never writes current
 firmware files.
 """
@@ -26,9 +26,9 @@ FPS = 20
 
 
 def _load_legacy_generator():
-    spec = importlib.util.spec_from_file_location("lilyput_monroe_v1", LEGACY_PATH)
+    spec = importlib.util.spec_from_file_location("lilyput_mouth_v1", LEGACY_PATH)
     if spec is None or spec.loader is None:
-        raise RuntimeError(f"无法加载当前梦露生成器：{LEGACY_PATH}")
+        raise RuntimeError(f"无法加载当前口型生成器：{LEGACY_PATH}")
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)

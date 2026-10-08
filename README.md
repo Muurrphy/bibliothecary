@@ -2,7 +2,7 @@
 
 **An AI reading companion for an old Kindle, with a talking digital mouth on your phone.**
 
-You read on the Kindle. Your phone (or an old iPad) is the companion's voice, ears and face: it reads the article to you in your language, underlines the sentence it is talking about on the e-ink screen, and stops when you ask a question out loud. A small multilingual mouth (Mandarin, English, Spanish) moves with every word.
+The Kindle displays the article and highlights the current sentence. A phone or iPad plays the explanation, receives spoken questions and displays a mouth animated from speech timing. The companion selects Chinese or English; the standalone mouth tools also support Spanish.
 
 No Kindle jailbreak, no app to install. The Kindle and the phone just open web pages; a program on your computer does the thinking.
 
@@ -23,7 +23,7 @@ This repository used to be **robot-lipsync**. In October 2026 the mouth and the 
 
 | Device | Job |
 |---|---|
-| Kindle (or any e-reader with a browser) | Shows the article, the underline, the notes. Does not record anything. |
+| Kindle (tested on 10th generation, firmware 5.16) | Shows the article, the underline, the notes. Does not record anything. |
 | Phone or iPad | Plays the voice, listens for your questions, shows the mouth. |
 | Computer | Runs the talk, calls the models, prepares voice and mouth timing. |
 | More phones or tablets (optional) | Extra mouths, all speaking at the same moment, without their own microphone. |
@@ -63,7 +63,7 @@ margin serve examples/octopus.lesson.json --voice elevenlabs --paused
 
 On the phone, open the printed `https://…:8765/speaker` address and tap the screen once. The phone needs the computer's local certificate for the microphone (steps in [setup](docs/configuration.md#https-on-the-phone)). In Safari, set **Website Settings → Microphone → Allow** for this address, or it asks again every time the page opens.
 
-Then just talk. Ask anything and it answers, then goes back to where it was. Short commands run at once without a model: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
+You can ask questions about the article by voice and resume the prepared explanation after the answer. Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
 
 ## Your own article
 
@@ -82,9 +82,9 @@ computer: lesson + your question → answer → voice + character timing
    └─ phone:  voice + mouth (robot_lipsync)  microphone → realtime model
 ```
 
-- **The Kindle is a thin page.** Text and about 200 lines of old-style JavaScript, so it runs in the Kindle browser. Every request has a time limit and the page redraws itself if anything goes wrong, so it does not freeze after a Wi-Fi blink.
+- **The Kindle uses a lightweight page.** Plain JavaScript displays the article. Request timeouts, redraw handling and a watchdog help recover interrupted connections.
 - **The model never draws on the screen directly.** It returns the same small steps a hand-written lesson uses, and every step is checked against the article.
-- **Questions are heard while you speak.** The phone streams your voice to the computer, which forwards it to an OpenAI realtime model; when you stop, the answer is already being written. If that path stalls, it falls back to speech-to-text plus a text model.
+- **Voice questions use a realtime model.** The phone streams audio through the computer to OpenAI. A stalled turn can fall back to transcription and a text model.
 - **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
 - **The mouth follows real timing.** The voice service returns when each character is spoken; the mouth module turns that into mouth shapes, and the phone draws them on its audio clock.
 
@@ -92,7 +92,7 @@ More: [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md),
 
 ## Status
 
-Early prototype, used to film demos on a Kindle (10th gen, firmware 5.16), iPhone and iPad. Version 0.2.2 fixed the freezes and missed questions seen while filming; long everyday sessions on phones are still being tested. See [known issues](docs/known-issues.md).
+Early prototype, demonstrated on a Kindle (10th gen, firmware 5.16), iPhone and iPad. Version 0.2.2 updates connection recovery and microphone uploads. Long sessions on phones are still being tested. See [known issues](docs/known-issues.md).
 
 ## Development
 

@@ -1,20 +1,20 @@
 # Known issues — 2026-10-08 snapshot
 
-This is an early personal prototype. Versions 0.2.1 and 0.2.2 address the freezes and missed turns seen while filming (see the changelog); those fixes are tested offline and in a desktop browser, not yet over a long session on a real phone.
+Margin is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.
 
-| Area | Current limitation |
+| Area | Current status |
 |---|---|
-| Phone microphone | Earlier versions sometimes heard a question late or not at all. Known causes are fixed (a page that lost the microphone after reloading, a queue of small uploads on slow Wi-Fi, a realtime connection that went quiet); long sessions on phones are still being tested. |
-| Mobile sessions | Safari asks for the microphone on every visit unless the site is set to Allow; a Home Screen page may ask each time it opens. After a call or Siri, the page may need one tap. |
-| Speech detection | Browser echo cancellation and voice thresholds are present, but can reject quiet speech or allow residual echo. Their contribution to the observed failures is unconfirmed. |
-| Provider / network | API calls and local Wi-Fi can fail. Existing timeout and playback-error handling are included; this does not resolve every stalled or missed turn. |
-| Mouth alignment | Native character timing is used when available; phonemes within a character are estimated. Exact human articulation is not demonstrated. |
-| Models | Not every voice model offers timestamps or accepts the same settings. Strict mode reports a failure rather than substituting estimated timing or changed voice settings. |
-| Language selection | The companion selects Chinese or English heuristically. Spanish support belongs to the explicit language-tagged mouth API/CLI. |
-| Devices | A Kindle 10th generation (firmware 5.16) and iPad Safari have been used. Phone capture is intermittent; Android and other e-readers do not have a completed compatibility evaluation. |
+| Phone microphone | Reloading pages, queued uploads and stalled realtime connections have recovery handling. Long sessions and missed turns still need checks on phones. |
+| Mobile sessions | Safari may request microphone permission on each visit. After a call or Siri, the page may need a tap to resume. |
+| Speech detection | Echo cancellation and voice thresholds can reject quiet speech or admit residual echo. |
+| Provider / network | API or Wi-Fi interruptions can stall a turn. The service includes timeouts and playback-error handling. |
+| Mouth alignment | Provider character timestamps anchor the mouth timeline. Phoneme timing within each character is estimated. |
+| Models | Timestamp availability and accepted settings depend on the voice model. Strict mode reports unsupported settings. |
+| Languages | The companion selects Chinese or English. Spanish is available through the language-tagged mouth API and CLI. |
+| Devices | Demonstrations used a Kindle 10th generation (firmware 5.16), iPhone and iPad. Phone capture has been intermittent. Android and other e-readers remain untested. |
 
-The computer's `/remote` page offers text questions and controls when voice input fails. Keep the service in a foreground terminal so it can be stopped and reopened. These are fallback controls, not a claim that mobile listening is fixed.
+Use the computer's `/remote` page for text questions and playback controls when voice input is interrupted. Run the service in a foreground terminal to stop or restart it.
 
-The repository includes deterministic offline tests and package checks. Those verify particular code paths and fixtures; they do not measure real phone speech detection, acoustic echo behaviour or everyday reliability. Historical mouth-project traces and simulated benchmark results are not Margin end-to-end measurements.
+Offline tests cover code paths, fixtures and packaging. Mobile speech detection, acoustic echo and everyday reliability require device testing. Historical mouth traces and the simulated benchmark adapter are recorded separately from Margin end-to-end tests.
 
-To report a problem, include device/browser, foreground or home-screen mode, the relevant settings and a short reproduction. Remove keys, personal speech, full article text and local certificates from any logs you share.
+To report a problem, include the device, browser, foreground or home-screen mode, relevant settings and a short reproduction. Remove credentials, personal speech, private article text and local certificates from shared logs.

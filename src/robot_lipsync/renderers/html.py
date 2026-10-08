@@ -1,8 +1,8 @@
-"""Dependency-free HTML preview built on the Monroe dot-matrix lips.
+"""Dependency-free HTML preview built on the Mouth dot-matrix lips.
 
 The drawing code lives in ``dotmatrix.js`` (shared with the tablet terminal),
-with its tables in ``monroe_model.js`` and the OLED bitmaps in
-``monroe_frames.js``. ``profile="oled"`` shows exactly the frames
+with its tables in ``mouth_model.js`` and the OLED bitmaps in
+``mouth_frames.js``. ``profile="oled"`` shows exactly the frames
 firmware/esp32_oled draws on the 128x64 panel; ``profile="screen"`` is the same
 mouth rebuilt continuously at twice the resolution for tablets and monitors.
 """
@@ -20,8 +20,8 @@ PALETTES = ("red", "blue")
 
 
 def dotmatrix_js() -> str:
-    """monroe_model.js + monroe_frames.js + dotmatrix.js, ready to inline."""
-    files = ("monroe_model.js", "monroe_frames.js", "dotmatrix.js")
+    """mouth_model.js + mouth_frames.js + dotmatrix.js, ready to inline."""
+    files = ("mouth_model.js", "mouth_frames.js", "dotmatrix.js")
     return "\n".join(resources.files(__package__).joinpath(name).read_text(encoding="utf-8") for name in files)
 
 
@@ -51,7 +51,7 @@ button,select{background:#140a0d;color:inherit;border:1px solid #3a2a2e;padding:
 <div class="bar"><button id="play">Play</button><input id="time" type="range" min="0" max="1000" value="0">
 <select id="profile"><option value="screen">screen</option><option value="oled">oled</option></select>
 <select id="palette"><option value="red">red</option><option value="blue">blue</option></select></div>
-<div id="readout"></div><div class="tag">No audio or API key is required. oled = the exact frames firmware/esp32_oled draws; screen = the same Monroe mouth for tablets and monitors.</div></main>
+<div id="readout"></div><div class="tag">No audio or API key is required. oled = the exact frames firmware/esp32_oled draws; screen = the same Mouth mouth for tablets and monitors.</div></main>
 <script>__DOTMATRIX__</script>
 <script>const EVENTS=__EVENTS__;const cv=document.querySelector('#stage'),ctx=cv.getContext('2d'),slider=document.querySelector('#time'),readout=document.querySelector('#readout');
 const prof=document.querySelector('#profile'),pal=document.querySelector('#palette');prof.value='__PROFILE__';pal.value='__PALETTE__';

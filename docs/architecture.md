@@ -64,13 +64,13 @@ Every event has time, duration, viseme metadata, language, confidence, intensity
 | `lower_lip_tuck` | lower lip movement toward the upper teeth |
 | `asymmetry` | signed left/right bias |
 
-This is not a claim that eight scalars fully describe human tissue. It is a compact, inspectable contract that can be projected to smaller displays and expanded by later schemas.
+These eight channels form a compact rendering interface for small displays. Later schemas can add channels for other renderers.
 
 ## Style versus articulation
 
 Articulation answers what must be visible for speech. Style answers how a renderer depicts it. A neon blue lip, a monochrome pixel lip, and a silicone mouth may consume the same target but should not share hard-coded geometry.
 
-The original Lilyput Monroe mouth is a reference style, not biological ground truth.
+The original Lilyput dot-matrix mouth supplies the default display geometry.
 
 ## Physical clock
 

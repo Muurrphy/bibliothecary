@@ -2,8 +2,8 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include "config.h"
-#include "monroe_frames.h"   // 44 Monroe lip bitmaps (tools/monroe/build_bank.py)
-#include "monroe_select.h"   // nearest-frame choice from articulation channels
+#include "mouth_frames.h"   // 44 mouth bitmaps (tools/mouth/build_bank.py)
+#include "mouth_select.h"   // nearest-frame choice from articulation channels
 
 #if ROBOT_LIPSYNC_OLED_SH1106
 #include <Adafruit_SH110X.h>
@@ -34,7 +34,7 @@ struct TimelineEvent {
   uint32_t atMs;
   uint16_t durationMs;
   int16_t channels[9];
-  int8_t frame;  // Monroe frame hint from the host, or -1
+  int8_t frame;  // Mouth frame hint from the host, or -1
 };
 
 TimelineEvent timeline[ROBOT_LIPSYNC_QUEUE_CAPACITY];
@@ -101,13 +101,13 @@ Articulation decode(const TimelineEvent &event) {
   return result;
 }
 
-// Which Monroe frame to show now. Like the Lilyput chest board, the OLED shows
+// Which Mouth frame to show now. Like the Lilyput chest board, the OLED shows
 // one designed bitmap per event (no cross-fades): in-betweens are separate
 // frames, and short gaps hold the previous pose instead of flashing rest.
 int currentFrame(uint32_t now, bool &active) {
   active = false;
   if (!timelineRunning || timelineCount == 0 || (int32_t)(now - timelineStartedMs) < 0) {
-    return MONROE_V2_REST;
+    return MOUTH_V2_REST;
   }
   const uint32_t elapsed = now - timelineStartedMs;
   while (timelineIndex + 1 < timelineCount && elapsed >= timeline[timelineIndex + 1].atMs) {
@@ -121,14 +121,14 @@ int currentFrame(uint32_t now, bool &active) {
     holdForNext = nextAt >= eventEnd && nextAt - eventEnd <= ROBOT_LIPSYNC_SHORT_GAP_HOLD_MS;
   }
   if (elapsed < event.atMs || (elapsed >= eventEnd && !holdForNext)) {
-    return MONROE_V2_REST;
+    return MOUTH_V2_REST;
   }
   active = true;
-  if (event.frame >= 0 && event.frame < MONROE_FRAME_COUNT) return event.frame;
+  if (event.frame >= 0 && event.frame < MOUTH_FRAME_COUNT) return event.frame;
   const Articulation a = decode(event);
-  float muscles[MONROE_CHANNELS];
-  monroeMuscles(a.jaw, a.separation, a.width, a.roundness, a.press, a.protrusion, a.tuck, a.asymmetry, muscles);
-  return monroeNearestFrame(muscles);
+  float muscles[MOUTH_CHANNELS];
+  mouthMuscles(a.jaw, a.separation, a.width, a.roundness, a.press, a.protrusion, a.tuck, a.asymmetry, muscles);
+  return mouthNearestFrame(muscles);
 }
 
 void renderFrame() {
@@ -137,7 +137,7 @@ void renderFrame() {
   bool active = false;
   const int frame = currentFrame(now, active);
   display.clearDisplay();
-  display.drawBitmap(0, 0, MONROE_FRAMES[frame], 128, 64, ROBOT_LIPSYNC_WHITE);
+  display.drawBitmap(0, 0, MOUTH_FRAMES[frame], 128, 64, ROBOT_LIPSYNC_WHITE);
   display.display();
   if (active && !visibleStartReported) {
     visibleStartReported = true;
@@ -168,8 +168,8 @@ void handleLine(char *line) {
   unsigned long offsetMs = 0;
 
   if (strcmp(line, "LIP/HELLO") == 0) {
-    reply("LIP/OK HELLO protocol=1 device=esp32_oled capacity=%u channels=8 lips=monroe frames=%d",
-          (unsigned)ROBOT_LIPSYNC_QUEUE_CAPACITY, MONROE_FRAME_COUNT);
+    reply("LIP/OK HELLO protocol=1 device=esp32_oled capacity=%u channels=8 lips=mouth frames=%d",
+          (unsigned)ROBOT_LIPSYNC_QUEUE_CAPACITY, MOUTH_FRAME_COUNT);
   } else if (strcmp(line, "LIP/DIAG") == 0) {
     Wire.beginTransmission(ROBOT_LIPSYNC_OLED_ADDRESS);
     const uint8_t i2cError = Wire.endTransmission();
@@ -211,7 +211,7 @@ void handleLine(char *line) {
         event.atMs = (uint32_t)atMs;
         event.durationMs = (uint16_t)durationMs;
         for (int i = 0; i < 9; ++i) event.channels[i] = (int16_t)values[i];
-        event.frame = (frameHint >= 0 && frameHint < MONROE_FRAME_COUNT) ? (int8_t)frameHint : (int8_t)-1;
+        event.frame = (frameHint >= 0 && frameHint < MOUTH_FRAME_COUNT) ? (int8_t)frameHint : (int8_t)-1;
       }
     }
   } else if (sscanf(line, "LIP/START %16s %d %lu", session, &delayMs, &offsetMs) == 3) {

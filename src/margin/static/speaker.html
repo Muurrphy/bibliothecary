@@ -23,7 +23,7 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 #dbg{position:fixed;left:14px;bottom:12px;font:11px/1.45 ui-monospace,Menlo,monospace;color:rgba(120,185,255,.7);white-space:pre;pointer-events:none}
 </style>
 <!-- the mouth comes from robot-lipsync when it is installed; without it a simple one is drawn -->
-<script src="/face/monroe_model.js"></script>
+<script src="/face/mouth_model.js"></script>
 <script src="/face/dotmatrix.js"></script>
 </head>
 <body>
@@ -397,9 +397,9 @@ function loudnessPose(level, t) {
   m.jaw_open = R.jaw_open + 0.55 * o; m.lip_separation = R.lip_separation + 0.62 * o;
   m.lower_lip_depress = R.lower_lip_depress + 0.3 * o; m.upper_lip_raise = R.upper_lip_raise + 0.12 * o;
   m.mouth_width = R.mouth_width + 0.12 * Math.sin(t / 130) * o; m.lip_press = R.lip_press * (1 - o);
-  return {__monroe: true, muscle: DotLips.constrain(m), frame: 0, label: ""};
+  return {__mouth: true, muscle: DotLips.constrain(m), frame: 0, label: ""};
 }
-const REST_POSE = window.DotLips ? {__monroe: true, muscle: DotLips.MODEL.targets.REST, frame: 0, label: ""} : null;
+const REST_POSE = window.DotLips ? {__mouth: true, muscle: DotLips.MODEL.targets.REST, frame: 0, label: ""} : null;
 function frame(now) {
   requestAnimationFrame(frame);
   ctx.clearRect(0, 0, W, H);

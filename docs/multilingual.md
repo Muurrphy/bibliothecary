@@ -49,7 +49,7 @@ dropped from either.
    ("吃", "谱").
 9. Tongue-only consonants move the jaw but leave the lip shape to the
    neighbouring vowels (JALI, Edwards et al. 2016); rounded sounds start early.
-10. For the OLED, `robot_lipsync.monroe.oled_frame` maps the targets onto the
+10. For the OLED, `robot_lipsync.mouth.oled_frame` maps the targets onto the
     chest frame bank, and changes closer than 55 ms keep the previous frame
     unless a landmark is involved.
 11. While streaming, two trailing Han characters are withheld so polyphonic

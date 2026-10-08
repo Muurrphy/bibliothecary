@@ -1,13 +1,13 @@
 // Robot LipSync dot-matrix lips — the single screen renderer for this project.
 //
-// Both profiles draw the Monroe lips ("梦露嘴唇") designed for the Lilyput chest OLED:
+// Both profiles draw the dot-matrix mouth ("点阵口型") designed for the Lilyput chest OLED:
 //   "oled"   — the exact 128x64 one-bit frames flashed into the board
-//              (firmware/esp32_oled/monroe_frames.h), one designed frame per event.
+//              (firmware/esp32_oled/mouth_frames.h), one designed frame per event.
 //   "screen" — the same geometry rebuilt continuously at twice the resolution for
 //              tablets and monitors, drawn as flat pixel art (lip liner, body,
 //              shadowed parting and hard highlight blocks).
 // Two palettes: "red" and "blue".
-// Needs monroe_model.js (tables) and, for the "oled" profile, monroe_frames.js (bitmaps).
+// Needs mouth_model.js (tables) and, for the "oled" profile, mouth_frames.js (bitmaps).
 //
 // Usage (browser):
 //   const at = DotLips.track(events);          // once per timeline
@@ -17,8 +17,8 @@
 (function (root) {
   "use strict";
 
-  const MODEL = root.MONROE_MODEL;
-  if (!MODEL) throw new Error("dotmatrix.js needs monroe_model.js loaded first");
+  const MODEL = root.MOUTH_MODEL;
+  if (!MODEL) throw new Error("dotmatrix.js needs mouth_model.js loaded first");
   const CH = MODEL.channels;
   const REST = {jaw_open: 0, lip_separation: 0.01, mouth_width: 0.48, lip_round: 0.05, lip_press: 0.18,
     lip_protrusion: 0, lower_lip_tuck: 0, asymmetry: 0};
@@ -30,7 +30,7 @@
   const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v));
   const av = (a, k) => (a && a[k] != null ? a[k] : REST[k]);
 
-  // ---- muscle model (same arithmetic as robot_lipsync/monroe.py and the firmware) ----
+  // ---- muscle model (same arithmetic as robot_lipsync/mouth.py and the firmware) ----
   function constrain(p) {
     let jaw = clamp(p.jaw_open), sep = clamp(p.lip_separation), width = clamp(p.mouth_width);
     const press = clamp(p.lip_press), rnd = clamp(p.lip_round), prot = clamp(p.lip_protrusion);
@@ -93,7 +93,7 @@
     };
   }
 
-  // ---- Monroe geometry (port of make_lips.py) ------------------------------------------
+  // ---- Mouth geometry (port of make_lips.py) ------------------------------------------
   const CX = 64, CY = 28, HALF = 49.0, OPEN_SCALE = 29.0;
   const UO_REST = [[-1, 0], [-0.93, -0.07], [-0.82, -0.14], [-0.70, -0.28], [-0.58, -0.48], [-0.47, -0.73], [-0.36, -1.00],
     [-0.25, -0.98], [-0.13, -0.78], [0, -0.56], [0.13, -0.78], [0.25, -0.98], [0.36, -1.00], [0.47, -0.73], [0.58, -0.48],
@@ -171,7 +171,7 @@
     return c;
   }
 
-  // ---- "screen": continuous Monroe geometry at 2x, flat pixel-art tones ----------------
+  // ---- "screen": continuous Mouth geometry at 2x, flat pixel-art tones ----------------
   const S = 2, GW = 128 * S, GH = 64 * S, PITCH = 4, FIT = 0.84;   // 64x32 LEDs
   function screenDots(m) {
     const P = legacyPose(m, true);
@@ -248,8 +248,8 @@
   // ---- "oled": the exact flashed frames ---------------------------------------------------
   let BITS = null;
   function frameBits(i) {
-    const bank = root.MONROE_BANK;
-    if (!bank) throw new Error("the oled profile needs monroe_frames.js");
+    const bank = root.MOUTH_BANK;
+    if (!bank) throw new Error("the oled profile needs mouth_frames.js");
     if (!BITS) BITS = bank.frames.map(b64 => { const s = atob(b64), a = new Uint8Array(s.length); for (let j = 0; j < s.length; j++) a[j] = s.charCodeAt(j); return a; });
     return BITS[Math.max(0, Math.min(BITS.length - 1, i))];
   }
@@ -265,13 +265,13 @@
 
   // ---- drawing -------------------------------------------------------------------------
   function resolve(state) {
-    if (state && state.__monroe) return state;
+    if (state && state.__mouth) return state;
     if (state && state.jaw_open != null && state.upper_lip_raise != null) {   // a muscle pose
       const m = constrain(state);
-      return {__monroe: true, muscle: m, frame: nearestFrame(m), label: state.label || ""};
+      return {__mouth: true, muscle: m, frame: nearestFrame(m), label: state.label || ""};
     }
     const m = muscleFromArticulation(state || REST);
-    return {__monroe: true, muscle: m, frame: nearestFrame(m), label: ""};
+    return {__mouth: true, muscle: m, frame: nearestFrame(m), label: ""};
   }
   function draw(ctx, x0, y0, width, state, opts) {
     opts = opts || {};
@@ -405,7 +405,7 @@
         const hold = next && next.s >= q.e && next.s - q.e <= 90;
         if (t < q.e || hold) { frame = q.frame; label = q.v; }
       }
-      return {__monroe: true, muscle: m, frame, label};
+      return {__mouth: true, muscle: m, frame, label};
     };
   }
 

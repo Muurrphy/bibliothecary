@@ -1,6 +1,6 @@
 # Visible-speech and muscle constraints
 
-Robot LipSync uses **biomechanics-inspired engineering constraints**, not a finite-element model of human tissue. Claims such as “human-identical” or “eliminates the uncanny valley” require controlled perceptual and physiological validation and are outside the current evidence.
+The mouth planner uses engineering constraints inspired by visible speech, including lip closure, rounding and limits on simultaneous width and opening.
 
 ## Landmarks protected by the planner
 
@@ -32,9 +32,9 @@ Human-like tension depends on limits, not simply larger numbers. `enforce_constr
 
 Non-landmark events blend slightly toward the next target. Closure, labiodental contact, and tongue-between-teeth landmarks remain protected. The current blend is causal and uses only one event of look-ahead.
 
-For a deeper, production-oriented treatment of speech animation, see the [JALI research project](https://www.dgp.toronto.edu/~karan/jali/) and its publications. Robot LipSync does not reproduce JALI code or claim to have invented coarticulation.
+Background reading: the [JALI research project](https://www.dgp.toronto.edu/~karan/jali/) and its publications on speech animation.
 
-## Evaluation before stronger claims
+## Planned evaluation
 
 A future benchmark should include:
 

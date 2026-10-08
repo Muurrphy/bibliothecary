@@ -1,6 +1,6 @@
 # Future LeRobot soft-mouth lab
 
-This is a future validation track, not a prerequisite for the software release.
+This document outlines a proposed hardware experiment.
 
 The research question is narrow:
 
@@ -8,7 +8,7 @@ The research question is narrow:
 
 ## Integration strategy
 
-Do not use a complete SO-101 arm to pull lips with its end effector and do not dismantle the arm. Keep SO-101 as the standard learning platform. Implement the mouth rig as an external LeRobot hardware plugin, tentatively named `lerobot_robot_lilyput_mouth`.
+Build a separate mouth rig with an external LeRobot hardware plugin, tentatively named `lerobot_robot_lilyput_mouth`. Keep the SO-101 available for motion experiments.
 
 LeRobot's official custom-hardware interface supports arbitrary robot form factors with programmatic observations and actions: [Bring Your Own Hardware](https://huggingface.co/docs/lerobot/main/en/integrate_hardware).
 
@@ -44,4 +44,4 @@ Each frame should include fixed-camera RGB, motor position/velocity/temperature/
 - temporal model;
 - temporal model with visual feedback.
 
-The output should be a reproducible low-cost reference platform and dataset, not a claim to outperform Columbia's higher-DOF face in general realism.
+Record the hardware configuration, calibration and measured trajectory error so the experiment can be repeated.

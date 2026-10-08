@@ -23,7 +23,7 @@ The runner keeps one adapter process alive for the whole experiment, preserving 
 
 The adapter owns the live voice stack and must mark real events. In particular, `physical_audio_start` must come from the playback device, not HTTP arrival. The reference OLED firmware supplies `LIP/EVENT VISIBLE_START` for `first_visible_motion`.
 
-## Prove the runner without making a performance claim
+## Run the benchmark with the stub agent
 
 ```bash
 robot-lipsync benchmark-run \

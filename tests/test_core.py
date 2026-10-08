@@ -52,14 +52,14 @@ def test_bilabial_closure_is_not_blended_away():
 
 
 def test_diphthong_is_one_moving_target():
-    from robot_lipsync import monroe
+    from robot_lipsync import mouth
 
     for duration in (120, 240):
         events = phonemes_to_articulation("turn", [TimedPhoneme("OW1", 0, duration, "en")])
         assert [event.viseme for event in events] == ["EN_OW"]
-    assert monroe.EN_GLIDES["EN_OW"] == ("ROUND_AO", "ROUND_OW")
+    assert mouth.EN_GLIDES["EN_OW"] == ("ROUND_AO", "ROUND_OW")
     # on the OLED a short diphthong shows its readable endpoint
-    assert monroe.FRAME_NAMES[events[0].metadata["oled_frame"]] == "V2_ROUND_OW"
+    assert mouth.FRAME_NAMES[events[0].metadata["oled_frame"]] == "V2_ROUND_OW"
 
 
 def test_english_reduced_vowels_and_spanish_stress():

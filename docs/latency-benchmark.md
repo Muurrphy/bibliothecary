@@ -54,15 +54,11 @@ Latency purchased by making speech crackle is a failed optimization.
 6. Report both physical audio start and visible-motion offset.
 7. Keep provider cost and voice-quality settings in the result metadata.
 
-The executable harness, fixed English v1 suite, adapter protocol, checkpoint/resume behavior, and simulated CI adapter are documented in [`benchmarks/README.md`](../benchmarks/README.md). The simulated adapter validates the tool only; it is not a latency result.
+The executable harness, fixed English v1 suite, adapter protocol, checkpoint/resume behavior, and simulated CI adapter are documented in [`benchmarks/README.md`](../benchmarks/README.md). The simulated adapter checks the runner and reporting code.
 
-## Reference result versus guarantee
+## Reference run
 
-The original Lilyput integration observed endpoint samples of 1.969, 1.966, 2.588, 2.247, 4.573, 1.908, 1.992, and 2.674 seconds during one real conversation run. This is a useful engineering record, not a controlled public benchmark: prompts differed, network conditions were not held constant, and the sample is small.
-
-The correct current wording is:
-
-> Near-two-second physical response on a reference prototype, with visible long-tail latency and no universal SLA.
+The original Lilyput integration observed endpoint samples of 1.969, 1.966, 2.588, 2.247, 4.573, 1.908, 1.992, and 2.674 seconds during one real conversation run. These eight samples come from varied prompts in one conversation, with uncontrolled network conditions. They describe that run only.
 
 ## Stronger physical verification
 
@@ -79,4 +75,4 @@ The benchmark roadmap includes deterministic delay and loss injection at:
 - renderer queue and acknowledgement;
 - device feed gaps.
 
-This distinguishes a robust real-time system from one that is fast only on a perfect network.
+These tests measure behavior under delayed delivery and interrupted connections.

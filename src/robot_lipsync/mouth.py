@@ -1,11 +1,11 @@
-"""Monroe lips: the dot-matrix mouth used on the Lilyput chest OLED.
+"""dot-matrix mouth: the dot-matrix mouth used on the Lilyput chest OLED.
 
-This module carries the Lilyput "梦露嘴唇" design into the open package: the
+This module carries the Lilyput "点阵口型" design into the open package: the
 pose parameters and landmark contours of ``make_lips.py``, the muscle-channel
 targets of English v2, and the merged Mandarin targets. The exact 128x64
-frames are generated once by ``tools/monroe/build_bank.py`` (Pillow) and
-shipped as ``firmware/esp32_oled/monroe_frames.h`` and
-``renderers/monroe_frames.js``; this module only decides which pose to show.
+frames are generated once by ``tools/mouth/build_bank.py`` (Pillow) and
+shipped as ``firmware/esp32_oled/mouth_frames.h`` and
+``renderers/mouth_frames.js``; this module only decides which pose to show.
 
 Geometry, in one paragraph: two sculpted upper lobes meet in a soft central
 notch with a natural tubercle; from each Cupid's-bow peak the outer shoulder
@@ -31,7 +31,7 @@ def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Geometric pose (the original Monroe v1 parameters)
+# Geometric pose (the original frame bank v1 parameters)
 
 
 @dataclass(frozen=True)
@@ -360,7 +360,7 @@ def layer_offsets(pose: MusclePose) -> tuple[float, float]:
     return up, down
 
 
-# Hand-designed English targets (Monroe v2). Every language reuses them.
+# Hand-designed English targets (Mouth v2). Every language reuses them.
 TARGETS = {
     p.key: constrain(p)
     for p in (
@@ -803,7 +803,7 @@ V2_FIRST_FRAME = 27
 
 
 def nearest_frame(pose: MusclePose) -> int:
-    """Index (27..43) of the Monroe v2 frame closest to a muscle pose."""
+    """Index (27..43) of the Mouth v2 frame closest to a muscle pose."""
     best, best_d = V2_FIRST_FRAME, float("inf")
     for i, target in enumerate(TARGETS.values()):
         d = sum(w * (getattr(pose, c) - getattr(target, c)) ** 2 for c, w in _FRAME_WEIGHTS.items())
@@ -940,7 +940,7 @@ def annotate_oled_frames(events) -> None:
             previous = (event.start_ms, frame)
 
 
-# The 44 frames flashed into the chest board: Monroe v1 (0..26) + v2 (27..43).
+# The 44 frames flashed into the chest board: frame bank v1 (0..26) + v2 (27..43).
 FRAME_NAMES = tuple("V1_" + p.key for p in POSES) + tuple("V2_" + k for k in TARGETS)
 FRAME_INDEX.update({name: index for index, name in enumerate(FRAME_NAMES)})
 

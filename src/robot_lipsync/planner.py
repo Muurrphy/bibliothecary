@@ -26,11 +26,11 @@ SHAPES: dict[str, Articulation] = {
     "SIDE_L": Articulation(0.26, 0.18, 0.68, 0.04, 0.04, asymmetry=-0.34),
     "SIDE_SH": Articulation(0.29, 0.22, 0.48, 0.34, 0.03, asymmetry=0.20),
     # Spanish's five pure vowels, b/v approximant and ch come from the muscle
-    # targets in ``monroe.LANG_TARGETS`` (added by ``_add_language_shapes``).
+    # targets in ``mouth.LANG_TARGETS`` (added by ``_add_language_shapes``).
     "ES_ALVEOLAR": Articulation(0.20, 0.14, 0.66, 0.02, 0.03),
     # Mandarin: the 17 semantic targets of the Lilyput Mandarin v1 spec plus ê,
     # the apical vowels and the two nasal codas. Values are the eight-channel
-    # projection of the muscle targets in ``monroe.ZH_TARGETS``.
+    # projection of the muscle targets in ``mouth.ZH_TARGETS``.
     "ZH_BPM": Articulation(0.00, 0.01, 0.46, 0.14, 1.00, lip_protrusion=0.10),
     "ZH_F": Articulation(0.10, 0.15, 0.57, 0.05, 0.00, lower_lip_tuck=1.00, asymmetry=-0.04),
     "ZH_APICAL": Articulation(0.18, 0.26, 0.60, 0.04, 0.00),
@@ -80,12 +80,12 @@ def _from_muscle(m) -> Articulation:
 
 
 def _add_language_shapes() -> None:
-    from . import monroe
+    from . import mouth
 
-    for name, muscle in monroe.LANG_TARGETS.items():
+    for name, muscle in mouth.LANG_TARGETS.items():
         SHAPES[name] = _from_muscle(muscle)
-    for name, (start, _end) in monroe.EN_GLIDES.items():
-        SHAPES[name] = _from_muscle(monroe.TARGETS[start])
+    for name, (start, _end) in mouth.EN_GLIDES.items():
+        SHAPES[name] = _from_muscle(mouth.TARGETS[start])
 
 
 _add_language_shapes()
@@ -300,7 +300,7 @@ def phonemes_to_articulation(
                 metadata=metadata,
             )
         )
-    from .monroe import annotate_oled_frames  # local import keeps planner light
+    from .mouth import annotate_oled_frames  # local import keeps planner light
 
     annotate_oled_frames(events)
     return events
