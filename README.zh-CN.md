@@ -1,68 +1,16 @@
-# Robot LipSync 中文说明
+# 多语言口型已合并到 Margin（页边）
 
-**面向机器人和受限显示设备的实时、肌肉感语音口型。**
+Kindle 伴读和数码嘴型现在统一为一个项目：
 
-Robot LipSync 在 TTS 还在流式生成声音时，就把同一条音频时间线上的字符对齐转换成连续嘴部动作。它不是“声音越大嘴张得越大”的音量动画，也不是一套只能给某块 OLED 使用的位图。
+## [Margin · 多设备伴读](https://github.com/Muurrphy/margin)
 
-项目只讲一个容易理解的承诺：
+旧 Kindle 负责显示文章，手机或 iPad 负责播放声音、听问题和显示嘴型。Kindle 不用越狱。口型源码、语言规则、网页渲染、示例、测试、数据格式、可选 OLED 固件和工具都已经放进同一个仓库，一次安装即可使用。
 
-> 让机器人尽早开口，同时让嘴型在同一物理播放时钟上准确、自然地开始运动。
+**之后统一在 [Margin](https://github.com/Muurrphy/margin) 维护和提交问题。** 手机收音目前仍有漏听，统一项目首页已明确说明这是实验版本。
 
-“约两秒开口”是参考硬件上的性能目标和 benchmark，不是第二个产品，也不是对所有网络和模型的保证。
+- [中文使用说明](https://github.com/Muurrphy/margin/blob/main/README.zh-CN.md)
+- [English README](https://github.com/Muurrphy/margin#readme)
+- [口型模块技术文档](https://github.com/Muurrphy/margin/blob/main/docs/lipsync.md)
+- [已知问题](https://github.com/Muurrphy/margin/blob/main/docs/known-issues.md)
 
-## 无密钥体验
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-robot-lipsync demo
-```
-
-打开 `build/demo.html` 即可看到浏览器动画，同时会生成显示无关的 `build/demo.timeline.json`。
-
-预览用的是**梦露嘴唇**：为 Lilyput 机器人胸口 OLED 设计的点阵嘴。上唇是两团饱满的唇峰，中间有自然的唇珠；从唇峰到嘴角先往里收再回到嘴角；下唇比上唇更饱满；并且张得最大时嘴会变窄，拉得最宽时嘴会合上，两个方向不会同时到极限。`--profile oled` 显示 ESP32 固件烧进去的 44 张 128x64 原图，每个事件一张；`--profile screen`（默认）用同一套几何在两倍分辨率上连续生成，给平板和显示器用，画成像素平涂风格。`--palette red|blue` 选择红色或蓝色。详见 [梦露嘴唇](docs/monroe-lips.md)。
-
-## 英语、普通话和西班牙语
-
-语言标签现在会选择不同的“文字→音素→可视嘴型”管线，不再把所有拉丁字母都当英语，也不再把每个汉字压成同一个中性嘴型。
-
-```bash
-# 西班牙语：核心安装即可使用
-robot-lipsync demo --text "Hola, mundo." --language es \
-  --output build/spanish.html
-
-# 普通话：安装带词组消歧的拼音支持
-pip install -e ".[mandarin]"
-robot-lipsync demo --text "你好，世界。" --language zh-CN \
-  --output build/mandarin.html
-```
-
-西语使用独立的五元音目标，并处理 `b/v` 同属双唇音、`h` 不发音、`ñ/ll/rr`、`que/gui` 等规则；默认 `es` 使用 seseo，`es-ES` 保留卡斯蒂利亚西语的齿音区别。普通话按声母和韵母拆分，保留 `u/ü`、卷舌/舌面/齿音类别、复韵母运动路径与声调元数据；流式输入会保留两个汉字的右侧上下文，以减少多音字读音在发送到硬件后被改写。
-
-论文依据、方言选择和仍需真人/实体机器人验证的限制见 [多语言发音说明](docs/multilingual.md)。
-
-如需接入 ElevenLabs，可安装 `.[elevenlabs]` 并运行 `examples/elevenlabs_http.py`；普通话同时安装 `.[elevenlabs,mandarin]`。设置 `ELEVENLABS_LANGUAGE=es` 或 `zh-CN` 后，字符时间戳会进入对应语言管线。该示例从同一条 HTTP 响应同时取得音频与字符时间戳，不会为了计算口型把已生成的声音再上传给第二个模型；密钥只从环境变量读取。
-
-仓库现已包含可复现编译的 ESP32-C3 + 128×64 OLED 通用固件，以及“20 个固定英文场景 × 5 次”的 100 轮 benchmark runner。固件显示梦露嘴唇（和 Lilyput 胸口板同样的 44 张位图），主机可以随事件附带帧号；没有帧号时，板子按八个连续肌肉通道选最接近的一帧，算法和预览完全一致；benchmark 使用长期存活的适配器连接、逐轮落盘、断点续跑，并分别报告物理声音、第一帧嘴型、失败和欠载。仓库内模拟器只用于验证工具，所有记录明确标记 `simulated=true`，不能当作真实性能数据。中文和西语目前已有确定性测试与示例，但还没有可发布的真人/实体机器人感知基准。
-
-## 核心差异
-
-- 输出下颌、唇缝、嘴角宽度、圆唇、闭唇力度、前突、下唇内收和不对称等连续通道；
-- 明确保留 M/B/P 闭唇、F/V 唇齿、O/U/W 圆唇和双元音路径；
-- 纵向大开口与横向极限拉伸互相拮抗；
-- 增量输入只发布已经稳定的词和动作，不改写已传给硬件的时间线；
-- 同一 IR 可以驱动网页、OLED、虚拟角色和未来的硅胶机械嘴；
-- 延迟从用户停嘴一直记录到实体扬声器起播和第一帧嘴部动作。
-
-## 旧设备当家庭终端（配合 Margin）
-
-[Margin](https://github.com/Muurrphy/margin) 是另一个独立的开源项目：让旧 Kindle 变成伴读。它的“嘴”用的就是这个仓库——旧 iPad 或手机负责出声、一直听、显示点阵梦露嘴，Kindle 负责显示文章。Margin 把 ElevenLabs 返回的每句话逐字时间交给 `alignment_to_phonemes` 和 `phonemes_to_articulation`，平板用 `renderers/dotmatrix.js` 画出来（蓝色配色）。
-
-两个项目互相独立：robot-lipsync 不依赖电子书；没装 robot-lipsync 时 Margin 也能跑，只是没有这张嘴。
-
-## 诚实的延迟表述
-
-Lilyput 原型的大多数实测轮次约在 1.9–2.7 秒开始实体播放，同时记录到一次 4.573 秒长尾。因此目前准确的表达是“near-two-second reference response”，而不是“永远两秒内”或“全球最快”。仓库提供分阶段 trace、P50/P95/P99 和欠载指标，使优化能够复现和比较。
-
-完整架构、研究边界和发布条件请阅读英文 [README](README.md) 及 `docs/`。
+原来的 `robot_lipsync` 导入方式和 `robot-lipsync` 命令保留。这个仓库保留旧源码和历史，最后一个独立版本是 [8b90e61](https://github.com/Muurrphy/robot-lipsync/tree/8b90e617de9af3bc5d8c33d94d40e19735abe951)，仍使用 MIT 许可。
