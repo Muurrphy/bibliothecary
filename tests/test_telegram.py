@@ -119,7 +119,7 @@ def test_talking_uses_the_records_and_voice_is_heard(home):
     lib.handle(message(ME, voice={"file_id": "v1", "mime_type": "audio/ogg"}))
     assert bot.sent[-1][1] == "要不要接着读章鱼？"
     system, context = client.prompts[-1]
-    assert "Simplified Chinese" in system and "never invent a URL" in system
+    assert "Simplified Chinese" in system and "never invent one" in system
     assert "What an Octopus Does in Its Sleep" in context and "乌贼睡觉" in context
     assert "Reader: 想读点动物的" in context
     log = (home / "chat.jsonl").read_text(encoding="utf-8")

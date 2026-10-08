@@ -123,6 +123,31 @@ class OpenAICompatible:
             if piece:
                 yield piece
 
+    # ---- web search ------------------------------------------------------------------
+    def web_search(self, query: str, *, model: str | None = None) -> dict[str, Any]:
+        """OpenAI's built-in web search (Responses API): {"text": ..., "sources": [{"title", "url"}]}."""
+        if "api.openai.com" not in self.base_url:
+            raise APIError("web search needs the OpenAI API (MARGIN_BASE_URL is another service)")
+        model = model or os.environ.get("MARGIN_SEARCH_MODEL") or self.model
+        last: Exception | None = None
+        for tool in ("web_search", "web_search_preview"):        # the older name for older accounts
+            body = {"model": model, "tools": [{"type": tool}], "input": query}
+            try:
+                raw = self._post("/responses", json.dumps(body).encode(), "application/json")
+                break
+            except APIError as err:
+                last = err
+        else:
+            raise last or APIError("web search failed")
+        text, sources = [], []
+        for item in json.loads(raw).get("output") or []:
+            for part in item.get("content") or [] if item.get("type") == "message" else []:
+                if part.get("type") == "output_text":
+                    text.append(part.get("text") or "")
+                    sources += [{"title": a.get("title") or "", "url": a["url"]}
+                                for a in part.get("annotations") or [] if a.get("type") == "url_citation" and a.get("url")]
+        return {"text": "\n".join(text).strip(), "sources": sources}
+
     # ---- audio -----------------------------------------------------------------------
     def speech(self, text: str, *, voice: str, model: str, instructions: str | None = None) -> bytes:
         body = {"model": model, "voice": voice, "input": text, "response_format": "mp3"}

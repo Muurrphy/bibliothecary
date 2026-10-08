@@ -73,16 +73,64 @@ def from_html(markup: str) -> tuple[str, str]:
     return _clean_title(parser.title) or "Untitled", "\n\n".join(parser.paragraphs)
 
 
+MAX_WORDS = 12000          # a long paper is cut here (after dropping its references)
+_LINE_END = re.compile(r"[.!?。！？:：]$")
+_REFERENCES = re.compile(r"^\s*(\d+\.?\s*)?(references|bibliography|works cited|参考文献)\s*$", re.IGNORECASE)
+
+
+def from_pdf(data: bytes) -> tuple[str, str]:
+    """Text from a PDF, with lines joined back into paragraphs and the reference list left out."""
+    import io
+
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(data))
+    lines = [line.strip() for page in reader.pages for line in (page.extract_text() or "").splitlines()]
+    lines = [line for line in lines if line and not line.isdigit()]          # page numbers
+    for i in range(len(lines) - 1, int(len(lines) * 0.5), -1):
+        if _REFERENCES.match(lines[i]):
+            lines = lines[:i]
+            break
+    width = sorted(len(line) for line in lines)[len(lines) * 3 // 4] if lines else 0
+    paragraphs, buf = [], ""
+    for line in lines:
+        if buf.endswith("-") and line[:1].islower():
+            buf = buf[:-1] + line                                              # hyphen-
+        else:
+            buf = f"{buf} {line}".strip()
+        if _LINE_END.search(line) and len(line) < width * 0.8:                 # a short line ends a paragraph
+            paragraphs.append(buf)
+            buf = ""
+    if buf:
+        paragraphs.append(buf)
+    meta = (reader.metadata.title if reader.metadata else None) or ""
+    title = meta.strip() or (paragraphs[0][:120] if paragraphs else "Untitled")
+    return title, _cap("\n\n".join(paragraphs))
+
+
+def _cap(text: str) -> str:
+    words = text.split(" ")
+    return text if len(words) <= MAX_WORDS else " ".join(words[:MAX_WORDS]).rsplit("\n\n", 1)[0]
+
+
 def load_article(where: str) -> tuple[str, str, str]:
-    """(title, text, source) from a URL or a local .txt/.md/.html file."""
+    """(title, text, source) from a URL or a local .txt/.md/.html/.pdf file."""
 
     if re.match(r"https?://", where):
         req = urllib.request.Request(where, headers={"User-Agent": "Mozilla/5.0 (Margin reader)"})
         with urllib.request.urlopen(req, timeout=30) as res:
-            markup = res.read().decode(res.headers.get_content_charset() or "utf-8", "replace")
-        title, text = from_html(markup)
-        return title, text, where
+            raw = res.read()
+            kind = res.headers.get_content_type()
+            charset = res.headers.get_content_charset() or "utf-8"
+        if kind == "application/pdf" or raw[:5] == b"%PDF-":
+            title, text = from_pdf(raw)
+        else:
+            title, text = from_html(raw.decode(charset, "replace"))
+        return title, _cap(text), where
     path = Path(where)
+    if path.suffix.lower() == ".pdf":
+        title, text = from_pdf(path.read_bytes())
+        return title, text, path.name
     raw = path.read_text(encoding="utf-8")
     if path.suffix.lower() in {".html", ".htm"}:
         title, text = from_html(raw)

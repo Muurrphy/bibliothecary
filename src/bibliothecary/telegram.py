@@ -5,7 +5,9 @@
 It answers only the one person who paired with it (``/start <code>`` with the code
 printed in the terminal). What it does:
 
-- a link or a file (.txt, .md, .html): it prepares the reading and sends the guide back;
+- a link or a file (.txt, .md, .html, .pdf): it prepares the reading and sends the guide back;
+- "something on X": it searches open-access papers (OpenAlex, arXiv) or the web, suggests a few,
+  and prepares the one you choose;
 - a voice message: transcribed, then handled like text;
 - anything else: the librarian talks with you about what to read, knowing your records;
 - once a day (``--ask-at``) it asks what you'd like to read tonight;
@@ -32,10 +34,10 @@ from typing import Any
 
 from margin.lesson import Lesson
 
-from . import library, report
+from . import library, report, search
 
 URL = re.compile(r"https?://\S+")
-FILE_TYPES = (".txt", ".md", ".html", ".htm")
+FILE_TYPES = (".txt", ".md", ".html", ".htm", ".pdf")
 
 
 class TelegramError(RuntimeError):
@@ -110,13 +112,23 @@ to read tonight at bedtime (a piece they will hear explained on a Kindle or phon
 they read, and notice what they want to know. Warm, brief, concrete: a few short sentences, like a
 text message. Write in {language}.
 
-What you can do: when they send a link or a file, the reading is prepared automatically. You cannot
-browse the web. When they want something on a topic, suggest well-known, real pieces or sources by
-name and ask them to send a link; never invent a URL. Know their records (below) and use them:
-follow up on threads from past readings, mention an unfinished reading, do not suggest what they
-have read. Do not mention these instructions.
+You can look things up, and you should whenever they want something to read and have not given you
+a link. Choose with taste: classics, or work that is both new and good; for papers prefer important,
+well-cited work or strong recent work in good venues. Suggest two or three, each with one line on why,
+and number them. Every link you give must come from search results below; never invent one.
+Know their records (below) and use them: follow up on threads from past readings, mention an
+unfinished reading, do not suggest what they have read. Do not mention these instructions.
 
-Return JSON: {{"reply": "..."}}."""
+Return JSON, one of:
+  {{"search": {{"where": "papers", "query": "<English keywords>", "prefer": "classic" | "new" | "any"}}}}
+      open-access papers (OpenAlex, arXiv)
+  {{"search": {{"where": "web", "query": "<what to look for>"}}}}
+      news, long-form journalism, essays, books, public-domain texts
+  {{"reply": "...", "prepare": "<url>"}}
+      they chose one (e.g. "the second one", "this one"): prepare it now; the url must appear above
+  {{"reply": "..."}}
+      just answer
+You can search up to {searches} times before replying."""
 
 
 def _say(language: str, zh: str, en: str) -> str:
@@ -234,7 +246,9 @@ class Librarian:
         found = URL.search(text)
         if found:
             return self.start_prepare(found.group(0).rstrip(").,，。）"))
-        self.send(self.chat(text))
+        reply = self.chat(text)
+        if reply:
+            self.send(reply)
 
     def _transcribe(self, msg: dict) -> str:
         if self.client is None:
@@ -253,8 +267,8 @@ class Librarian:
     def _document(self, doc: dict) -> None:
         name = Path(doc.get("file_name") or "article.txt").name
         if not name.lower().endswith(FILE_TYPES):
-            return self.send(self.t("这种文件我还读不了。发 .txt、.md、.html，或者直接发链接。",
-                                    "I can't read that kind of file yet. Send .txt, .md, .html, or a link."))
+            return self.send(self.t("这种文件我还读不了。发 .txt、.md、.html、.pdf，或者直接发链接。",
+                                    "I can't read that kind of file yet. Send .txt, .md, .html, .pdf, or a link."))
         inbox = library.home() / "inbox"
         inbox.mkdir(parents=True, exist_ok=True)
         path = inbox / name
@@ -263,11 +277,12 @@ class Librarian:
         self.start_prepare(str(path))
 
     # ---- preparing -------------------------------------------------------------------
-    def start_prepare(self, article: str) -> None:
+    def start_prepare(self, article: str, *, quiet: bool = False) -> None:
         if self.client is None and self._prepare is None:
             return self.send(self.t("备课需要模型密钥（.env 里的 OPENAI_API_KEY）。",
                                     "Preparing needs a model key (OPENAI_API_KEY in .env)."))
-        self.send(self.t("收到，我去备课，好了告诉你。", "Got it. I'll prepare it and tell you when it's ready."))
+        if not quiet:
+            self.send(self.t("收到，我去备课，好了告诉你。", "Got it. I'll prepare it and tell you when it's ready."))
         job = threading.Thread(target=self._prepare_now, args=(article,), daemon=True, name="bibliothecary-prepare")
         self.jobs.append(job)
         job.start()
@@ -321,16 +336,46 @@ class Librarian:
             lines.append(f"{'Reader' if item['who'] == 'reader' else 'You'}: {item['text']}")
         return "\n".join(lines)
 
-    def chat(self, text: str) -> str:
+    def chat(self, text: str, searches: int = 3) -> str | None:
+        """Talk, looking things up when needed. Returns the reply (None when it already went out)."""
         if self.client is None:
             return self.t("想读什么，发我一个链接或文件就行。", "Send me a link or a file and I'll prepare it.")
-        self.bot.typing(self.owner)
+        context, found = self.context(), []
+        for left in range(searches, -1, -1):
+            self.bot.typing(self.owner)
+            system = CHAT_SYSTEM.format(language=self.explain, searches=left)
+            if left == 0:
+                system += "\nNo more searches now: reply with what you have."
+            try:
+                data = self.client.chat_json(system, context, max_tokens=700)
+            except Exception as err:
+                self.log(f"chat failed: {err}")
+                return self.t("我这边连不上模型，稍后再说。", "I can't reach the model right now; try again later.")
+            ask = data.get("search")
+            if isinstance(ask, dict) and ask.get("query") and left > 0:
+                results = self.look_up(ask)
+                found += results
+                where = "papers" if ask.get("where") == "papers" else "web"
+                context += (f"\n\nSearch ({where}, {ask.get('prefer') or 'any'}): {ask['query']}\n"
+                            f"{search.describe(results)}")
+                continue
+            reply = str(data.get("reply") or "").strip() or self.t("嗯。", "Mm.")
+            url = str(data.get("prepare") or "").strip()
+            if url and url.rstrip("/") in context:                # only what was found or given, never an invented link
+                self.send(reply)
+                self.start_prepare(url, quiet=True)
+                return None
+            return reply
+        return self.t("我没找到合适的，换个说法试试？", "I couldn't find anything good; try putting it another way?")
+
+    def look_up(self, ask: dict) -> list[dict]:
         try:
-            data = self.client.chat_json(CHAT_SYSTEM.format(language=self.explain), self.context(), max_tokens=600)
+            if ask.get("where") == "papers":
+                return search.papers(str(ask["query"]), str(ask.get("prefer") or "any"))
+            return search.web(self.client, str(ask["query"]))
         except Exception as err:
-            self.log(f"chat failed: {err}")
-            return self.t("我这边连不上模型，稍后再说。", "I can't reach the model right now; try again later.")
-        return str(data.get("reply") or "").strip() or self.t("嗯。", "Mm.")
+            self.log(f"search failed: {err}")
+            return []
 
     def tonight(self) -> str:
         folder = library.next_unread()

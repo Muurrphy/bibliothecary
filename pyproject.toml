@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = "MIT"
 authors = [{name = "Muurrphy"}]
 keywords = ["librarian", "reading", "kindle", "e-ink", "voice", "reading-report", "lip-sync", "multilingual"]
-dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55", "trafilatura>=2.0"]
+dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55", "trafilatura>=2.0", "pypdf>=5.0"]
 
 [project.optional-dependencies]
 # Compatibility aliases; the mouth and its language front ends are included.

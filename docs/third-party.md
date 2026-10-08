@@ -27,4 +27,7 @@ The optional provider uses the official [HTTP streaming-with-timestamps endpoint
 | Library | Used for | License |
 |---|---|---|
 | [trafilatura](https://github.com/adbar/trafilatura) | Finding the article on a web page, without menus, related links or footers | Apache-2.0 |
+| [pypdf](https://github.com/py-pdf/pypdf) | Reading PDF papers | BSD-3-Clause |
+
+Services it searches: [OpenAlex](https://openalex.org) (open scholarly metadata, CC0; free daily budget per IP, more with a free `OPENALEX_API_KEY`), the [arXiv API](https://info.arxiv.org/help/api/index.html), and OpenAI's web search tool (Responses API, billed to your OpenAI key).
 | [cmudict](https://github.com/prosegrammers/pronouncing) / [pypinyin](https://github.com/mozillazg/python-pinyin) | English and Mandarin pronunciation for the mouth | see each project |
