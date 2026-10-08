@@ -25,6 +25,15 @@ class APIError(RuntimeError):
     pass
 
 
+REASONING_ALLOWANCE = 4000          # tokens a reasoning model may think for, on top of the reply
+
+
+def reasons(model: str) -> bool:
+    """OpenAI's reasoning models (gpt-5…, o1/o3/o4…) think before they answer."""
+    name = model.lower().rsplit("/", 1)[-1]
+    return name.startswith("gpt-5") or (len(name) > 1 and name[0] == "o" and name[1].isdigit())
+
+
 class OpenAICompatible:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, model: str | None = None,
                  timeout: float = 60.0) -> None:
@@ -61,32 +70,43 @@ class OpenAICompatible:
         net.warm(self.base_url + "/models", {"Authorization": f"Bearer {self.api_key}"})
 
     # ---- text ------------------------------------------------------------------------
-    def chat_json(self, system: str, user: str, *, model: str | None = None, max_tokens: int | None = None) -> dict[str, Any]:
+    def _body(self, system: str, user: str, model: str | None, max_tokens: int | None) -> dict[str, Any]:
+        model = model or self.model
         body: dict[str, Any] = {
-            "model": model or self.model,
+            "model": model,
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "response_format": {"type": "json_object"},
         }
+        if reasons(model):
+            # a reasoning model spends tokens thinking before it writes: a cap meant for the reply
+            # alone would be used up by the thinking and leave the reply empty
+            if max_tokens:
+                max_tokens += REASONING_ALLOWANCE
+            if os.environ.get("MARGIN_REASONING_EFFORT"):
+                body["reasoning_effort"] = os.environ["MARGIN_REASONING_EFFORT"]
         if max_tokens:
             body["max_completion_tokens"] = max_tokens
+        return body
+
+    def chat_json(self, system: str, user: str, *, model: str | None = None, max_tokens: int | None = None) -> dict[str, Any]:
+        body = self._body(system, user, model, max_tokens)
         raw = self._post("/chat/completions", json.dumps(body).encode(), "application/json")
         try:
-            content = json.loads(raw)["choices"][0]["message"]["content"]
+            choice = json.loads(raw)["choices"][0]
+            content = choice["message"]["content"]
+            if not content and choice.get("finish_reason") == "length" and "max_completion_tokens" in body:
+                # the cap was still too small (an unknown reasoning model): once more without one
+                del body["max_completion_tokens"]
+                raw = self._post("/chat/completions", json.dumps(body).encode(), "application/json")
+                content = json.loads(raw)["choices"][0]["message"]["content"]
             return json.loads(content)
-        except (KeyError, IndexError, json.JSONDecodeError) as err:
+        except (KeyError, IndexError, TypeError, json.JSONDecodeError) as err:
             raise APIError(f"unexpected reply: {raw[:300]!r}") from err
 
     def chat_json_stream(self, system: str, user: str, *, model: str | None = None,
                          max_tokens: int | None = None) -> Iterator[str]:
         """The same JSON reply as ``chat_json``, as text pieces while the model writes it."""
-        body: dict[str, Any] = {
-            "model": model or self.model,
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "response_format": {"type": "json_object"},
-            "stream": True,
-        }
-        if max_tokens:
-            body["max_completion_tokens"] = max_tokens
+        body = {**self._body(system, user, model, max_tokens), "stream": True}
         res = self._open("/chat/completions", json.dumps(body).encode(), "application/json")
         for line in res.lines():
             line = line.strip()

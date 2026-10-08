@@ -239,3 +239,20 @@ def test_web_page_keeps_only_the_article():
     assert title == "Black Holes"
     assert "Missions" not in text and "Flight Directors" not in text and "sentence number 39" in text
     assert not text.startswith("Black Holes")          # the title is not read twice
+
+
+def test_reasoning_models_get_room_to_think(monkeypatch):
+    from margin import llm
+
+    client = llm.OpenAICompatible(api_key="k", model="gpt-5-mini")
+    sent = []
+    replies = [{"choices": [{"message": {"content": ""}, "finish_reason": "length"}]},
+               {"choices": [{"message": {"content": '{"reply": "好"}'}, "finish_reason": "stop"}]}]
+    monkeypatch.setattr(client, "_post", lambda path, body, kind: (sent.append(json.loads(body)),
+                                                                     json.dumps(replies[len(sent) - 1]).encode())[1])
+    assert client.chat_json("s", "u", max_tokens=600) == {"reply": "好"}
+    assert sent[0]["max_completion_tokens"] == 600 + llm.REASONING_ALLOWANCE
+    assert "max_completion_tokens" not in sent[1]                # an empty, cut-off reply is asked again
+    assert "reasoning_effort" not in sent[0]
+    assert client._body("s", "u", "gpt-4.1-mini", 600)["max_completion_tokens"] == 600
+    assert llm.reasons("o3-mini") and llm.reasons("openai/gpt-5") and not llm.reasons("gpt-4o-mini")

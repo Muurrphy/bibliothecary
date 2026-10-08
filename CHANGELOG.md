@@ -5,6 +5,7 @@
 The project is now **Bibliothecary**, a personal librarian (Chinese: 图书管理员). Margin stays as the name of the reading room, and the mouth stays optional. See the [requirements](docs/requirements.md).
 
 - `biblio` (also `bibliothecary`): `prepare` an article, `read` it, rewrite its `report`, list the `records`.
+- Reasoning models (gpt-5…, o-series) are given room to think on top of the reply, and an empty, cut-off reply is asked again without a limit. Before, the librarian's chat came back empty with gpt-5-mini. `MARGIN_REASONING_EFFORT` sets the effort.
 - `biblio telegram`: the librarian in a Telegram chat, paired with one person. Links, files and voice messages are prepared and the guide is sent back; free chat knows your records; a daily question at noon, tonight's reading in the evening, and the reading report after each session. The chat is kept in `~/Bibliothecary/chat.jsonl`.
 - Three-part sessions: background before the reading (preview), the reading, and review questions after it. The player waits for your answer to each review question; "继续 / go on" skips one. The Kindle shows YOUR TURN meanwhile.
 - Circulation records: every question and answer is appended to the reading's `session.jsonl` as it is said, and a Markdown reading report is written when the session ends or the program is stopped. With a model, the report adds what still seems unclear and which threads are worth following, next to the verbatim record.
