@@ -110,3 +110,57 @@ def test_a_planned_moment_wins_over_the_model_and_sends_its_cue():
     finally:
         link.close()
         server.shutdown()
+
+
+def test_a_spoken_command_is_done_at_once_without_the_model():
+    server, seen, voice, lesson, ears, _bus, link = _setup("你繼續講")   # traditional characters, too
+    try:
+        ears.audio("q4", b"\x00\x01" * 2400)
+        ears.end("q4")
+        assert _wait_for(lambda: lesson.steps[0].say in voice.said)        # straight back to the plan
+        assert _wait_for(lambda: seen.get("response.cancel"))
+        assert "第一句短回答。" not in voice.said
+    finally:
+        link.close()
+        server.shutdown()
+
+
+def test_a_stalled_realtime_answer_is_asked_again_the_classic_way(monkeypatch):
+    monkeypatch.setenv("MARGIN_FIRST_TEXT_TIMEOUT", "0.3")
+    seen: dict = {}
+
+    def handler(ws):                       # accepts the question, then never answers
+        for raw in ws:
+            ev = json.loads(raw)
+            seen[ev["type"]] = seen.get(ev["type"], 0) + 1
+            if ev["type"] == "session.update":
+                ws.send(json.dumps({"type": "session.updated"}))
+            elif ev["type"] == "input_audio_buffer.commit":
+                ws.send(json.dumps({"type": "input_audio_buffer.committed", "item_id": "item_9"}))
+
+    server = websockets_sync.serve(handler, "127.0.0.1", 0)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"ws://127.0.0.1:{server.socket.getsockname()[1]}/v1/realtime"
+    from margin.lesson import Step
+
+    bus, voice = Bus(), QuickVoice()
+    asked = []
+
+    def answerer(lesson, question, current, position=None, history=None):
+        asked.append(question)
+        return {"steps": [Step(say="经典路径的回答。")], "then": "pause"}
+
+    player = Player(bus, voice, answerer)
+    player.load(Lesson.load(EXAMPLE))
+    link = RealtimeLink("sk-test", log=lambda m: None, url=url)
+    try:
+        assert link.connected.wait(5)
+        ears = Ears(player, link, lambda audio, mime: "以色列在哪里？", lambda t: False,
+                    lambda: "INSTRUCTIONS", lambda m: None)
+        ears.audio("q5", b"\x00\x01" * 2400)
+        ears.end("q5")
+        assert _wait_for(lambda: "经典路径的回答。" in voice.said, timeout=6)
+        assert asked == ["以色列在哪里？"]
+    finally:
+        link.close()
+        server.shutdown()

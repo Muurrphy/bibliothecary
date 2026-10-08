@@ -77,7 +77,8 @@ const post = (url, body, type) => netFetch(url, {method: "POST", headers: {"Cont
 async function hello(claim = false) {
   const result = await post("/api/speaker/hello", {sid: SID, mute: MUTE, listen: LISTEN, claim});
   if (result.error) throw new Error(result.error);
-  if (!result.primary) {
+  if (!result.primary && (LISTEN || !MUTE)) {   // another device took over: be a quiet mouth
+    note("another device is the speaker now");
     LISTEN = false; MUTE = true;
     const graph = window.marginMicGraph;
     if (graph) graph.stream.getTracks().forEach(track => track.stop());
@@ -99,14 +100,13 @@ async function speak(d) {
   try {
     const [buf, info] = await Promise.all([
       netFetch("/api/clip/" + d.id, {}, "arrayBuffer").then(decode),
-      d.lips && window.DotLips ? netFetch("/api/clip/" + d.id + ".json?wait=12", {}, "json", 15000) : null
+      d.lips && window.DotLips ? netFetch("/api/clip/" + d.id + ".json?wait=12", {}, "json", 15000).catch(() => null) : null
     ]);
     if (cur !== clip || clip.done) return;
-    if (d.lips && window.DotLips) {
-      if (!info || !info.ready || !info.timeline.length) throw new Error("mouth timing unavailable");
-      clip.at = DotLips.track(info.timeline);
-    }
-    if (AC.state !== "running") throw new Error("tap the screen to resume audio");
+    // no timing for this line: the mouth follows loudness instead (never hold the voice back for it)
+    if (d.lips && window.DotLips && info && info.timeline && info.timeline.length) clip.at = DotLips.track(info.timeline);
+    if (AC.state !== "running") { try { await AC.resume(); } catch (e) {} }
+    if (AC.state !== "running") { needTap("tap to resume audio"); throw new Error("audio is suspended"); }
     clip.src = AC.createBufferSource(); clip.src.buffer = buf;
     clip.gain = AC.createGain();
     clip.src.connect(clip.gain); clip.gain.connect(outAn);
@@ -126,9 +126,7 @@ async function speak(d) {
   } catch (e) {
     note("clip failed: " + e);
     clip.done = true; if (cur === clip) cur = null;
-    post("/api/speaker/done", {id: clip.id, sid: SID, error: String(e)});
-    document.getElementById("why").textContent = "Playback paused. Tap, then say continue or refresh.";
-    tapEl.hidden = false;
+    post("/api/speaker/done", {id: clip.id, sid: SID, error: String(e)});   // the computer tries again
   }
 }
 function stopClip(id) {
@@ -224,7 +222,7 @@ function finishQuestion() {
   const c = V.cap;
   flush(true);
   V.cap = null; V.recent = [];
-  if (c.voicedMs < 380) { V.state = "too short"; send("/api/heard/cancel?q=" + c.qid + "&sid=" + SID, "{}"); return; }
+  if (c.voicedMs < 300) { V.state = "too short"; send("/api/heard/cancel?q=" + c.qid + "&sid=" + SID, "{}"); return; }
   V.wait = performance.now() + 8000;    // until the answer starts (status events clear this)
   V.state = "sending";
   send("/api/heard/end?q=" + c.qid + "&sid=" + SID, "{}").then(r => {
@@ -236,21 +234,11 @@ function finishQuestion() {
   });
 }
 // ---- start (one tap: browsers only allow sound and microphone after a touch) -------
-async function begin() {
-  if (started) { if (AC.state !== "running") await AC.resume(); tapEl.hidden = true; return; }
-  try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
-  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
-  await AC.resume();
-  await hello(Q.get("role") === "primary");
-  AC.addEventListener("statechange", () => {
-    if (started && AC.state !== "running") {
-      document.getElementById("why").textContent = "Tap to resume audio";
-      tapEl.hidden = false;
-    }
-  });
-  outAn = AC.createAnalyser(); outAn.fftSize = 1024; outBuf = new Float32Array(outAn.fftSize);
-  const sink = AC.createGain(); sink.gain.value = 0; outAn.connect(sink); sink.connect(AC.destination);  // keep it running when muted
-  if (LISTEN) try {
+const micLive = () => !!(window.marginMicGraph && window.marginMicGraph.stream.getAudioTracks().some(t => t.readyState === "live"));
+async function openMic() {         // also used to get the microphone back after the screen was locked
+  try {
+    const old = window.marginMicGraph;
+    if (old) { try { old.proc.disconnect(); old.stream.getTracks().forEach(t => t.stop()); } catch (e) {} }
     const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: true, noiseSuppression: true,
       autoGainControl: true, channelCount: 1}});
     const src = AC.createMediaStreamSource(stream);
@@ -260,12 +248,41 @@ async function begin() {
     const mute = AC.createGain(); mute.gain.value = 0;
     src.connect(proc); proc.connect(mute); mute.connect(AC.destination);
     window.marginMicGraph = {stream, src, proc, mute};
-    window.bedtimeMicReady = stream.getAudioTracks().some(track => track.readyState === "live");
+    window.bedtimeMicReady = micLive();
+    stream.getAudioTracks().forEach(t => t.addEventListener("ended", () => {
+      window.bedtimeMicReady = false; note("microphone stopped");
+    }));
+    return true;
   } catch (e) {
     document.getElementById("why").textContent = !window.isSecureContext
       ? "the microphone needs the https:// address" : "microphone: " + e.message;
     note("microphone unavailable: " + e);
+    return false;
   }
+}
+async function begin() {
+  if (started) {                  // tapped again: sound back on, microphone back on, reading goes on
+    if (AC.state !== "running") await AC.resume();
+    if (LISTEN && !micLive()) await openMic();
+    await hello(Q.get("role") === "primary" || (LISTEN && !MUTE)).catch(() => {});
+    tapEl.hidden = true;
+    if (status === "paused") post("/api/control", {action: "play"});
+    return;
+  }
+  try { if (navigator.audioSession) navigator.audioSession.type = "play-and-record"; } catch (e) {}
+  AC = AC || new (window.AudioContext || window.webkitAudioContext)();
+  await AC.resume();
+  // the device you tap last is the one that listens and speaks (a reloaded page takes over again)
+  await hello(Q.get("role") === "primary" || (LISTEN && !MUTE));
+  AC.addEventListener("statechange", () => {     // a call, Siri or an alarm can stop the audio
+    if (!started || AC.state === "running") return;
+    setTimeout(() => AC.resume().catch(() => {}).then(() => {
+      if (AC.state !== "running") needTap("tap to resume audio");
+    }), 400);
+  });
+  outAn = AC.createAnalyser(); outAn.fftSize = 1024; outBuf = new Float32Array(outAn.fftSize);
+  const sink = AC.createGain(); sink.gain.value = 0; outAn.connect(sink); sink.connect(AC.destination);  // keep it running when muted
+  if (LISTEN) await openMic();
   started = true;
   tapEl.hidden = true;
   wake();
@@ -275,14 +292,21 @@ async function begin() {
   setInterval(() => hello().catch(e => note(String(e))), 5000);
   connect(LISTEN);
 }
+function needTap(why) {
+  document.getElementById("why").textContent = why;
+  tapEl.hidden = false;
+}
 let lock = null;
 async function wake() {
   try { if ("wakeLock" in navigator && !lock) { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => { lock = null; }); } } catch (e) {}
 }
-document.addEventListener("visibilitychange", () => {
+document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState !== "visible" || !started) return;
   wake();
-  if (AC.state !== "running") AC.resume().catch(() => {}).then(() => { if (AC.state !== "running") tapEl.hidden = false; });
+  if (AC.state !== "running") { try { await AC.resume(); } catch (e) {} }
+  if (AC.state !== "running") return needTap("tap to resume audio");
+  // after the screen was locked iOS hands back a dead microphone: open it again
+  if (LISTEN && !micLive() && !(await openMic())) needTap("tap to turn the microphone back on");
 });
 tapEl.addEventListener("click", e => { if (e.target.id !== "cert") begin().catch(error => { document.getElementById("why").textContent = String(error); tapEl.hidden = false; }); });
 if (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches))
@@ -329,8 +353,7 @@ function apply(ev) {
   else if (ev.kind === "hush") stopClip(d.id);
   else if (ev.kind === "playback_error") {
     note(d.message);
-    document.getElementById("why").textContent = "Playback paused. Tap, then say continue or refresh.";
-    tapEl.hidden = false;
+    needTap("tap to go on");
   }
   else if (ev.kind === "status") {
     status = d.state;

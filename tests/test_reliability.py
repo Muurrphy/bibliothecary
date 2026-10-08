@@ -53,13 +53,15 @@ def test_stop_interrupts_pending_synthesis(monkeypatch):
     assert not worker.is_alive()
 
 
-def test_missing_native_timestamps_are_not_replaced_with_guess(monkeypatch):
+def test_missing_native_timestamps_never_silence_a_line(monkeypatch):
     monkeypatch.setenv('MARGIN_NATIVE_TIMING', '1')
     monkeypatch.delenv('MARGIN_VOICE_CACHE_DIR', raising=False)
     v = voice(monkeypatch)
-    v._synthesize_uncached = lambda text: Clip(b'audio', text)
-    with pytest.raises(RuntimeError, match='valid character timestamps'):
-        v._synthesize('no timestamps')
+    tries = []
+    v._synthesize_uncached = lambda text: (tries.append(text) or Clip(b'audio', text))
+    clip = v._synthesize('no timestamps')
+    assert clip.audio == b'audio' and clip.ready.is_set()
+    assert tries == ['no timestamps', 'no timestamps']      # one more try for real timing first
 
 
 def test_only_primary_completion_advances_audio():
@@ -104,7 +106,7 @@ def test_device_decode_error_is_propagated():
     assert hub.active() is None
 
 
-def test_voice_error_pauses_without_skipping_and_can_retry():
+def test_a_voice_hiccup_is_retried_and_the_reading_goes_on():
     class RecoveringVoice:
         def __init__(self):
             self.calls = 0
@@ -115,22 +117,90 @@ def test_voice_error_pauses_without_skipping_and_can_retry():
     v = RecoveringVoice()
     bus = Bus()
     player = Player(bus, v)
-    lesson = Lesson('test', [['test']], [Step(say='test')])
-    player.load(lesson)
+    player.load(Lesson('test', [['test']], [Step(say='one'), Step(say='two')]))
     player.play()
-    assert wait_for(lambda: v.calls == 1 and bus.screen()['screen']['status'] == 'paused')
+    assert wait_for(lambda: bus.screen()['screen']['status'] == 'done')
+    assert v.calls == 3
+
+
+def test_a_line_that_keeps_failing_is_skipped_not_a_full_stop():
+    said = []
+    class Voice:
+        def speak(self, text, stop):
+            if text == 'broken':
+                raise RuntimeError('bad line')
+            said.append(text)
+    bus = Bus()
+    player = Player(bus, Voice())
+    player.load(Lesson('test', [['test']], [Step(say='broken'), Step(say='fine')]))
+    player.play()
+    assert wait_for(lambda: bus.screen()['screen']['status'] == 'done')
+    assert said == ['fine']
+
+
+def test_no_speaker_page_pauses_without_skipping():
+    from margin.speaker import NoSpeaker
+
+    class Voice:
+        calls = 0
+        def speak(self, text, stop):
+            Voice.calls += 1
+            if Voice.calls == 1:
+                raise NoSpeaker('no page')
+    bus = Bus()
+    player = Player(bus, Voice())
+    player.load(Lesson('test', [['test']], [Step(say='only line')]))
+    player.play()
+    assert wait_for(lambda: Voice.calls == 1 and bus.screen()['screen']['status'] == 'paused')
     assert player.index == 0
     player.play()
     assert wait_for(lambda: bus.screen()['screen']['status'] == 'done')
-    assert v.calls == 2
+    assert Voice.calls == 2
+
+
+def test_an_unconfirmed_clip_does_not_stop_the_reading(monkeypatch):
+    hub = SpeakerHub(Bus())
+    hub.owner = 'phone'
+    hub.register('phone')
+    monkeypatch.setenv('MARGIN_CLIP_GRACE', '.2')
+    clip = Clip(b'x' * 160, 'short')            # about 0.01 s of audio, never confirmed by the page
+    assert hub.play(clip, threading.Event()) is True
+
+
+def test_speaker_page_that_reloads_is_waited_for(monkeypatch):
+    monkeypatch.setenv('MARGIN_SINGLE_SPEAKER', '1')
+    monkeypatch.setenv('MARGIN_SPEAKER_GRACE', '2')
+    hub = SpeakerHub(Bus())
+    hub.owner = 'phone'
+    threading.Timer(.3, lambda: hub.register('phone')).start()
+    stop = threading.Event()
+    result = []
+    worker = threading.Thread(target=lambda: result.append(hub.play(Clip(b'a', 'line'), stop)))
+    worker.start()
+    assert wait_for(lambda: hub.active(), timeout=3)
+    hub.finished(hub.active()['id'], 'phone')
+    worker.join(2)
+    assert result == [True]
+
+
+def test_no_speaker_at_all_raises_no_speaker(monkeypatch):
+    from margin.speaker import NoSpeaker
+
+    monkeypatch.setenv('MARGIN_SINGLE_SPEAKER', '1')
+    monkeypatch.setenv('MARGIN_SPEAKER_GRACE', '.1')
+    hub = SpeakerHub(Bus())
+    with pytest.raises(NoSpeaker):
+        hub.play(Clip(b'a', 'line'), threading.Event())
 
 
 def test_idle_realtime_stream_has_a_deadline(monkeypatch):
-    monkeypatch.setenv('MARGIN_RESPONSE_TIMEOUT', '.02')
+    monkeypatch.setenv('MARGIN_FIRST_TEXT_TIMEOUT', '.02')
     turn = LiveTurn('silent_turn')
+    stalled = []
+    turn.on_stall = lambda: stalled.append(True)
     with pytest.raises(RuntimeError, match='timed out'):
         list(turn.pieces())
-    assert turn.done.is_set()
+    assert turn.done.is_set() and stalled == [True]
 
 
 def test_muted_tablet_never_takes_primary_microphone():

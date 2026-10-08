@@ -15,8 +15,10 @@ import time
 import traceback
 from collections.abc import Callable
 
+from .brain import quick_intent
 from .bus import Bus
 from .lesson import Lesson, Step
+from .speaker import NoSpeaker
 
 
 def _join(a: str, b: str) -> str:
@@ -57,6 +59,8 @@ class Player:
         self.forced = None                    # (lesson, question) -> steps that must be used, or None
         self._t_sound: float | None = None
         self._playback_failed = False
+        self._line_failures = 0
+        self._errors_in_row = 0
         if hasattr(voice, "on_start"):
             voice.on_start = self._sound_started
         self._thread = threading.Thread(target=self._run, daemon=True, name="margin-player")
@@ -142,13 +146,17 @@ class Player:
                 if name == "step":
                     if self._can_step() and self._held_until <= time.monotonic():
                         self._step()
+                        self._errors_in_row = 0
                 else:
                     self._handle(name, *args)
             except Exception as err:  # keep the companion alive whatever happens
                 self._log("error: " + "".join(traceback.format_exception(err)).strip())
-                self.bus.publish("status", state="paused")
-                self.bus.publish("caption", text=f"(something went wrong: {err})")
-                self.playing = False
+                self._errors_in_row += 1
+                if name == "step" and self.lesson and self._errors_in_row < 3:
+                    self._advance()                 # skip the line that broke and keep reading
+                else:
+                    self.bus.publish("status", state="paused")
+                    self.playing = False
             finally:
                 self._busy = False
 
@@ -238,18 +246,41 @@ class Player:
                 answer["text"] = _join(answer["text"], step.say)
                 self.bus.publish("answer", question=answer["question"], text=answer["text"], done=False)
             self.bus.publish("caption", text=step.say)
-            try:
-                self.voice.speak(step.say, self._stop)
-            except Exception as err:
-                self._playback_failed = True
-                self._log(f"playback paused: {err}")
-                self.playing = False
-                self._stop.set()
-                self.bus.publish("playback_error", message=str(err))
-                self.bus.publish("status", state="paused")
+            self._say(step.say)
         if step.pause and not self._stop.is_set():
             self._stop.wait(step.pause)
         return not self._stop.is_set()
+
+    def _say(self, text: str) -> None:
+        """Speak one line. A hiccup (network, a page that reloaded) gets one more try; a line that
+        still fails is skipped, so one bad line never stops the reading. Only when nothing can
+        play at all (no speaker page) or lines keep failing does the reading pause."""
+        for attempt in (1, 2):
+            try:
+                self.voice.speak(text, self._stop)
+                self._line_failures = 0
+                return
+            except Exception as err:
+                if self._stop.is_set():
+                    return
+                if isinstance(err, NoSpeaker):
+                    return self._pause_for(err)
+                if attempt == 1:
+                    self._log(f"line failed, trying it once more: {err}")
+                    self._stop.wait(0.3)
+                    continue
+                self._line_failures += 1
+                self._log(f"line skipped: {err}")
+                if self._line_failures >= 3:
+                    return self._pause_for(err)
+
+    def _pause_for(self, err: Exception) -> None:
+        self._playback_failed = True
+        self._log(f"playback paused: {err}")
+        self.playing = False
+        self._stop.set()
+        self.bus.publish("playback_error", message=str(err))
+        self.bus.publish("status", state="paused")
 
     def _advance(self) -> None:
         self.index += 1
@@ -269,6 +300,24 @@ class Player:
         if len(params) >= 5:
             args += (list(self.history),)
         return self.answerer(*args)
+
+    def _sorry(self) -> str:
+        lang = (self.lesson.explain_language if self.lesson else "").lower()
+        if "chin" in lang or lang.startswith("zh") or "中文" in lang:
+            return "这句我没听清，你再说一次？"
+        return "Sorry, I didn't catch that. Could you say it again?"
+
+    def _transcribe_again(self, live) -> str:
+        fallback = getattr(live, "fallback", None)
+        if not fallback:
+            return ""
+        try:
+            text = (fallback() or "").strip()
+        except Exception as err:
+            self._log(f"speech to text failed too: {err}")
+            return ""
+        is_echo = getattr(live, "is_echo", None)
+        return "" if (not text or (is_echo and is_echo(text))) else text
 
     def _sound_started(self) -> None:
         if self._t_asked is not None and self._t_sound is None:
@@ -326,8 +375,12 @@ class Player:
                 question = heard or "…"
                 if heard:
                     self._log(f"question: {heard}")
+                intent = quick_intent(heard) if heard else None
                 planned = self.forced(self.lesson, heard) if (heard and self.forced) else None
-                if planned:                       # a planned moment (e.g. for filming): use it as written
+                if intent:                        # "继续", "等一下", "从头讲": do it now, no model
+                    live.cancel()
+                    steps, stream, then, command_only = [], None, intent, True
+                elif planned:                     # a planned moment (e.g. for filming): use it as written
                     live.cancel()
                     steps, stream = list(planned), None
             if stream is not None:
@@ -338,7 +391,7 @@ class Player:
             command_only = not steps
         else:
             steps = list(result or [])
-        sorry = Step(say="I'm not sure about that one. Let's keep going, and ask me again in other words?")
+        sorry = Step(say=self._sorry())
         if not command_only:
             if isinstance(steps, list):
                 steps = steps or [sorry]
@@ -360,7 +413,18 @@ class Player:
                     self._log(f"question: {question}")
                 if stream.error:
                     self._log(f"answer failed: {stream.error}")
-                if not spoken and stream.error and not self._stop.is_set():
+                if not spoken and stream.error and not self._stop.is_set() and live is not None:
+                    # the realtime model let us down (a dropped connection): ask again the classic way
+                    retry = live.turn.transcript or self._transcribe_again(live)
+                    if retry and quick_intent(retry):
+                        steps, then, command_only = [], quick_intent(retry), True
+                    elif retry and self.answerer:
+                        self._log(f"asking again without realtime: {retry}")
+                        self._cut = self.index if skip_cut else None
+                        self._t_asked = None
+                        self._cmds.put(("ask", (retry, t0, None)))
+                        return
+                if not spoken and stream.error and not self._stop.is_set() and not command_only:
                     self.bus.publish("answer", question=question, text="", done=False)
                     self._perform(sorry, answer=answer)
                     spoken = 1
@@ -385,6 +449,9 @@ class Player:
             self.playing = False
             self.bus.publish("status", state="paused")
             return
+        if then == "refresh":                        # "the page is stuck": every screen redraws
+            self.bus.publish("refresh")
+            then = "continue"
         if then == "restart":
             self.index, self.focus = 0, None
             self.bus.publish("lesson", **self.lesson.reader_payload())

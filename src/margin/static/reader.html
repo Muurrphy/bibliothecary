@@ -236,33 +236,58 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
     else if (k === 'status') { S.status = d.state; renderCaption(); }
     else if (k === 'progress') { S.progress = [d.step, d.of]; renderCaption(); }
   }
-  function get(url, ok, fail) {
-    var x = new XMLHttpRequest();
+  // A request can hang for ever when the Wi-Fi blinks or the Kindle wakes from sleep, and an
+  // error while drawing would end the loop. Either way the page would freeze, so: every request
+  // has a time limit, drawing errors fall back to a full redraw, and a watchdog restarts the
+  // loop if nothing has come back for a while. Only one loop runs at a time (gen).
+  var gen = 0, lastOk = new Date().getTime();
+  function get(url, ok, fail, limit) {
+    var x = new XMLHttpRequest(), done = false;
+    var timer = setTimeout(function () { if (done) return; done = true; try { x.abort(); } catch (e) {} fail(); }, limit);
     x.open('GET', url + (url.indexOf('?') < 0 ? '?' : '&') + '_=' + new Date().getTime(), true);
     x.onreadystatechange = function () {
-      if (x.readyState !== 4) return;
-      if (x.status === 200) { var data; try { data = JSON.parse(x.responseText); } catch (e) { fail(); return; } ok(data); }
-      else fail();
+      if (x.readyState !== 4 || done) return;
+      done = true; clearTimeout(timer);
+      var data = null;
+      if (x.status === 200) { try { data = JSON.parse(x.responseText); } catch (e) { data = null; } }
+      if (data) ok(data); else fail();
     };
     x.send(null);
   }
-  function poll() {
+  function retry(g, what) {
+    if (g !== gen) return;
+    failures++;
+    $('meta').innerHTML = what;
+    setTimeout(function () { if (g === gen) start(); }, Math.min(10000, 1500 * failures));
+  }
+  function poll(g) {
+    if (g !== gen) return;
     get('/api/poll?since=' + seq + '&wait=20', function (r) {
-      failures = 0;
-      if (r.reset) { full(r.screen); }
-      else for (var i = 0; i < r.events.length; i++) apply(r.events[i]);
-      seq = r.seq;
-      setTimeout(poll, 30);
-    }, function () {
-      failures++;
-      $('meta').innerHTML = 'reconnecting…';
-      setTimeout(start, Math.min(10000, 1500 * failures));
-    });
+      if (g !== gen) return;
+      failures = 0; lastOk = new Date().getTime();
+      try {
+        if (r.reset) { full(r.screen); }
+        else for (var i = 0; i < r.events.length; i++) {
+          if (r.events[i].kind === 'refresh') { start(); return; }
+          apply(r.events[i]);
+        }
+        seq = r.seq;
+      } catch (e) { start(); return; }    // something did not draw: ask for the whole screen
+      setTimeout(function () { poll(g); }, 30);
+    }, function () { retry(g, 'reconnecting…'); }, 30000);
   }
   function start() {
-    get('/api/screen', function (r) { seq = r.seq; full(r.screen); poll(); },
-        function () { failures++; $('meta').innerHTML = 'cannot reach the computer'; setTimeout(start, Math.min(10000, 1500 * failures)); });
+    var g = ++gen;
+    get('/api/screen', function (r) {
+      if (g !== gen) return;
+      lastOk = new Date().getTime();
+      try { seq = r.seq; full(r.screen); } catch (e) { seq = r.seq; }
+      poll(g);
+    }, function () { retry(g, 'cannot reach the computer'); }, 15000);
   }
+  setInterval(function () {               // watchdog: nothing back for 50 s means the loop is stuck
+    if (new Date().getTime() - lastOk > 50000) { lastOk = new Date().getTime(); start(); }
+  }, 10000);
   layout();
   window.onresize = layout;
   start();

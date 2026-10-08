@@ -244,12 +244,16 @@ class ElevenLabsVoice(_ProcessVoice):
                         clip.make_timeline(_warn)
                     return clip
         clip = self._synthesize_uncached(text)
+        if native and not self._valid_alignment(clip.alignment) and self.timestamps:
+            clip = self._synthesize_uncached(text)          # one more try for real character timing
         if native:
             if not self._valid_alignment(clip.alignment):
-                raise RuntimeError("Voice did not return valid character timestamps; retry playback.")
+                # Never go silent over the mouth: speak the line, and let the mouth use an estimate
+                # (or follow loudness). A missing timestamp costs a little lip accuracy, not a line.
+                _warn(f"no character timestamps for {text[:24]!r}; the mouth uses an estimate for this line")
+                if clip.align is None and self.want_alignment:
+                    clip.align = self._align_pool.submit(self._align, clip.audio, text)
             clip.make_timeline(_warn)
-            if not clip.timeline:
-                raise RuntimeError("Mouth timeline could not be prepared; retry playback.")
         if path and self._valid_alignment(clip.alignment):
             path.parent.mkdir(parents=True, exist_ok=True)
             pending = path.with_suffix(".tmp")
@@ -282,8 +286,6 @@ class ElevenLabsVoice(_ProcessVoice):
                     raise
                 _warn(f"no timestamps from this ElevenLabs model ({err}); aligning the audio instead")
                 self.timestamps = False
-        if os.environ.get("MARGIN_NATIVE_TIMING") == "1":
-            raise RuntimeError("Voice timestamps unavailable; no estimated timing was substituted.")
         clip = Clip(self._post(text), text)
         if self.want_alignment:
             clip.align = self._align_pool.submit(self._align, clip.audio, text)

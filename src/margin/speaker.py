@@ -28,6 +28,10 @@ from dataclasses import dataclass, field
 CJK = re.compile(r"[㐀-鿿]")
 
 
+class NoSpeaker(RuntimeError):
+    """No speaker page is there to play a line (the reading waits instead of going on unheard)."""
+
+
 @dataclass
 class Clip:
     audio: bytes
@@ -284,12 +288,25 @@ class SpeakerHub:
         if ev:
             ev.set()
 
+    def wait_connected(self, stop: threading.Event, grace: float) -> bool:
+        """A page that is reloading or waking up comes back within seconds: give it the chance."""
+        end = time.monotonic() + grace
+        while not self.connected():
+            if stop.is_set() or time.monotonic() > end:
+                return self.connected()
+            stop.wait(0.1)
+        return True
+
     def play(self, clip: Clip, stop: threading.Event, on_start: Callable[[], None] | None = None) -> bool:
         """Play on the speaker page. False when there is none (the caller plays locally)."""
+        single = os.environ.get("MARGIN_SINGLE_SPEAKER") == "1"
         if not self.connected():
-            if os.environ.get("MARGIN_SINGLE_SPEAKER") == "1":
-                raise RuntimeError("Open the mouth page and tap to begin before playback.")
-            return False
+            if not single:
+                return False
+            if not self.wait_connected(stop, float(os.environ.get("MARGIN_SPEAKER_GRACE", "12"))):
+                if stop.is_set():
+                    return True
+                raise NoSpeaker("Open the mouth page and tap it: there is nothing to speak through.")
         if clip.timeline is None and not clip.ready.is_set():
             if lipsync_available() and (clip.alignment or clip.align is not None):
                 threading.Thread(target=clip.make_timeline, args=(self.log,), daemon=True).start()
@@ -309,8 +326,6 @@ class SpeakerHub:
         seconds = clip.seconds() or (len(clip.audio) / 16000.0)   # 128 kbit/s mp3 ≈ 16 kB/s
         # several phones/tablets at once: tell them all to start at the same moment
         at = round(time.time() * 1000 + self.sync_delay * 1000) if self.speakers() > 1 else None
-        if os.environ.get("MARGIN_NATIVE_TIMING") == "1":
-            at = round(time.time() * 1000 + 700)
         payload = dict(id=clip.id, text=clip.text, mime=clip.mime, at=at,
                        lips=not (clip.ready.is_set() and not clip.timeline), seconds=round(seconds, 2))
         with self._lock:
@@ -318,18 +333,28 @@ class SpeakerHub:
         self.bus.publish("speak", **payload)
         if on_start:
             on_start()
-        deadline = time.monotonic() + seconds + 8.0
+        deadline = time.monotonic() + seconds + float(os.environ.get("MARGIN_CLIP_GRACE", "8"))
         try:
             while not done.is_set():
                 if stop.wait(0.04):
                     self.bus.publish("hush", id=clip.id)
                     return True
                 if time.monotonic() > deadline:
+                    # the line has had all its time: most likely it played and the "done" got lost
+                    self.log(f"speaker did not confirm clip {clip.id}, going on")
                     self.bus.publish("hush", id=clip.id)
-                    raise RuntimeError(f"Speaker did not finish clip {clip.id}; playback paused.")
+                    return True
                 if not self.connected():
                     self.bus.publish("hush", id=clip.id)
-                    raise RuntimeError("Speaker disconnected; playback paused.")
+                    grace = float(os.environ.get("MARGIN_SPEAKER_GRACE", "12"))
+                    if self.wait_connected(stop, grace):
+                        raise RuntimeError("the speaker page came back in the middle of a line")
+                    if stop.is_set():
+                        return True
+                    if not single:
+                        self.log("speaker went away in the middle of a line")
+                        return True
+                    raise NoSpeaker("The mouth page went away; tap it to go on.")
             with self._lock:
                 error = self._errors.pop(clip.id, "")
             if error:

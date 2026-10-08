@@ -1,6 +1,6 @@
 # Known issues — 2026-10-08 snapshot
 
-This is an early personal prototype. The merge publishes its current state; it does not include another attempt to fix mobile capture.
+This is an early personal prototype. Version 0.2.1 addresses the freezes and missed turns seen while filming (see the changelog); those fixes are tested offline and in a desktop browser, not yet over a long session on a real phone.
 
 | Area | Current limitation |
 |---|---|

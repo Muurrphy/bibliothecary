@@ -142,15 +142,25 @@ class LiveTurn:
         self.instructions = ""
         self.t_commit: float | None = None
         self.t_first_text: float | None = None
+        self.on_stall: Callable[[], None] = lambda: None   # the link drops a connection that went quiet
 
     def pieces(self) -> Iterator[str]:
-        """The answer text as the model writes it (for ``brain.StreamedAnswer``)."""
+        """The answer text as the model writes it (for ``brain.StreamedAnswer``).
+
+        A healthy realtime model starts writing within about a second. If nothing comes for a few
+        seconds the connection has most likely gone stale: give up quickly (the player then asks
+        again the classic way) instead of leaving the listener in silence."""
+        first = True
         while True:
+            wait = float(os.environ.get("MARGIN_FIRST_TEXT_TIMEOUT" if first else "MARGIN_RESPONSE_TIMEOUT",
+                                        "6" if first else "20"))
             try:
-                piece = self.deltas.get(timeout=float(os.environ.get("MARGIN_RESPONSE_TIMEOUT", "20")))
+                piece = self.deltas.get(timeout=wait)
             except queue.Empty:
                 self.finish("Realtime answer timed out; ask again.")
+                self.on_stall()
                 raise RuntimeError(self.error)
+            first = False
             if piece is None:
                 if self.error:
                     raise RuntimeError(self.error)
@@ -243,8 +253,19 @@ class RealtimeLink:
         if self.turn and not self.turn.done.is_set():
             self.cancel()
         self.turn = LiveTurn(qid)
+        self.turn.on_stall = self._reconnect
         self.send({"type": "input_audio_buffer.clear"})
         return self.turn
+
+    def _reconnect(self) -> None:
+        """Close a connection that stopped answering; the reader thread opens a fresh one."""
+        ws, self.ws = self.ws, None
+        self.connected.clear()
+        if ws is not None:
+            self.log("realtime: no answer in time, reconnecting")
+            with contextlib.suppress(OSError):
+                ws.sock.shutdown(socket.SHUT_RDWR)   # wakes the reader thread blocked in recv()
+            ws.close()
 
     def append(self, pcm24: bytes) -> None:
         if pcm24:
@@ -338,8 +359,10 @@ class LiveQuestion:
     """Hands a streamed question to the player: the answer stream plus the transcript gate."""
 
     def __init__(self, turn: LiveTurn, stream, is_echo: Callable[[str], bool],
-                 cancel: Callable[[], None] = lambda: None) -> None:
+                 cancel: Callable[[], None] = lambda: None,
+                 fallback: Callable[[], str] | None = None) -> None:
         self.turn, self.stream, self.is_echo, self.cancel = turn, stream, is_echo, cancel
+        self.fallback = fallback          # the classic speech-to-text, if realtime lets us down
 
     def wait_heard(self, timeout: float) -> str | None:
         """The transcript, '' if unknown in time; None when it was noise or the companion itself."""
@@ -392,7 +415,12 @@ class Ears:
 
             lesson = self.player.lesson
             stream = StreamedAnswer(turn.pieces, lesson, self.player.focus)
-            self.player.ask_live(LiveQuestion(turn, stream, self.is_echo, self.link.cancel), since=received)
+            fallback = None
+            if self.transcriber:
+                def fallback(pcm=pcm):
+                    return self.transcriber(pcm_to_wav(pcm), "audio/wav")
+            self.player.ask_live(LiveQuestion(turn, stream, self.is_echo, self.link.cancel, fallback),
+                                 since=received)
             return {"ok": True, "live": True}
         # no realtime connection: the classic way (transcribe, then ask)
         if not self.transcriber:
