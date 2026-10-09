@@ -46,7 +46,7 @@ class Recorder:
         folder = self._folder if self._folder is not None else os.environ.get("MARGIN_RECORD_DIR", "")
         return Path(folder).expanduser() if folder else None
 
-    def play(self, audio: bytes, text: str, play) -> object:
+    def play(self, audio: bytes, text: str, play, stop: threading.Event | None = None) -> object:
         """Run ``play()`` (which sounds the line) and keep the line with its start and end."""
         folder = self.folder
         if folder is None:
@@ -65,7 +65,8 @@ class Recorder:
         try:
             return play()
         finally:
-            line = {"file": name, "start": round(start, 3), "end": round(time.time(), 3), "text": text}
+            line = {"file": name, "start": round(start, 3), "end": round(time.time(), 3), "text": text,
+                    "cut": bool(stop is not None and stop.is_set())}     # interrupted: stopped at "end"
             with self._lock, open(folder / "timeline.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(line, ensure_ascii=False) + "\n")
 
@@ -152,7 +153,7 @@ class OpenAIVoice(_ProcessVoice):
         if stop.is_set() or not text.strip():
             return
         audio = self.client.speech(text, voice=self.voice, model=self.model, instructions=self.instructions)
-        if self.hub and RECORDER.play(audio, text, lambda: self.hub.play(Clip(audio, text), stop, on_start=self.on_start)):
+        if self.hub and RECORDER.play(audio, text, lambda: self.hub.play(Clip(audio, text), stop, on_start=self.on_start), stop):
             return
         if self.on_start:
             self.on_start()
@@ -407,7 +408,7 @@ class ElevenLabsVoice(_ProcessVoice):
             raise RuntimeError(f"Voice unavailable: {err}") from err
         if stop.is_set():
             return
-        if self.hub and RECORDER.play(clip.audio, text, lambda: self.hub.play(clip, stop, on_start=self.on_start)):
+        if self.hub and RECORDER.play(clip.audio, text, lambda: self.hub.play(clip, stop, on_start=self.on_start), stop):
             return
         if self.on_start:
             self.on_start()

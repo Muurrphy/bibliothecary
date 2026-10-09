@@ -2,7 +2,7 @@
 
     python -m margin.stitch <folder> [-o all.m4a]
 
-Silence fills the gaps, an interrupted line is cut where it stopped, and the track starts at
+Silence fills the gaps, an interrupted line is cut where it stopped (otherwise a line plays in full, up to the next), and the track starts at
 the first line, so in a video editor it needs lining up once. Needs ffmpeg."""
 
 from __future__ import annotations
@@ -38,7 +38,12 @@ def stitch(folder: Path, output: Path, start: float | None = None) -> Path:
     inputs, filters = [], []
     for i, item in enumerate(found):
         inputs += ["-i", str(folder / item["file"])]
-        length = max(0.05, item["end"] - item["start"])
+        # the server's "end" is not when the phone finished (it may return early), so a line plays
+        # in full unless it was interrupted, and never runs into the next one
+        length = item["end"] - item["start"] if item.get("cut") else 3600.0
+        if i + 1 < len(found):
+            length = min(length, found[i + 1]["start"] - item["start"])
+        length = max(0.05, length)
         delay = int((item["start"] - t0) * 1000)
         filters.append(f"[{i}:a]atrim=0:{length:.3f},adelay={delay}|{delay}[a{i}]")
     mix = "".join(f"[a{i}]" for i in range(len(found)))
