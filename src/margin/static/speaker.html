@@ -175,7 +175,9 @@ function onFrame(input) {
     V.cap.silent = quiet ? V.cap.silent + V.frameMs : 0;
     if (!quiet) V.cap.voicedMs += V.frameMs;
     const len = V.cap.frames.length * V.frameMs;
-    if ((V.cap.silent >= 700 && len > 700) || len > 15000) finishQuestion();
+    // answering a review question takes thought: allow pauses and a longer answer before it counts as done
+    const review = status === "waiting";
+    if ((V.cap.silent >= (review ? 1600 : 700) && len > 700) || len > (review ? 30000 : 15000)) finishQuestion();
     else flush(false);
     return;
   }
