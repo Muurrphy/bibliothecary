@@ -103,3 +103,7 @@ macOS 可选：`biblio service write --launcher /absolute/path/to/launcher.sh` �
 
 实现参考：[OpenAI Realtime conversations](https://developers.openai.com/api/docs/guides/realtime-conversations)。
 沿用现有 JSON 步骤传输与应用执行器；没有替换用户的实时语音服务或引入新提供商。
+
+检索补充：按 [OpenAI Web search 文档](https://developers.openai.com/api/docs/guides/tools-web-search)
+显式要求执行搜索，同时读取完整来源列表，避免“允许搜索但实际凭记忆回答”以及只保留引用链接。
+可选延伸最多尝试两个有出处的兴趣方向、每天最多准备一份；没有合格正文时记录失败原因。

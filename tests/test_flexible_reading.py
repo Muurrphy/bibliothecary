@@ -249,3 +249,16 @@ def test_bare_original_request_is_resolved_in_context_not_forced_to_current_inte
     player.history=[{'q':'她的诗歌本身呢？','a':'可以读她的一首诗。'}]
     assert nav.direct('你直接给我原文。') is None  # semantic tool resolves the reference
     assert not jobs
+
+
+def test_requested_web_search_is_required_and_keeps_uncited_source_links():
+    from margin.llm import OpenAICompatible
+    client=OpenAICompatible(api_key='test-placeholder')
+    bodies=[]
+    def post(path,body,ctype):
+        bodies.append(json.loads(body))
+        return json.dumps({'output':[{'type':'web_search_call','action':{'sources':[{'type':'url','url':'https://example.test/original','title':'Original'}]}},{'type':'message','content':[{'type':'output_text','text':'Found source.','annotations':[]}]}]}).encode()
+    client._post=post
+    found=client.web_search('Find an original work')
+    assert bodies[0]['tool_choice']=='required'
+    assert found['sources'][0]['url']=='https://example.test/original'

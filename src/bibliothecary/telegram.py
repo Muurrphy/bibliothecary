@@ -191,11 +191,16 @@ class Librarian:
                 if self.store.get('organization',folder.name): analyze(folder,self.client)
             # Prepare one optional extension daily. Never switch the live reading on a schedule.
             if self.room and hasattr(self.room,'navigator'):
-                for lead in leads(self.store):
+                for lead in leads(self.store)[:2]:
                     from .store import digest
                     key = digest(lead)
                     if self.store.get('extension',key): continue
-                    folder = self.room.navigator.prepare_query({'query':lead['query'],'original':False})
+                    try:
+                        original = bool(re.search(r'原文|作品|诗歌|original|poem|excerpt',lead['query'],re.I))
+                        folder = self.room.navigator.prepare_query({'query':lead['query'],'original':original})
+                    except ValueError as err:
+                        self.store.put('extension_attempt',key,{'status':'failed','error':str(err),'evidence':lead['source']})
+                        continue
                     self.store.put('extension',key,{'reading':folder.name,'evidence':lead['source'],'query':lead['query']})
                     break
             return

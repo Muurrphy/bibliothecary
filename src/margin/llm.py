@@ -136,7 +136,8 @@ class OpenAICompatible:
             spec: dict[str, Any] = {"type": tool}
             if domains and tool == "web_search":                  # the older tool cannot filter: callers check
                 spec["filters"] = {"allowed_domains": list(domains)[:100]}
-            body = {"model": model, "tools": [spec], "input": query}
+            body = {"model": model, "tools": [spec], "input": query, "tool_choice": "required"}
+            if tool == "web_search": body["include"] = ["web_search_call.action.sources"]
             try:
                 raw = self._post("/responses", json.dumps(body).encode(), "application/json")
                 break
@@ -146,12 +147,19 @@ class OpenAICompatible:
             raise last or APIError("web search failed")
         text, sources = [], []
         for item in json.loads(raw).get("output") or []:
+            if item.get("type") == "web_search_call":
+                sources += [{"title": a.get("title") or "", "url": a["url"]}
+                            for a in item.get("action", {}).get("sources", []) if a.get("url")]
             for part in item.get("content") or [] if item.get("type") == "message" else []:
                 if part.get("type") == "output_text":
                     text.append(part.get("text") or "")
                     sources += [{"title": a.get("title") or "", "url": a["url"]}
                                 for a in part.get("annotations") or [] if a.get("type") == "url_citation" and a.get("url")]
-        return {"text": "\n".join(text).strip(), "sources": sources}
+        unique = {}
+        for source in sources:
+            prior = unique.setdefault(source["url"], source)
+            if not prior["title"] and source["title"]: prior["title"] = source["title"]
+        return {"text": "\n".join(text).strip(), "sources": list(unique.values())}
 
     # ---- audio -----------------------------------------------------------------------
     def speech(self, text: str, *, voice: str, model: str, instructions: str | None = None) -> bytes:
