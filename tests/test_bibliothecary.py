@@ -256,3 +256,32 @@ def test_reasoning_models_get_room_to_think(monkeypatch):
     assert "reasoning_effort" not in sent[0]
     assert client._body("s", "u", "gpt-4.1-mini", 600)["max_completion_tokens"] == 600
     assert llm.reasons("o3-mini") and llm.reasons("openai/gpt-5") and not llm.reasons("gpt-4o-mini")
+
+
+def test_ask_me_again_goes_back_to_the_review_questions():
+    assert brain.quick_intent("能不能重新问我一遍那三个问题") == "review"
+    assert brain.quick_intent("再问一遍") == "review"
+    assert brain.quick_intent("ask me again") == "review"
+    assert brain.quick_intent("你卡了刷新一下页面") == "refresh"
+    bus, voice, events = Bus(), QuickVoice(), []
+
+    def answerer(lesson, question, current, position=None, history=None, review=None):
+        command = brain.quick_intent(question)
+        if command:
+            return {"steps": [], "then": command}
+        return {"steps": [Step(say=f"answer to {question}")], "then": "continue"}
+
+    player = Player(bus, voice, answerer, record=lambda kind, **data: events.append((kind, data)))
+    lesson = Lesson.load(OCTOPUS)
+    player.load(lesson)
+    player.play()
+    first = next(i for i, s in enumerate(lesson.steps) if s.expect)
+    for n in range(2):
+        asked = lesson.steps[first + n].say
+        assert _wait(lambda q=asked: (player.review or {}).get("question") == q), n
+        player.ask(f"my answer {n}")
+        assert _wait(lambda n=n: sum(1 for _k, d in events if d.get("review")) == n + 1)
+    assert _wait(lambda: bus.screen()["screen"]["status"] == "done")
+    player.ask("再问一遍")
+    assert _wait(lambda: (player.review or {}).get("question") == lesson.steps[first].say)
+    assert _wait(lambda: bus.screen()["screen"]["status"] == "waiting")

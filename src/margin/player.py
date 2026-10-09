@@ -382,6 +382,12 @@ class Player:
             args += (self.review,)
         return self.answerer(*args)
 
+    def _said(self, what: str) -> str:
+        lang = (self.lesson.explain_language if self.lesson else "").lower()
+        zh = "chin" in lang or lang.startswith("zh") or "中文" in lang
+        lines = {"refresh": ("好，页面刷新了，我们接着来。", "Done, the page is refreshed. Let's go on.")}
+        return lines[what][0 if zh else 1]
+
     def _sorry(self) -> str:
         lang = (self.lesson.explain_language if self.lesson else "").lower()
         if "chin" in lang or lang.startswith("zh") or "中文" in lang:
@@ -540,6 +546,15 @@ class Player:
             return
         if then == "refresh":                        # "the page is stuck": every screen redraws
             self.bus.publish("refresh")
+            self._stop.wait(1.5)                     # let the pages come back before saying so
+            self._perform(Step(say=self._said("refresh")))
+            then = "continue"
+        if then == "review":                         # "ask me again": back to the first review question
+            first = next((i for i, st in enumerate(self.lesson.steps) if st.expect), None)
+            if first is not None:
+                self.review, self.focus, skip_cut = None, None, False
+                self.index = first
+                self.bus.publish("clear_answer")
             then = "continue"
         if then == "restart":
             self.index, self.focus = 0, None

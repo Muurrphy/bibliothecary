@@ -98,7 +98,7 @@ A session has three parts:
 2. **Reading.** The talk goes through the article in order: what it is about, the main points, why it matters. Interrupt with a question at any time.
 3. **Review.** A few questions (`biblio prepare --review N`, default 3). The librarian waits for your answer and tells you what you got right and what is missing. Say **继续 / go on** to skip one.
 
-Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
+Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**, **再问一遍 / ask me again** (back to the review questions, also after the end). Answering a review question you can pause to think. The device you tapped last is the one that listens; the others stay quiet mouths.
 
 ## The librarian in Telegram
 

@@ -177,7 +177,7 @@ function onFrame(input) {
     const len = V.cap.frames.length * V.frameMs;
     // answering a review question takes thought: allow pauses and a longer answer before it counts as done
     const review = status === "waiting";
-    if ((V.cap.silent >= (review ? 1600 : 700) && len > 700) || len > (review ? 30000 : 15000)) finishQuestion();
+    if ((V.cap.silent >= (review ? 1600 : 1000) && len > 700) || len > (review ? 30000 : 20000)) finishQuestion();
     else flush(false);
     return;
   }

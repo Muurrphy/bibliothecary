@@ -369,6 +369,12 @@ class Librarian:
             answer = self.desk.reply(text)
         except Exception as err:
             self.log(f"chat failed: {err}")
+            if any(w in str(err) for w in ("insufficient_quota", "credit_balance", "no credits")):
+                return self.t("OpenAI 账户余额用完了。充值后把刚才那句再发一次就行。",
+                              "The OpenAI account is out of credit. Top it up, then send that again.")
+            if "401" in str(err) or "invalid_api_key" in str(err):
+                return self.t("OpenAI 密钥不对或过期了，检查一下 .env 里的 OPENAI_API_KEY。",
+                              "The OpenAI key was refused; check OPENAI_API_KEY.")
             return self.t("我这边连不上模型，稍后再说。", "I can't reach the model right now; try again later.")
         for line in answer.trace:
             self.log(line)
@@ -408,8 +414,8 @@ class Librarian:
         lesson = Lesson.load(folder / "lesson.json")
         events = library.events(folder)
         asked = sum(1 for e in events if e.get("kind") == "exchange" and not e.get("review"))
-        lines = [self.t(f"《{lesson.title}》的读书报告。今晚你问了 {asked} 个问题。",
-                        f"The reading report for “{lesson.title}”. You asked {asked} questions.")]
+        lines = [self.t(f"《{lesson.title}》的读书报告。" + (f"今晚你问了 {asked} 个问题。" if asked else ""),
+                        f"The reading report for “{lesson.title}”." + (f" You asked {asked} questions." if asked else ""))]
         summary = folder / "summary.json"
         if summary.is_file():
             unclear = json.loads(summary.read_text(encoding="utf-8")).get("unclear") or []

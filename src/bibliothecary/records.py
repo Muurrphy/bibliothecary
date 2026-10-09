@@ -40,7 +40,7 @@ class Ledger:
         with self._lock:
             with open(self.folder / "session.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(event, ensure_ascii=False) + "\n")
-            self._dirty = kind != "start"
+            self._dirty = self._dirty or kind != "start"     # a late "start" must not hide what came before
         if kind == "end":
             self._write_report_later()
 

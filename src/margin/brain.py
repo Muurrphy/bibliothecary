@@ -112,6 +112,7 @@ _BACK = re.compile(r"再说一遍|再讲一遍|重复一下|没听清|repeat|say
 _SKIP = re.compile(r"跳过|下一段|skip", re.IGNORECASE)
 _RESTART = re.compile(r"从头|重头|重新讲|重新开始|start over|from the (top|beginning)", re.IGNORECASE)
 _REFRESH = re.compile(r"刷新|刷一下|refresh|reload", re.IGNORECASE)
+_REVIEW = re.compile(r"(重新|再)(问|考|出题|复习)|再问一遍|(ask|quiz) me again|review again", re.IGNORECASE)
 _QUESTIONISH = re.compile(r"[?？]|为什么|什么|怎么|哪|吗|呢|是不是|\b(why|what|how|where|which|who)\b", re.IGNORECASE)
 # speech-to-text sometimes writes Mandarin in traditional characters ("你繼續講"): read both
 _TRADITIONAL = str.maketrans("繼續講說頭開從聽別靜過暫這麼樣嗎為讓來還沒話問遍幾點", "继续讲说头开从听别静过暂这么样吗为让来还没话问遍几点")
@@ -121,6 +122,8 @@ def quick_intent(text: str) -> str | None:
     """Short commands ("继续", "等一下", "再说一遍", "从头讲") need no model: do them at once."""
     t = text.strip().translate(_TRADITIONAL)
     size = len(re.sub(r"[\W_]+", "", t))
+    if t and size <= 30 and _REVIEW.search(t):
+        return "review"                           # "ask me those questions again"
     if t and size <= 30 and _REFRESH.search(t):
         return "refresh"                          # "the page is stuck, refresh it"
     if not t or size > 20 or _QUESTIONISH.search(t):
@@ -132,7 +135,7 @@ def quick_intent(text: str) -> str | None:
     return None
 
 
-THEN = {"continue", "pause", "back", "skip", "restart", "ignore", "refresh"}
+THEN = {"continue", "pause", "back", "skip", "restart", "ignore", "refresh", "review"}
 
 
 def plan_summary(lesson: Lesson, position: int | None, width: int = 90) -> str:

@@ -247,3 +247,13 @@ def test_a_rehearsed_demo_goes_the_same_way_every_take(home):
     lib.handle(message(ME, "好"))
     assert bot.sent[-2][1] == "好，就准备这篇。" and bot.sent[-1][1].startswith("备好了") and prepared == []
     assert json.loads((home / "demo.json").read_text(encoding="utf-8"))["next"] == 2
+
+
+def test_an_empty_account_is_named_not_called_a_connection_problem(home):
+    class Broke(FakeClient):
+        def chat_json(self, system, user, **_):
+            raise RuntimeError('429 from /chat/completions: {"code": "credit_balance_exhausted", "type": "insufficient_quota"}')
+
+    lib, bot, _ = paired(client=Broke())
+    lib.handle(message(ME, "今晚读什么"))
+    assert "余额用完" in bot.sent[-1][1]
