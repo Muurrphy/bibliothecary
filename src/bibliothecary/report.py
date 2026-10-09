@@ -17,7 +17,7 @@ from typing import Any
 from margin.brain import OPEN
 from margin.lesson import Lesson
 
-from . import library
+from . import library, safe
 
 ZH = {
     "source": "来源", "guide": "导读：读之前要知道的", "notes": "要点笔记",
@@ -183,12 +183,12 @@ def write(folder: Path, *, client=None) -> Path:
         summary = summarize(client, lesson, events)
         summary_file.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     elif summary_file.is_file():
-        summary = json.loads(summary_file.read_text(encoding="utf-8"))
+        summary = safe.read_json(summary_file)
     prepared = None
     try:
         prepared = dt.date.fromisoformat(folder.name[:10])
     except ValueError:
         pass
     path = folder / "report.md"
-    path.write_text(render(lesson, events, prepared=prepared, summary=summary) + "\n", encoding="utf-8")
+    safe.atomic(path, render(lesson, events, prepared=prepared, summary=summary) + "\n")
     return path

@@ -70,6 +70,8 @@ def test_switching_readings_files_the_last_one(room):
     octopus = library.new_reading(Lesson.load(OCTOPUS))
     village = library.new_reading(Lesson.load(VILLAGE))
     assert room.open(octopus.name) and room.open(octopus.name)          # opening it again changes nothing
+    assert room.room.player.wait_idle(3)  # opening is queued atomically, not a synchronous recorder swap
+    room.room.player._start_reading()
     first = room.ledger
     room.room.player._note("exchange", question="会做梦吗？", answer="没人知道。", focus=None)
     assert room.open(village.name) and room.ledger is not first

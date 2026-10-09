@@ -144,6 +144,9 @@ def start(lesson: Lesson | None, args, *, client: OpenAICompatible | None = None
                                                                 player.history, player.review)
 
         def live_lookup(query, question):           # the realtime model asked to search the web
+            if brain.protected(player.lesson):
+                return brain.answer(client, player.lesson, question, current=player.focus,
+                                    position=player.index, history=player.history, review=player.review)
             _log(f"looking up: {query}")
             return brain.answer(client, player.lesson, question, current=player.focus, position=player.index,
                                 history=player.history, review=player.review,

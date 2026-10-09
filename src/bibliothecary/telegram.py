@@ -740,22 +740,22 @@ class Librarian:
             key = at.date().isoformat()
             ask, ready = at - dt.timedelta(hours=10), at - dt.timedelta(minutes=45)
             if ask <= now < ready and self.state.get("asked") != key:
+                self.send(self.daily_question(self.when_word(now, at)))
                 self.state["asked"] = key
                 self.save()
-                self.send(self.daily_question(self.when_word(now, at)))
             if ready <= now < at + dt.timedelta(hours=2) and self.state.get("decided") != key:
+                self.deliver(now, at)
                 self.state["decided"] = key
                 self.save()
-                self.deliver(now, at)
         # each message only within its own window, so starting the bot at midnight sends nothing
         elif self.ask_at <= clock < self.decide_at and self.state.get("asked") != today:
+            self.send(self.daily_question())
             self.state["asked"] = today
             self.save()
-            self.send(self.daily_question())
         if not self.read_at and self.decide_at <= clock < late and self.state.get("decided") != today:
+            self.send(*self.tonight())
             self.state["decided"] = today
             self.save()
-            self.send(*self.tonight())
         sent = set(self.state.get("reported") or [])
         for folder in library.readings():
             if library.status(folder) == "read" and folder.name not in sent:

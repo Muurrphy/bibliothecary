@@ -22,7 +22,7 @@ from pathlib import Path
 
 from margin.lesson import Lesson
 
-from . import library, search
+from . import library, search, safe
 
 CHAT_SYSTEM = """You are the reader's personal librarian, talking with them in a chat. You know books,
 science, essays and journalism well and you are curious about people. Your job is to find what is
@@ -150,7 +150,8 @@ class Desk:
         new = [str(f).strip() for f in facts if str(f).strip() and str(f).strip() not in known]
         if not new:
             return
-        notes = [{"text": t} for t in known] + [{"text": t, "t": self.now().date().isoformat()} for t in new]
+        old = safe.read_json(self._reader_file).get("notes", [])
+        notes = old + [{"text": t, "t": self.now().date().isoformat()} for t in new]
         self._reader_file.parent.mkdir(parents=True, exist_ok=True)
         self._reader_file.write_text(json.dumps({"notes": notes[-60:]}, ensure_ascii=False, indent=2) + "\n",
                                      encoding="utf-8")
@@ -165,7 +166,7 @@ class Desk:
         for folder in found[-3:]:
             summary = folder / "summary.json"
             if summary.is_file():
-                data = json.loads(summary.read_text(encoding="utf-8"))
+                data = safe.read_json(summary)
                 title = Lesson.load(folder / "lesson.json").title
                 if data.get("unclear"):
                     lines.append(f"Still unclear after “{title}”: " + "; ".join(data["unclear"]))
