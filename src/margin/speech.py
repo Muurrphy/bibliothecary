@@ -28,6 +28,46 @@ from .llm import OpenAICompatible
 from .speaker import Clip
 
 
+class Recorder:
+    """Keeps a copy of every line as it is played, for editing a video afterwards.
+
+    With ``MARGIN_RECORD_DIR`` set, each spoken line is saved there as an mp3 named by the
+    moment it started, and ``timeline.jsonl`` notes when it started and stopped (stopped
+    early means it was interrupted). ``margin-stitch`` (python -m margin.stitch) joins them
+    into one track on the real timeline."""
+
+    def __init__(self, folder: str | None = None) -> None:
+        folder = folder if folder is not None else os.environ.get("MARGIN_RECORD_DIR", "")
+        self.folder = Path(folder).expanduser() if folder else None
+        self._lock = threading.Lock()
+        self._n = 0
+
+    def play(self, audio: bytes, text: str, play) -> object:
+        """Run ``play()`` (which sounds the line) and keep the line with its start and end."""
+        if self.folder is None:
+            return play()
+        start = time.time()
+        with self._lock:
+            self._n += 1
+            n = self._n
+        name = time.strftime("%Y%m%d-%H%M%S", time.localtime(start)) + f".{int(start % 1 * 1000):03d}_{n:04d}.mp3"
+        try:
+            self.folder.mkdir(parents=True, exist_ok=True)
+            (self.folder / name).write_bytes(audio)
+        except OSError as err:
+            _warn(f"could not keep a recording of the line: {err}")
+            return play()
+        try:
+            return play()
+        finally:
+            line = {"file": name, "start": round(start, 3), "end": round(time.time(), 3), "text": text}
+            with self._lock, open(self.folder / "timeline.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+
+RECORDER = Recorder()
+
+
 def _warn(msg: str) -> None:
     line = time.strftime("%H:%M:%S") + " " + msg
     print(line, flush=True)
@@ -107,7 +147,7 @@ class OpenAIVoice(_ProcessVoice):
         if stop.is_set() or not text.strip():
             return
         audio = self.client.speech(text, voice=self.voice, model=self.model, instructions=self.instructions)
-        if self.hub and self.hub.play(Clip(audio, text), stop, on_start=self.on_start):
+        if self.hub and RECORDER.play(audio, text, lambda: self.hub.play(Clip(audio, text), stop, on_start=self.on_start)):
             return
         if self.on_start:
             self.on_start()
@@ -362,7 +402,7 @@ class ElevenLabsVoice(_ProcessVoice):
             raise RuntimeError(f"Voice unavailable: {err}") from err
         if stop.is_set():
             return
-        if self.hub and self.hub.play(clip, stop, on_start=self.on_start):
+        if self.hub and RECORDER.play(clip.audio, text, lambda: self.hub.play(clip, stop, on_start=self.on_start)):
             return
         if self.on_start:
             self.on_start()

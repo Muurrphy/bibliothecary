@@ -277,3 +277,18 @@ def test_serving_defaults_to_the_automatic_voice():
     p = argparse.ArgumentParser()
     cli.add_serve_options(p)
     assert p.parse_args([]).voice == "auto"
+
+
+def test_played_lines_can_be_kept_for_editing(tmp_path):
+    import json
+    from margin import speech
+
+    rec = speech.Recorder(str(tmp_path / "rec"))
+    played = []
+    assert rec.play(b"ID3fake", "你好", lambda: played.append(1) or True) is True
+    files = [p.name for p in (tmp_path / "rec").glob("*.mp3")]
+    timeline = [json.loads(x) for x in (tmp_path / "rec" / "timeline.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert played == [1] and len(files) == 1 and timeline[0]["file"] == files[0] and timeline[0]["text"] == "你好"
+    assert timeline[0]["end"] >= timeline[0]["start"]
+    off = speech.Recorder("")
+    assert off.play(b"x", "y", lambda: "sounded") == "sounded" and off.folder is None
