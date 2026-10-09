@@ -234,3 +234,16 @@ def test_bot_speaks_the_bot_api(tmp_path):
             bot.call("sendSticker", chat_id=ME)
     finally:
         server.shutdown()
+
+
+def test_a_rehearsed_demo_goes_the_same_way_every_take(home):
+    lib, bot, prepared = paired()
+    folder = library.new_reading(Lesson.load(OCTOPUS))
+    (home / "demo.json").write_text(json.dumps({"next": 0, "steps": [
+        {"reply": "你好，今晚想读什么？"},
+        {"reply": "好，就准备这篇。", "open": folder.name}]}, ensure_ascii=False), encoding="utf-8")
+    lib.handle(message(ME, "随便打的字"))
+    assert bot.sent[-1][1] == "你好，今晚想读什么？"
+    lib.handle(message(ME, "好"))
+    assert bot.sent[-2][1] == "好，就准备这篇。" and bot.sent[-1][1].startswith("备好了") and prepared == []
+    assert json.loads((home / "demo.json").read_text(encoding="utf-8"))["next"] == 2

@@ -315,8 +315,53 @@ class Librarian:
         return "\n".join(lines)
 
     # ---- talking ---------------------------------------------------------------------
+    def scripted(self) -> str | None:
+        """A rehearsed demo: with ``demo.json`` in the library folder, each message gets the next
+        prepared reply instead of the model's, so a filmed demo goes the same way every take.
+
+        {"next": 0, "steps": [{"reply": "...", "delay": 3, "open": "<reading folder name>"}]}
+        ``open`` then sends that reading's guide and button, as if it had just been prepared.
+        Edit or delete the file at any time; when the steps run out the real librarian answers."""
+        path = library.home() / "demo.json"
+        if not path.is_file():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            steps, n = data.get("steps") or [], int(data.get("next") or 0)
+        except (OSError, ValueError, TypeError) as err:
+            self.log(f"demo.json unreadable, answering for real: {err}")
+            return None
+        if n >= len(steps):
+            return None
+        step = steps[n]
+        data["next"] = n + 1
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.log(f"demo step {n + 1} of {len(steps)}")
+        end = time.monotonic() + float(step.get("delay") or 0)
+        while time.monotonic() < end:
+            self.bot.typing(self.owner)
+            time.sleep(min(4.0, max(0.0, end - time.monotonic())))
+        reply = str(step.get("reply") or "")
+        name = step.get("open")
+        if not name:
+            return reply
+        if reply:
+            self.send(reply)
+        folder = library.readings_dir() / Path(str(name)).name
+        wait = time.monotonic() + float(step.get("prepare_delay") or 0)
+        while time.monotonic() < wait:
+            self.bot.typing(self.owner)
+            time.sleep(min(4.0, max(0.0, wait - time.monotonic())))
+        how, buttons = self.read_here(folder)
+        with self._lock:
+            self.send(self.guide(folder) + "\n\n" + how, buttons)
+        return ""
+
     def chat(self, text: str) -> str | None:
         """Talk at the reference desk. Returns the reply (None when it already went out)."""
+        demo = self.scripted()
+        if demo is not None:
+            return demo or None
         if self.client is None:
             return self.t("想读什么，发我一个链接或文件就行。", "Send me a link or a file and I'll prepare it.")
         self.bot.typing(self.owner)
