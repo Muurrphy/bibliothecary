@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- The librarian introduces itself once, asks what time you usually read, and keeps a daily round around that time: a morning or evening greeting, then a reading chosen and prepared before you sit down. `/time` changes the time.
+- While reading, questions about recent facts ("查一下", "最新", "今年" …) are answered after a web search.
+- The librarian offers only pieces that can be read in full, prepares one only once it is chosen, and can look up recent facts before choosing.
+- The voice is picked automatically, and the player says so when there is none.
+- For filming: every spoken line can be kept (`MARGIN_RECORD_DIR`), and `margin stitch --start` builds one track aligned to a screen recording; lines are stitched in full unless they were really interrupted. A rehearsed demo mode is included.
+- Phone captions show whole lines (three at most); a review answer may pause before it counts as finished; "再问一遍" asks a review question again.
+- Every problem met while filming the first demo is logged in `docs/logs/`.
 - Mouth timing: remove the default visual lead and the 70 ms event floor that let short phonemes overlap their neighbours. Serialized event boundaries remain non-overlapping after rounding.
 - Prepared and cached reading-companion clips now check character timestamps against locally decoded audio. Clearly matched phrase boundaries can be corrected; uncertain matches retain provider timing. This is phrase-edge correction, not forced phoneme alignment.
 - Send measured speech windows and timing status to the speaker page. The browser mouth returns to rest during detected pauses and continues to follow its audio output clock.

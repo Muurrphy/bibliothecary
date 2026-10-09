@@ -2,7 +2,7 @@
 
 **一个私人图书管理员。** 它为你备好今晚睡前读的文章，在旧 Kindle 或手机上陪你读，把你问的每个问题、它的每个回答都整理进读书报告，下一次就从你已经懂的地方接着来。
 
-*Bibliothecary* 是英语里"图书管理员"的旧词，1610 年代进入英语，来自拉丁文 *bibliothecarius*。中文名就叫"图书管理员"。
+*Bibliothecary* 是英语里"图书管理员"的旧词，1610 年代进入英语，来自拉丁文 *bibliothecarius*。中文名就叫"图书管理员"，英文展示名 **The Librarian**。
 
 [English](README.md) · [需求文档](docs/requirements.zh-CN.md) · [配置说明](docs/configuration.md) · [已知问题](docs/known-issues.md)
 
