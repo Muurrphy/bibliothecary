@@ -27,13 +27,14 @@ def lines(folder: Path) -> list[dict]:
     return sorted(out, key=lambda x: x["start"])
 
 
-def stitch(folder: Path, output: Path) -> Path:
+def stitch(folder: Path, output: Path, start: float | None = None) -> Path:
     if not shutil.which("ffmpeg"):
         raise SystemExit("ffmpeg is needed (brew install ffmpeg)")
     found = lines(folder)
     if not found:
         raise SystemExit(f"nothing recorded in {folder}")
-    t0 = found[0]["start"]
+    t0 = found[0]["start"] if start is None else start      # e.g. when the screen recording began
+    found = [x for x in found if x["start"] >= t0]
     inputs, filters = [], []
     for i, item in enumerate(found):
         inputs += ["-i", str(folder / item["file"])]
@@ -51,9 +52,12 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="margin-stitch", description=__doc__.splitlines()[0])
     p.add_argument("folder")
     p.add_argument("-o", "--output", help="default: <folder>/all.m4a")
+    p.add_argument("--start", help="where the track begins, e.g. 2026-10-08T23:02:00-04:00 (default: the first line)")
     args = p.parse_args(argv)
     folder = Path(args.folder).expanduser()
-    out = stitch(folder, Path(args.output) if args.output else folder / "all.m4a")
+    import datetime as dt
+    start = dt.datetime.fromisoformat(args.start).timestamp() if args.start else None
+    out = stitch(folder, Path(args.output) if args.output else folder / "all.m4a", start)
     print(out)
     return 0
 
