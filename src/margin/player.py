@@ -310,6 +310,10 @@ class Player:
             if answer is not None:
                 answer["text"] = _join(answer["text"], step.say)
                 self.bus.publish("answer", question=answer["question"], text=answer["text"], done=False)
+            else:
+                # the lesson speaks again (say the next review question): the last exchange
+                # leaves the caption, or the screen would stay on it while the voice moves on
+                self.bus.publish("clear_answer")
             self.bus.publish("caption", text=step.say)
             for piece in (_sentences(step.say) if answer is not None else [step.say]):
                 if self._stop.is_set():
