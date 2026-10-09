@@ -292,3 +292,13 @@ def test_played_lines_can_be_kept_for_editing(tmp_path):
     assert timeline[0]["end"] >= timeline[0]["start"]
     off = speech.Recorder("")
     assert off.play(b"x", "y", lambda: "sounded") == "sounded" and off.folder is None
+
+
+def test_the_recording_folder_is_read_when_a_line_plays(tmp_path, monkeypatch):
+    from margin import speech
+
+    monkeypatch.delenv("MARGIN_RECORD_DIR", raising=False)
+    rec = speech.Recorder()                       # made at import, before .env is read
+    monkeypatch.setenv("MARGIN_RECORD_DIR", str(tmp_path / "later"))
+    rec.play(b"ID3", "hi", lambda: True)
+    assert (tmp_path / "later" / "timeline.jsonl").is_file()

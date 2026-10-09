@@ -37,14 +37,19 @@ class Recorder:
     into one track on the real timeline."""
 
     def __init__(self, folder: str | None = None) -> None:
-        folder = folder if folder is not None else os.environ.get("MARGIN_RECORD_DIR", "")
-        self.folder = Path(folder).expanduser() if folder else None
+        self._folder = folder                # None: read MARGIN_RECORD_DIR when a line plays (after .env)
         self._lock = threading.Lock()
         self._n = 0
 
+    @property
+    def folder(self) -> Path | None:
+        folder = self._folder if self._folder is not None else os.environ.get("MARGIN_RECORD_DIR", "")
+        return Path(folder).expanduser() if folder else None
+
     def play(self, audio: bytes, text: str, play) -> object:
         """Run ``play()`` (which sounds the line) and keep the line with its start and end."""
-        if self.folder is None:
+        folder = self.folder
+        if folder is None:
             return play()
         start = time.time()
         with self._lock:
@@ -52,8 +57,8 @@ class Recorder:
             n = self._n
         name = time.strftime("%Y%m%d-%H%M%S", time.localtime(start)) + f".{int(start % 1 * 1000):03d}_{n:04d}.mp3"
         try:
-            self.folder.mkdir(parents=True, exist_ok=True)
-            (self.folder / name).write_bytes(audio)
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / name).write_bytes(audio)
         except OSError as err:
             _warn(f"could not keep a recording of the line: {err}")
             return play()
@@ -61,7 +66,7 @@ class Recorder:
             return play()
         finally:
             line = {"file": name, "start": round(start, 3), "end": round(time.time(), 3), "text": text}
-            with self._lock, open(self.folder / "timeline.jsonl", "a", encoding="utf-8") as f:
+            with self._lock, open(folder / "timeline.jsonl", "a", encoding="utf-8") as f:
                 f.write(json.dumps(line, ensure_ascii=False) + "\n")
 
 
