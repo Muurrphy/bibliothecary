@@ -110,7 +110,7 @@ def start(lesson: Lesson | None, args, *, client: OpenAICompatible | None = None
             return brain.answer_stream(client, lesson, question, current=current, position=position,
                                        history=history, review=review)
         if review and review.get("expect"):               # no model: say what a good answer says
-            return {"steps": [Step(say=review["expect"])], "then": "continue"}
+            return {"steps": [Step(say=review["expect"].removeprefix(brain.OPEN))], "then": "continue"}
         return brain.scripted_answer(lesson, question)
 
     transcriber = (lambda audio, mime: client.transcribe(audio, mime=mime, filename="question." + {"audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/mpeg": "mp3"}.get(mime, mime.split("/")[-1]))) if client else None

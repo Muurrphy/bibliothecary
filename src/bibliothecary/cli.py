@@ -1,4 +1,4 @@
-"""Command line: ``bibliothecary`` (or ``biblio``) prepare / read / report / records."""
+"""Command line: ``bibliothecary`` (or ``biblio``) prepare / read / report / records / book."""
 
 from __future__ import annotations
 
@@ -155,6 +155,61 @@ def cmd_chat(args) -> int:
             print(f"    (would prepare: {answer.prepare}; run: biblio prepare {answer.prepare})\n")
 
 
+def cmd_book(args) -> int:
+    from . import books
+
+    chinese = books.is_chinese(args.explain)
+    if args.action == "add":
+        if not args.what:
+            raise SystemExit("biblio book add <file.epub|.txt|.pdf>")
+        client = OpenAICompatible.from_env()
+        book = books.add(args.what, client=client, explain=args.explain, mode=books.mode_of(args.mode or ""),
+                         title=args.title, log=_log)
+        print("\n  " + books.describe(book, chinese) + (f"\n  {book.data['why']}" if book.data.get("why") else "")
+              + "\n\n  Prepare the next session with: biblio book next\n")
+        return 0
+    if args.action == "list":
+        found = books.shelf()
+        if not found:
+            print(f"  no books yet in {books.books_dir()}; add one with: biblio book add <file>")
+        for book in books.shelf():
+            books.sync(book)
+            mark = "*" if books.current() and books.current().folder == book.folder else " "
+            print(f" {mark} {book.folder.name:40} {book.data.get('status', 'reading'):9} {books.describe(book, chinese)}")
+        return 0
+    book = books.find(args.what or "")
+    if book is None:
+        raise SystemExit("no such book on the shelf (biblio book list)")
+    if args.action == "show":
+        books.sync(book)
+        print("  " + books.describe(book, chinese))
+        c, _ = book.position
+        for i, ch in enumerate(book.chapters):
+            print(f"   {'>' if i == c else ' '} {i + 1:3d}. {ch['title'][:60]:60} {ch['size']:7d}")
+        return 0
+    if args.action == "mode":
+        mode = books.mode_of(args.mode or "")
+        if mode is None:
+            raise SystemExit("--mode text | digest | excerpts  (读原文 / 拆书 / 精华原文)")
+        books.set_mode(book, mode)
+        print("  " + books.describe(book, chinese))
+        return 0
+    if args.action in ("pause", "resume"):
+        books.set_status(book, "paused" if args.action == "pause" else "reading")
+        print("  " + books.describe(book, chinese) + f" ({book.data['status']})")
+        return 0
+    # next
+    client = OpenAICompatible.from_env()
+    if client is None:
+        raise SystemExit("preparing needs a model key (OPENAI_API_KEY)")
+    folder = books.prepare_next(client, book, explain=args.explain, bedtime=args.bedtime, review=args.review,
+                                mode=books.mode_of(args.mode or "") if args.mode else None, aloud=args.aloud,
+                                again=args.again, log=_log)
+    lesson = Lesson.load(folder / "lesson.json")
+    print(f"\n  Ready: {lesson.title}\n    {folder}\n\n  Read it with: biblio read\n")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="biblio", description="Bibliothecary: a personal librarian. "
                                 "Readings and reports are kept in " + str(library.readings_dir()))
@@ -192,6 +247,18 @@ def main(argv: list[str] | None = None) -> int:
                     help="do not keep the reading room open (then read with biblio read)")
     margin_cli.add_serve_options(tg)
     tg.set_defaults(fn=cmd_telegram)
+
+    bk = sub.add_parser("book", help="whole books: add a book, see the shelf, prepare the next session")
+    bk.add_argument("action", choices=["add", "list", "show", "next", "mode", "pause", "resume"])
+    bk.add_argument("what", nargs="?", help="add: the file (.epub .txt .pdf); others: the book (default: the current one)")
+    bk.add_argument("--mode", help="text (读原文) · digest (拆书) · excerpts (精华原文)")
+    bk.add_argument("--title", help="add: a title of your own")
+    bk.add_argument("--explain", default="English", help="language it explains in, e.g. 'Simplified Chinese'")
+    bk.add_argument("--review", type=int, default=3, help="questions at the end of a session")
+    bk.add_argument("--bedtime", action="store_true", help="end with good night")
+    bk.add_argument("--aloud", action="store_true", help="text mode: the voice reads the text aloud")
+    bk.add_argument("--again", action="store_true", help="next: prepare the waiting session anew")
+    bk.set_defaults(fn=cmd_book)
 
     ch = sub.add_parser("chat", help="talk with the librarian here in the terminal (shares Telegram's memory)")
     ch.add_argument("message", nargs="*", help="say these one after another and stop; none = talk until Ctrl+D")

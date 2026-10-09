@@ -181,10 +181,11 @@ def _shape(explain: str) -> str:
 
 def build_lesson(client: OpenAICompatible, title: str, text: str, *, explain_language: str = "English",
                  source: str = "", language: str = "en", bedtime: bool = False, preview: bool = True,
-                 review: int = 3, known: str = "") -> Lesson:
+                 review: int = 3, known: str = "", guide: str = "") -> Lesson:
     """A session in three parts: background first (preview), the reading, then a few questions (review).
 
-    ``known``: what the reader is already known to understand, so the preview can skip it."""
+    ``known``: what the reader is already known to understand, so the preview can skip it.
+    ``guide``: extra instructions for this kind of session (a chapter of a book, chosen passages)."""
     paragraphs = [p for p in re.split(r"\n\s*\n", text.strip()) if p.strip()]
     lesson = Lesson.from_dict({"title": title, "source": source, "language": language,
                                "explain_language": explain_language, "paragraphs": paragraphs, "steps": []})
@@ -194,6 +195,8 @@ def build_lesson(client: OpenAICompatible, title: str, text: str, *, explain_lan
         n_preview="2-4" if preview else "0", n_review=str(max(0, review)),
         known=f"The listener already understands: {known}. Do not explain these again.\n" if known else "",
         goodnight=", and wish them good night" if bedtime else "")
+    if guide:
+        system += "\n\n" + guide
     data = client.chat_json(system, lesson.context())
     lesson.steps = assemble(lesson, data, preview=preview, review=review)
     return lesson
@@ -227,9 +230,20 @@ def assemble(lesson: Lesson, data: dict[str, Any], *, preview: bool = True, revi
     return steps
 
 
+OPEN = "(open question) "        # a review question with no right answer: respond, do not grade
+
+
 def _review(review: dict | None) -> str:
     if not review:
         return ""
+    if str(review.get("expect") or "").startswith(OPEN):
+        about = review["expect"][len(OPEN):]
+        return (f"\n\nYou have finished reading and just asked them an open question: {review['question']}"
+                + (f"\nA thoughtful answer might touch on: {about}" if about else "")
+                + "\nWhat they say now is most likely their answer. There is no right answer: in one or two "
+                  "sentences respond to what they noticed, and point to a line in the text that bears on it. "
+                  "Never say whether it is right or wrong. Then \"then\": \"continue\". If they did not answer "
+                  "(they want to skip, or go on), handle it as usual.")
     good = f"\nA good answer says: {review['expect']}" if review.get("expect") else ""
     return (f"\n\nYou have finished reading and just asked them a review question: {review['question']}{good}"
             "\nWhat they say now is most likely their answer. In one or two sentences, tell them plainly what"
@@ -246,6 +260,8 @@ def _answer_prompt(lesson: Lesson, question: str, current: str | None, position:
     lookup = (LOOKUP.format(explain=explain, today=_dt.date.today().isoformat())
               if can_search and not found else "")
     system = ANSWER_SYSTEM.format(shape=_shape(explain), explain=explain, style=STYLE, lookup=lookup)
+    if lesson.guide:
+        system += "\n\n" + lesson.guide
     where = f"\n\nYou were explaining {current}: {lesson.sentence(current)}" if current else ""
     where += _review(review)
     context = f"{lesson.context()}{plan_summary(lesson, position)}{_history(history)}{where}"

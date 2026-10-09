@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Whole books. An EPUB, TXT or PDF goes on the shelf (`~/Bibliothecary/books/`), cut into chapters along its own contents; Project Gutenberg's wrapper, contents pages and indexes are left out. EPUB is read with the standard library (no AGPL dependency). The librarian keeps your place and prepares one part at a time, read in one of three ways: the text itself (quiet, notes only on real difficulties, the place moving at reading pace, open questions with no right answer), a digest (a map of the whole book first, then a chapter at a time) or the best passages (whole paragraphs chosen by number, so never misquoted, with a sentence on what lies between them). No spoilers: chapter notes are made only as far as you have read, and the "previously" and the answers stay behind your place. `biblio book add|list|show|next|mode|pause|resume`; in Telegram send the file, then `/book`, `/books`, `/mode`, `/next`. While a book is open, the daily round continues it. A waiting part that will not be read (the way of reading changed) is moved to `readings/_set_aside/`, never deleted.
+- Open review questions (`margin.brain.OPEN`): the answer is responded to, not graded, and the report shows what to think about instead of a model answer.
+- A lesson can carry a `guide` for the answering model (which book, what was read before, no spoilers).
 - The librarian introduces itself once, asks what time you usually read, and keeps a daily round around that time: a morning or evening greeting, then a reading chosen and prepared before you sit down. `/time` changes the time.
 - While reading, questions about recent facts ("查一下", "最新", "今年" …) are answered after a web search.
 - The librarian offers only pieces that can be read in full, prepares one only once it is chosen, and can look up recent facts before choosing.

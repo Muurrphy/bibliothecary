@@ -151,6 +151,7 @@ class Lesson:
     explain_language: str = "en"
     questions: list[dict[str, Any]] = field(default_factory=list)
     cues: dict[str, str] = field(default_factory=dict)   # name -> what it shows, for the model to choose
+    guide: str = ""              # extra context for answering (e.g. which book, what was read before, no spoilers)
 
     # ---- ids -------------------------------------------------------------------------
     def sentence_ids(self) -> list[str]:
@@ -231,6 +232,7 @@ class Lesson:
             explain_language=data.get("explain_language", data.get("language", "en")),
             questions=list(data.get("questions", [])),
             cues={str(k): str(v) for k, v in (data.get("cues") or {}).items()},
+            guide=str(data.get("guide") or ""),
         )
 
     @classmethod
@@ -247,6 +249,7 @@ class Lesson:
             "steps": [s.to_dict() for s in self.steps],
             "questions": self.questions,
             **({"cues": self.cues} if self.cues else {}),
+            **({"guide": self.guide} if self.guide else {}),
         }
 
     def save(self, path: str | Path) -> None:

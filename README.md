@@ -31,6 +31,7 @@ Version 0.3 does the reading, the instruction, the records and the daily chat. T
 |---|---|
 | **Works now** | `biblio prepare` turns an article into a three-part session: background, reading, review questions. `biblio read` reads it on the Kindle and phone, takes spoken questions, waits for your answers to the review questions, and files a reading report when it ends. |
 | **Also now** | `biblio telegram`: the librarian in a Telegram chat. Send it a link, a file or a voice message; it prepares the reading, asks you each day what you'd like to read tonight, and sends the reading report when you finish. |
+| **Also now** | Whole books: an EPUB, TXT or PDF read part by part, with your place kept, in three ways (the text itself, a digest, the best passages) and without spoilers. |
 | **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
 
 ## Three parts: use them together or on their own
@@ -122,6 +123,20 @@ It talks like a librarian, not a search box: when you ask "what should I read to
 Conversation and choosing need judgement, so they can use a stronger model than preparing does: set `BIBLIOTHECARY_CHAT_MODEL` in `.env` (or `--chat-model`). To try the librarian without Telegram, `biblio chat "what should I read tonight?"` talks in the terminal, shares the same memory, and prints every search with what was kept and why.
 
 The computer has to be on for the bot to answer. Chat messages pass through Telegram's servers; the readings and records stay on your computer. Your chat with the librarian is kept locally in `~/Bibliothecary/chat.jsonl`.
+
+## Whole books
+
+Send the librarian a book (EPUB, or a long TXT or PDF) in Telegram, or run `biblio book add <file>`. It goes on the shelf in `~/Bibliothecary/books/`, cut into chapters along the book's own contents, and the librarian keeps your place: each session is one part, and the next one starts where you stopped, with a short "previously".
+
+There are three ways to read a book. The librarian suggests one from the kind of book; `/mode` (or `--mode`) changes it.
+
+| Way | For | What happens |
+|---|---|---|
+| **Text** (读原文) | novels, essays, memoirs | You read the text yourself. The librarian stays quiet: notes only where a reader really gets stuck (an allusion, an old word, a name), the place moving on at reading pace, one or two open questions at the end with no right answer. |
+| **Digest** (拆书) | science, social science, idea books | The first session is a map of the whole book: the question it asks, its answer, how it is built, which chapters matter most. Then a chapter at a time, explained, so you don't need to read every sentence. |
+| **Best passages** (精华原文) | idea books, when you want the author's own words | The few passages of a chapter most worth reading, read closely; what lies between them is told in a sentence. Passages are whole paragraphs taken from the book by number, so nothing is ever misquoted. |
+
+No spoilers: chapter notes are made only as far as you have read, the "previously" uses nothing beyond your place, and during the reading the librarian won't tell you what happens later even if it knows the book. A session counts once you finish it; then your place moves on. In Telegram: `/book` (the open book and your progress), `/books` (the shelf), `/mode`, `/next`, `/book pause`. While a book is open, the daily round prepares its next part instead of choosing an article. Session length follows `BIBLIOTHECARY_BOOK_MINUTES` (default 20). The map, the notes and the choice of passages use `BIBLIOTHECARY_BOOK_MODEL` (else `BIBLIOTHECARY_CHAT_MODEL`). Books with DRM (Kindle store, WeChat Read) can't be read; your own files and public-domain books (Standard Ebooks, Project Gutenberg, Wikisource) can. Design notes: [docs/design/books.zh-CN.md](docs/design/books.zh-CN.md).
 
 ## The reading report
 

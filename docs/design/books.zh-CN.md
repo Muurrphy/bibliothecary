@@ -1,6 +1,6 @@
 # 读整本书：设计调研（草案）
 
-> 状态：调研草案，2026-10-09，尚未实现。承接 [需求文档](../requirements.zh-CN.md) 4.4 节 R4.5–R4.8（在读与暂停）。
+> 状态：2026-10-09 调研，同日实现（`src/bibliothecary/books.py`、`bookfile.py`；`biblio book`；Telegram 发书）。摘抄本还没做。承接 [需求文档](../requirements.zh-CN.md) 4.4 节 R4.5–R4.8（在读与暂停）。
 
 ## 1. 现在卡在哪
 

@@ -6,6 +6,9 @@ It answers only the one person who paired with it (``/start <code>`` with the co
 printed in the terminal). What it does:
 
 - a link or a file (.txt, .md, .html, .pdf): it prepares the reading and sends the guide back;
+- a whole book (.epub, or a long .txt/.pdf): it goes on the shelf; the librarian keeps your place and
+  prepares one session at a time, read as text (读原文), digest (拆书) or best passages (精华原文);
+  ``/book``, ``/books``, ``/mode``, ``/next``. While a book is open, the daily round continues it;
 - "something on X": it searches open-access papers (OpenAlex, arXiv) or the web, suggests a few,
   and prepares the one you choose;
 - a voice message: transcribed, then handled like text;
@@ -36,11 +39,11 @@ from typing import Any
 
 from margin.lesson import Lesson
 
-from . import library, report
+from . import books, library, report
 from .desk import Desk
 
 URL = re.compile(r"https?://\S+")
-FILE_TYPES = (".txt", ".md", ".html", ".htm", ".pdf")
+FILE_TYPES = (".txt", ".md", ".html", ".htm", ".pdf", ".epub")
 
 
 class TelegramError(RuntimeError):
@@ -201,7 +204,9 @@ class Librarian:
             "· 把文章备成讲稿：先补你可能缺的背景，再按顺序讲要点，最后问你几个问题。\n"
             "· 陪你读。点我发的「📖 在手机上读」：上面是原文，讲到哪句就标到哪句，重要的地方会弹出批注；"
             "下面是我的声音和一张会说话的嘴。随时开口打断我提问；我不确定的事，会先上网查。\n"
-            "· 记住你。每次的问答都记进读书报告，读完发给你；下次挑文章会参考你读过什么、哪里还没弄懂。\n\n"
+            "· 记住你。每次的问答都记进读书报告，读完发给你；下次挑文章会参考你读过什么、哪里还没弄懂。\n"
+            "· 陪你读整本书。把 EPUB、TXT 或 PDF 发给我，我记住你读到哪，每次备一段：小说散文就读原文，"
+            "我只在难处加注，开头说一句前情提要（绝不剧透）；知识类的书可以拆书讲，或者只挑最值得读的原文段落。\n\n"
             "你也可以随时发我链接、PDF 或语音，我来备课。你的读书记录只存在你自己的电脑上"
             "（聊天消息会经过 Telegram 的服务器）。\n\n"
             "先问你一件事：你一般每天什么时候读？比如“晚上 10 点”“早上 7 点半”“午休 12 点半”。"
@@ -217,7 +222,10 @@ class Librarian:
             "I'm on underlined, notes popping up where they matter, and my voice and a talking mouth below. "
             "Interrupt me any time with a question; if I'm not sure of something, I look it up first.\n"
             "· Remember you. Every question and answer goes into a reading report I send you afterwards, "
-            "and I choose the next reading with what you've read and what's still unclear in mind.\n\n"
+            "and I choose the next reading with what you've read and what's still unclear in mind.\n"
+            "· Read whole books with you. Send an EPUB, TXT or PDF; I keep your place and prepare one part at a "
+            "time: novels and essays in their own words, with notes only where it's hard and a “previously” that "
+            "never gives anything away; idea books as a digest, or just the passages most worth reading.\n\n"
             "You can also send me a link, a PDF or a voice message any time. Your reading records stay on "
             "your own computer (chat messages pass through Telegram's servers).\n\n"
             "First, one question: when do you usually read? For example “10 pm”, “7:30 in the morning”, "
@@ -304,6 +312,10 @@ class Librarian:
         job.start()
 
     def _choose_and_prepare(self, greet: str, intro: str, now: dt.datetime, at: dt.datetime) -> None:
+        book = books.current()
+        if book is not None:                              # a book is open: tonight is its next part
+            return self._book_session(book, intro=greet + self.t(f"{self.when_word(now, at)}接着读《{book.title}》。",
+                                                                  f" Tonight we go on with “{book.title}”."))
         task = (f"It is time to choose the reading for {self.when_word(now, at)} ({at:%H:%M}). Using what you know "
                 "about the reader and anything they said today, choose ONE piece that suits them, search as "
                 "needed, and return it with \"prepare\": \"<url>\" and a short reply saying why this one. "
@@ -356,8 +368,14 @@ class Librarian:
         if self.state.get("setup") == "read_at" and not command and answers_time(text):
             return self.set_reading_time(text)       # the answer to "when do you read?"; anything else is a chat
         if command in ("/start", "/help"):
-            return self.send(self.t("发链接或文件给我备课；/tonight 今晚读什么；/records 读过的；/report 最近的读书报告。",
-                                    "Send a link or file to prepare it. /tonight · /records · /report"))
+            return self.send(self.t("发链接或文件给我备课；/tonight 今晚读什么；/records 读过的；/report 最近的读书报告。\n"
+                                    "整本书：发 EPUB/TXT/PDF；/book 在读的书；/books 书架；/mode 拆书、精华 或 原文；"
+                                    "/next 备下一段；/book pause 先放一放。",
+                                    "Send a link or file to prepare it. /tonight · /records · /report\n"
+                                    "Books: send an EPUB/TXT/PDF. /book · /books · /mode digest|excerpts|text · /next · "
+                                    "/book pause"))
+        if command in ("/book", "/books", "/mode", "/next"):
+            return self.book_command(command, text[len(text.split()[0]):].strip())
         if command == "/tonight":
             return self.send(*self.tonight())
         if command == "/records":
@@ -392,14 +410,100 @@ class Librarian:
     def _document(self, doc: dict) -> None:
         name = Path(doc.get("file_name") or "article.txt").name
         if not name.lower().endswith(FILE_TYPES):
-            return self.send(self.t("这种文件我还读不了。发 .txt、.md、.html、.pdf，或者直接发链接。",
-                                    "I can't read that kind of file yet. Send .txt, .md, .html, .pdf, or a link."))
+            return self.send(self.t("这种文件我还读不了。发 .txt、.md、.html、.pdf、.epub，或者直接发链接。",
+                                    "I can't read that kind of file yet. Send .txt, .md, .html, .pdf, .epub, or a link."))
         inbox = library.home() / "inbox"
         inbox.mkdir(parents=True, exist_ok=True)
         path = inbox / name
         path.write_bytes(self.bot.download(doc["file_id"]))
         self._remember("reader", f"(file) {name}")
+        if name.lower().endswith((".epub", ".txt", ".pdf")) and books.looks_like_book(path):
+            return self.start_book(path)
         self.start_prepare(str(path))
+
+    # ---- whole books -----------------------------------------------------------------
+    def _job(self, target, *args) -> None:
+        job = threading.Thread(target=target, args=args, daemon=True, name="bibliothecary-book")
+        self.jobs.append(job)
+        job.start()
+
+    def _bedtime(self) -> bool:
+        return self.bedtime and (self.read_at is None or is_bedtime(self.read_at))
+
+    def start_book(self, path: Path) -> None:
+        if self.client is None:
+            return self.send(self.t("读书需要模型密钥（.env 里的 OPENAI_API_KEY）。", "Books need a model key (OPENAI_API_KEY)."))
+        self.send(self.t("收到一本书，我先上架、看看怎么读。", "A book! Let me shelve it and see how to read it."))
+        self._job(self._shelve, path)
+
+    def _shelve(self, path: Path) -> None:
+        try:
+            book = books.add(path, client=self.client, explain=self.explain, log=self.log)
+        except Exception as err:
+            self.log(f"shelving {path.name} failed: {err}")
+            return self.send(self.t(f"这本书我没读进来：{err}", f"I couldn't read that book: {err}"))
+        chinese = books.is_chinese(self.explain)
+        lines = [books.describe(book, chinese)]
+        if book.data.get("why"):
+            lines.append(book.data["why"])
+        lines.append(self.t("换读法发 /mode 拆书、/mode 精华 或 /mode 原文。我先备第一段，好了告诉你。",
+                            "To read it another way: /mode digest, /mode excerpts or /mode text. "
+                            "I'm preparing the first part now."))
+        self.send("\n".join(lines))
+        self._book_session(book)
+
+    def _book_session(self, book, intro: str | None = None) -> None:
+        try:
+            folder = books.prepare_next(self.client, book, explain=self.explain, bedtime=self._bedtime(),
+                                        review=self.review, log=self.log)
+        except Exception as err:
+            self.log(f"preparing {book.title} failed: {err}")
+            return self.send(self.t(f"这一段没备成：{err}", f"I couldn't prepare the next part: {err}"))
+        how, buttons = self.read_here(folder)
+        with self._lock:
+            self.send((intro + "\n\n" if intro else "") + self.guide(folder) + "\n\n" + how, buttons)
+
+    def book_command(self, command: str, arg: str) -> None:
+        chinese = books.is_chinese(self.explain)
+        if command == "/books":
+            found = books.shelf()
+            if not found:
+                return self.send(self.t("书架还是空的。把 EPUB、TXT 或 PDF 发给我就行。",
+                                        "The shelf is empty. Send me an EPUB, TXT or PDF."))
+            now = books.current()
+            names = {"reading": self.t("在读", "reading"), "paused": self.t("放着", "paused"),
+                     "finished": self.t("读完", "finished")}
+            return self.send("\n".join(("▸ " if now and now.folder == b.folder else "· ")
+                                        + f"[{names.get(books.sync(b).data.get('status', 'reading'), '')}] "
+                                        + books.describe(b, chinese) for b in found))
+        if command == "/book" and arg.split()[:1] in (["pause"], ["暂停"], ["放一放"]):
+            book = books.current()
+            if book is None:
+                return self.send(self.t("现在没有在读的书。", "No book is open right now."))
+            books.set_status(book, "paused")
+            return self.send(self.t(f"《{book.title}》先放一放，进度都留着。想接着读就发 /book {book.title}。",
+                                    f"“{book.title}” is set aside; your place is kept. /book {book.title} to go back."))
+        book = books.find(arg) if command == "/book" and arg else books.current()
+        if book is None:
+            return self.send(self.t("没找到这本书。/books 看书架。" if arg else "现在没有在读的书。把书发给我就行。",
+                                    "No such book; /books shows the shelf." if arg else "No book open; send me one."))
+        if command == "/book":
+            if arg:
+                books.set_status(book, "reading")
+            books.sync(book)
+            return self.send(books.describe(book, chinese))
+        if command == "/mode":
+            mode = books.mode_of(arg)
+            if mode is None:
+                return self.send(self.t("读法有三种：/mode 拆书、/mode 精华、/mode 原文。",
+                                        "Three ways: /mode digest, /mode excerpts, /mode text."))
+            books.set_mode(book, mode)
+            self.send(self.t(f"好，《{book.title}》改成「{books.MODE_NAMES[mode][0]}」。我重新备这一段。",
+                             f"OK, “{book.title}” is now read as {books.MODE_NAMES[mode][1]}. Preparing this part again."))
+            return self._job(self._book_session, book)
+        if command == "/next":
+            self.send(self.t("好，我去备下一段。", "OK, preparing the next part."))
+            return self._job(self._book_session, book)
 
     # ---- preparing -------------------------------------------------------------------
     def start_prepare(self, article: str, *, quiet: bool = False) -> None:
@@ -439,6 +543,15 @@ class Librarian:
         preview = [s.say for s in lesson.steps if s.part == "preview" and s.say]
         notes = [s.note for s in lesson.steps if s.note and s.part is None]
         questions = sum(1 for s in lesson.steps if s.expect)
+        marker = books.book_of(folder) or {}
+        if marker.get("mode") == "text":                 # reading the text itself: notes are glosses, questions open
+            lines = [self.t(f"备好了：《{lesson.title}》", f"Ready: “{lesson.title}”")]
+            if preview:
+                lines += ["", self.t("前情提要：", "Previously:"), *(f"· {p}" for p in preview)]
+            lines += ["", self.t(f"这次你自己读原文，我在旁边：难懂的地方有 {len(notes)} 条注释，读完聊 {questions} 个问题，没有标准答案。",
+                                 f"You read the text yourself; I'm alongside: {len(notes)} notes where it's hard, "
+                                 f"and {questions} open questions at the end.")]
+            return "\n".join(lines)
         lines = [self.t(f"备好了：《{lesson.title}》", f"Ready: “{lesson.title}”")]
         if preview:
             lines += ["", self.t("读之前要知道的：", "Before you read:"), *(f"· {p}" for p in preview)]

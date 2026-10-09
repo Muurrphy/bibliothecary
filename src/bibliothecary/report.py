@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from margin.brain import OPEN
 from margin.lesson import Lesson
 
 from . import library
@@ -139,7 +140,12 @@ def render(lesson: Lesson, events: list[dict], *, prepared: dt.date | None = Non
                     out += [f"**{words['librarian']}{colon}** {e['answer']}", ""]
             else:
                 out += [f"**{words['my_answer']}{colon}** {words['skipped']}", ""]
-            out += [f"**{words['reference']}{colon}** {step.expect}", ""]
+            if step.expect.startswith(OPEN):          # an open question: something to think about, not a key
+                about = step.expect[len(OPEN):].strip()
+                if about:
+                    out += [f"**{'可以想想' if words is ZH else 'To think about'}{colon}** {about}", ""]
+            else:
+                out += [f"**{words['reference']}{colon}** {step.expect}", ""]
 
     for key in ("unclear", "threads"):
         out += [f"## {words[key]}", ""]
