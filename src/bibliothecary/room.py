@@ -32,6 +32,9 @@ class ReadingRoom:
         self.room.app.annotation = self.annotate
         self.room.app.annotations = self.annotations
         self.room.app.reading_id = lambda: self.folder.name if self.folder else None
+        from .navigation import Navigator
+        self.navigator = Navigator(self)
+        self.room.app.navigator = self.navigator
 
     @property
     def kindle(self) -> str:
@@ -49,6 +52,9 @@ class ReadingRoom:
             if folder == self.folder:
                 return True                                          # already open: leave it as it is
             lesson = Lesson.load(folder / "lesson.json")
+            from .adaptation import context
+            lesson.librarian_enabled = True
+            lesson.interaction_context = context
             if not (folder / "report.md").exists():
                 report.write(folder)
             self.ledger = Ledger(folder, lesson, client=self.client, log=self.log)

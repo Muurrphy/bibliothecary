@@ -164,3 +164,22 @@ def test_a_stalled_realtime_answer_is_asked_again_the_classic_way(monkeypatch):
     finally:
         link.close()
         server.shutdown()
+
+
+def test_realtime_librarian_action_reaches_executor_without_reading_old_script(monkeypatch):
+    tool={'action':'explore','query':'the poem itself','original':True}
+    monkeypatch.setattr(__import__(__name__), 'ANSWER', {'then':'pause','steps':[],'librarian':tool})
+    server,seen,voice,lesson,ears,bus,link=_setup('就读你刚才说的那首吧')
+    called=[]
+    ears.player.librarian=lambda value,question: called.append((value,question)) or '正在核实原文。'
+    try:
+        ears.audio('detour',b'\x00\x01'*2400)
+        assert ears.end('detour')['live']
+        assert _wait_for(lambda:bool(called))
+        assert ears.player.wait_idle(3)
+        assert called==[(tool,'就读你刚才说的那首吧')]
+        assert voice.said==['正在核实原文。']
+        assert not ears.player.playing and ears.player.index==0
+    finally:
+        link.close()
+        server.shutdown()

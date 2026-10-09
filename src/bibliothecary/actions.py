@@ -22,6 +22,10 @@ def execute(app, text):
     # Negated requests must not accidentally save or change anything.
     if re.search(r"不要保存|不要记|别保存|别记|不用|do not|don't", text, re.I):
         return None
+    navigator = getattr(app, 'navigator', None)
+    if navigator:
+        reply = navigator.direct(text)
+        if reply is not None: return reply
     prefs = Store().get('settings', 'reading')
     changed = {}
     if re.search(r"(?:收起|隐藏|关掉|不要显示).*(?:嘴|口型)|(?:嘴型|嘴巴).*(?:收起来|隐藏|关掉)|hide.*mouth", text, re.I):

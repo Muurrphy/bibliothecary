@@ -217,7 +217,7 @@ class Store:
     def claim(self):
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            row=db.execute("SELECT * FROM jobs WHERE status='pending' ORDER BY rowid LIMIT 1").fetchone()
+            row=db.execute("SELECT * FROM jobs WHERE status='pending' ORDER BY CASE WHEN kind='navigate' THEN 0 WHEN kind='adapt' THEN 2 ELSE 1 END, rowid LIMIT 1").fetchone()
             if not row: return None
             db.execute("UPDATE jobs SET status='running',attempts=attempts+1,updated=? WHERE id=?",(stamp(),row['id']))
         return {**dict(row),'data':json.loads(row['data'])}

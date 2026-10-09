@@ -153,7 +153,13 @@ class Desk:
         store.export_profile()
 
     def context(self, query: str = "") -> str:
-        lines = ["What you know about the reader:"]
+        from .adaptation import context, leads
+        lines = ["Interaction adjustments with evidence:", context(), "Tentative reading leads (not stable traits):"]
+        lines += [str(r['query'])+' Source: '+r['source'] for r in leads()[:5]]
+        from .store import Store
+        sources = {r["source"] for r in leads()}
+        lines += ["Prepared optional extensions: "+str(v) for _,v in Store().all('extension') if v.get("evidence") in sources]
+        lines += ["What you know about the reader:"]
         lines += [f"- {fact}" for fact in self.reader()] or ["- (nothing yet)"]
         lines.append("\nReadings so far (oldest first):")
         found = library.readings()

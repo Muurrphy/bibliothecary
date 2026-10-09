@@ -166,6 +166,8 @@ class Librarian:
             from .jobs import Worker
             self.queue = Worker(self.store, self._dispatch, self.log)
             self.queue.start()
+            if room and hasattr(room, 'navigator'):
+                room.navigator.submit = self.queue.submit
             # Resume note organization after interruption without resending a Telegram message.
             if self.client:
                 for name, item in self.store.all("organization_pending"):
@@ -181,6 +183,22 @@ class Librarian:
         safe.write_json(self.state_file, self.state)
 
     def _dispatch(self, kind, data):
+        if kind == "navigate" and self.room: return self.room.navigator.run(data)
+        if kind == "adapt":
+            if self.store.get('settings','adaptation').get('disabled'): return
+            from .adaptation import analyze, leads
+            for folder in library.readings():
+                if self.store.get('organization',folder.name): analyze(folder,self.client)
+            # Prepare one optional extension daily. Never switch the live reading on a schedule.
+            if self.room and hasattr(self.room,'navigator'):
+                for lead in leads(self.store):
+                    from .store import digest
+                    key = digest(lead)
+                    if self.store.get('extension',key): continue
+                    folder = self.room.navigator.prepare_query({'query':lead['query'],'original':False})
+                    self.store.put('extension',key,{'reading':folder.name,'evidence':lead['source'],'query':lead['query']})
+                    break
+            return
         if kind == "message": return self.handle(data)
         if kind == "notice":
             if self.now().timestamp() <= data["expires"]:
@@ -197,7 +215,11 @@ class Librarian:
             at=dt.datetime.fromisoformat(data["at"])
             if self.now() > at + dt.timedelta(hours=2): return
             return self._choose_and_prepare(data["greet"],data["intro"],self.now(),at)
-        if kind == "organize": return report.write(library.readings_dir()/Path(data["reading"]).name, client=self.client)
+        if kind == "organize":
+            folder = library.readings_dir()/Path(data["reading"]).name
+            report.write(folder, client=self.client)
+            from .adaptation import analyze
+            return analyze(folder,self.client)
         if kind == "report": return self.send_report(library.readings_dir()/data["reading"])
         raise ValueError("Unknown job kind")
 
@@ -818,6 +840,7 @@ class Librarian:
             if not quiet:
                 self.send(self.t("还没有读完的篇目。", "Nothing has been read yet."))
             return
+        report.write(folder, client=self.client)
         lesson = Lesson.load(folder / "lesson.json")
         events = library.events(folder)
         asked = sum(1 for e in events if e.get("kind") == "exchange" and not e.get("review"))
@@ -847,6 +870,8 @@ class Librarian:
             self.save()
             self.send(self.introduction())
         now = self.now()
+        if self.queue and self.client:
+            self.queue.submit('adapt', {}, key='adapt:'+now.date().isoformat())
         today, clock = now.date().isoformat(), (now.hour, now.minute)
         late = (min(23, self.decide_at[0] + 3), self.decide_at[1])
         if self.read_at:                                  # the round follows the reader's own reading time
@@ -876,14 +901,26 @@ class Librarian:
             self.state["weekly"] = week
             self.save()
         sent = set(self.state.get("reported") or [])
+        revisions = dict(self.state.get("report_revisions") or {})
+        changed = False
         for folder in library.readings():
-            if library.status(folder) == "read" and folder.name not in sent:
-                if self.state.get("watching"):           # not on the first start: old reports stay put
-                    if self.queue: self.queue.submit("report", {"reading":folder.name}, key="report:"+folder.name)
-                    else: self.send_report(folder)
-                sent.add(folder.name)
-        if sent != set(self.state.get("reported") or []) or not self.state.get("watching"):
+            boundaries = [e for e in library.events(folder) if e.get('kind') in ('end','session_end','session_idle')]
+            if not boundaries: continue
+            from .store import digest
+            revision = digest(boundaries[-1])
+            previous = revisions.get(folder.name)
+            # Existing reported files get a baseline on upgrade, without an unsolicited replay.
+            new = folder.name not in sent or (previous is not None and previous != revision)
+            if new and self.state.get("watching"):
+                if self.queue:
+                    self.queue.submit("report", {"reading":folder.name}, key="report:"+folder.name+":"+revision)
+                else: self.send_report(folder)
+            if previous != revision: changed = True
+            revisions[folder.name] = revision
+            sent.add(folder.name)
+        if changed or sent != set(self.state.get("reported") or []) or not self.state.get("watching"):
             self.state["reported"], self.state["watching"] = sorted(sent), True
+            self.state["report_revisions"] = revisions
             self.save()
 
     def daily_question(self, when: str | None = None) -> str:

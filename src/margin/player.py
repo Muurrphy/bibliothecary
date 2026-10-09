@@ -87,6 +87,7 @@ class Player:
         self._active_generation = 0
         self._started = False
         self._manual_wait = False
+        self.quiet = False
         self._record = record or (lambda *_a, **_k: None)
         self.forced = None                    # (lesson, question) -> steps that must be used, or None
         self._t_sound: float | None = None
@@ -109,7 +110,7 @@ class Player:
 
     def checkpoint(self) -> dict:
         return {"index": self.index, "focus": self.focus, "history": self.history,
-                "review": self.review, "started": self._started, "manual_wait": self._manual_wait}
+                "review": self.review, "started": self._started, "manual_wait": self._manual_wait, "quiet": self.quiet}
 
     def _checkpoint(self) -> None:
         owner = getattr(self._record, "__self__", None)
@@ -125,6 +126,7 @@ class Player:
         self._command("play")
 
     def pause(self) -> None:
+        if getattr(self, "cancel_navigation", None): self.cancel_navigation()
         self._command("pause", interrupt=True)
 
     def toggle(self) -> None:
@@ -255,6 +257,7 @@ class Player:
             self.review = saved.get("review")
             self._started = bool(saved.get("started"))
             self._manual_wait = bool(saved.get("manual_wait"))
+            self.quiet = bool(saved.get("quiet"))
             self.playing = False if saved or len(args) > 1 and args[1] is not None else self.playing
             self.fillers = default_fillers(self.lesson.explain_language) if self._wants_fillers() else []
             self._prepare([Step(say=f) for f in self.fillers])
@@ -265,8 +268,9 @@ class Player:
             self.bus.publish("lesson", **self.lesson.reader_payload())
             self.bus.publish("progress", step=self.index, of=len(self.lesson.steps))
             if self.focus: self.bus.publish("focus", sentence=self.focus)
-            self.bus.publish("status", state="waiting" if self.review else "paused")
+            self.bus.publish("status", state="waiting" if self.review else "done" if self.lesson.steps and self.index >= len(self.lesson.steps) else "paused")
         elif name == "play":
+            self.quiet = False
             self._start_reading()
             if self.lesson and self.index >= len(self.lesson.steps):
                 self.index = 0
@@ -281,6 +285,7 @@ class Player:
                 self.bus.publish("status", state="done")
         elif name == "pause":
             self.playing = False
+            self._note("discussion_pause")
             self.bus.publish("status", state="paused")
         elif name == "seek" and self.lesson:
             self._skip_review()
@@ -307,6 +312,10 @@ class Player:
                 return
             self._held_until = 0.0
             self._answer(args[0], args[1] if len(args) > 1 else None, args[2] if len(args) > 2 else None)
+        elif name == "librarian_result":
+            generation, callback = args
+            if generation == self._generation:
+                callback()
         elif name == "resume_status":
             self.bus.publish("status", state=self._state())
 
@@ -500,6 +509,24 @@ class Player:
         self._prepare([Step(say=text)])            # ready for next time
         return True
 
+    def _quiet_request(self, question, live=None):
+        if re.search(r"不是在和你说|不是跟你说|跟另外一个.*说话|先不用管我|not talking to you", question, re.I):
+            self.quiet = True
+        elif self.quiet and re.search(r"回来吧|继续|开始吧|可以说话|resume|continue", question, re.I):
+            self.quiet = False
+            self.playing = True
+            if live is not None: live.cancel()
+            self.bus.publish("status", state="reading")
+            return True
+        if self.quiet:
+            if getattr(self, "cancel_navigation", None): self.cancel_navigation()
+            if live is not None: live.cancel()
+            self.playing = False
+            self._note("discussion_pause")
+            self.bus.publish("status", state="paused")
+            return True
+        return False
+
     def _try_action(self, question, live=None):
         handler = getattr(self, "action", None)
         if not handler or not question or self._active_generation != self._generation:
@@ -525,7 +552,7 @@ class Player:
         so once answered we go on with the next line instead of reading it again."""
         if not self.lesson:
             return
-        if live is None and self._try_action(question):
+        if live is None and (self._quiet_request(question) or self._try_action(question)):
             return
         skip_cut = self._cut is not None and self._cut == self.index
         self._cut = None
@@ -548,7 +575,12 @@ class Player:
             stream = result.start(on_step=lambda st: self._prepare([st], answer=True))
             if live is not None:
                 # wait (briefly) for what you said: to show it, and to be sure it was not our own voice
-                heard = live.wait_heard(max(0.0, 1.6 - (time.monotonic() - t0)))
+                heard = live.wait_heard(max(0.0, (6.0 if self.quiet else 1.6) - (time.monotonic() - t0)))
+                if self.quiet and not heard:
+                    live.cancel()
+                    self.playing = False
+                    self.bus.publish("status", state="paused")
+                    return
                 if heard is None:
                     self._log(f"ignored what the microphone heard: {live.turn.transcript!r}")
                     live.cancel()
@@ -558,7 +590,7 @@ class Player:
                 question = heard or "…"
                 if heard:
                     self._log(f"question: {heard}")
-                if heard and self._try_action(heard, live):
+                if heard and (self._quiet_request(heard, live) or self._try_action(heard, live)):
                     return
                 intent = quick_intent(heard) if heard else None
                 planned = self.forced(self.lesson, heard) if (heard and self.forced) else None
@@ -573,6 +605,8 @@ class Player:
                         stream = retry.start(on_step=lambda st: self._prepare([st], answer=True))
                     else:
                         steps, stream = list((retry or {}).get("steps") or []), None
+                        result = retry
+                        then = (retry or {}).get("then", "pause")
                 elif planned:                     # a planned moment (e.g. for filming): use it as written
                     live.cancel()
                     steps, stream = list(planned), None
@@ -642,6 +676,19 @@ class Player:
                           f"{' (after a filler)' if filled else ''}")
         if self._active_generation != self._generation:
             return
+        tool = getattr(stream, "librarian", None) if stream else result.get("librarian") if isinstance(result, dict) else None
+        if tool and not self._stop.is_set() and getattr(self, "librarian", None):
+            self.playing = False
+            try:
+                reply = self.librarian(tool, question)
+            except Exception as err:
+                self._log(f"librarian action failed: {type(err).__name__}")
+                reply = "这次没能完成，原来的阅读位置还在。"
+            if reply:
+                self._perform(Step(say=reply), answer={"question": question, "text": ""})
+                self._note("reader_action", question=question, answer=reply, focus=self.focus)
+            self.bus.publish("status", state="paused")
+            return
         self._t_asked = None
         interrupted = self._stop.is_set()
         n = len(self.lesson.steps)
@@ -671,10 +718,11 @@ class Player:
                 self.index = max(0, min(n - 1, self.index - 1))
         elif then == "skip":
             self.index = self._next_paragraph(self.index + (1 if skip_cut else 0))
-        elif skip_cut and then != "ignore":
+        elif skip_cut and then not in ("ignore", "pause") and self.index < n - 1:
             self.index += 1
         if then == "pause":
             self.playing = False
+            if quick_intent(question) == "pause" and getattr(self, "cancel_navigation", None): self.cancel_navigation()
         elif then == "ignore":
             pass                                     # nothing was said to us: change nothing
         elif self.index < n:
@@ -696,8 +744,10 @@ class Player:
         if self.lesson.manual and self._manual_wait:
             self.playing = False
             self.bus.publish("status", state="paused")
-        if self.index >= n and pending_review and not self.lesson.manual:
-            self._note("end")                        # the last review question was answered or skipped
+        if self.index >= n and not self.lesson.manual:
+            self._note("end")                        # filing is independent of the spoken goodbye
+        elif then == "pause":
+            self._note("discussion_pause")
 
     def _next_paragraph(self, index: int) -> int:
         """First step at or after ``index`` that starts a new paragraph."""

@@ -8,6 +8,7 @@ loses nothing already said. The report is rewritten when the session ends.
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import nullcontext
 import json
 import threading
 import uuid
@@ -29,6 +30,11 @@ class Ledger:
         self._dirty = False
         self._revision = 0
         self._closed = False
+        self._timer = None
+        self._reader_activity = 0
+        self._filed_activity = 0
+        self.idle_seconds = 90
+        self._writing = threading.Lock()
         from .store import Store
         self.store = Store()
 
@@ -60,8 +66,19 @@ class Ledger:
         if kind == "exchange":
             from .learning import observe
             observe(self.store, self.folder.name, event)
-        if kind == "end":
+        if kind == "utterance":
+            with self._lock: self._reader_activity += 1
+        if kind in ("end", "session_end"):
+            with self._lock: self._filed_activity = self._reader_activity
+        if kind in ("end", "session_end", "discussion_pause"):
             self._write_report_later()
+        if kind in ("utterance", "companion", "exchange"):
+            # File even if the tab vanishes or goodbye is interrupted. Raw text is durable now.
+            with self._lock:
+                if self._timer: self._timer.cancel()
+                self._timer = threading.Timer(self.idle_seconds, self.file_idle)
+                self._timer.daemon = True
+                self._timer.start()
 
     def capture_utterance(self, channel, focus):
         """Bind incoming speech to this reading before transcription or a book switch.
@@ -85,10 +102,17 @@ class Ledger:
         self.record('companion', who='librarian', text=text, focus=focus,
                     role=kind, playback='interrupted_or_failed' if interrupted else 'completed')
 
+    def file_idle(self):
+        with self._lock:
+            if self._reader_activity <= self._filed_activity: return
+            self._filed_activity = self._reader_activity
+        self.record("session_idle")
+        self._write_report_later()
+
     def _write_report_later(self) -> None:
         """The report is written at once; a model's summary (slow) is added in the background."""
         self._write(summarize=False)
-        if self.client is not None:
+        if self.client is not None and not (self._writer and self._writer.is_alive()):
             self._writer = threading.Thread(target=self._write, kwargs={"summarize": True}, daemon=True,
                                             name="bibliothecary-report")
             self._writer.start()
@@ -96,7 +120,11 @@ class Ledger:
     def _write(self, summarize: bool) -> None:
         try:
             with self._lock: revision = self._revision
-            path = report.write(self.folder, client=self.client if summarize else None)
+            with self._writing if summarize else nullcontext():
+                path = report.write(self.folder, client=self.client if summarize else None)
+                if summarize:
+                    from .adaptation import analyze
+                    analyze(self.folder, self.client)
             with self._lock:
                 self._dirty = self._revision != revision
             self._log(f"reading report → {path}")
@@ -106,6 +134,7 @@ class Ledger:
     def close(self) -> None:
         """On the way out (Ctrl-C): finish the report, even for a session that did not reach the end."""
         self._closed = True
+        if self._timer: self._timer.cancel()
         if self._writer is not None:
             self._writer.join(timeout=60)
         if self._dirty:
