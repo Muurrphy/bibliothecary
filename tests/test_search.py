@@ -332,3 +332,23 @@ def test_paywalled_pieces_are_not_offered(home, monkeypatch):
     answer = Desk(client).reply("x")
     assert "1 kept" in answer.trace[0] and "repo.example" in answer.trace[0]
     assert "paywall" in client.prompts[1][1] and "Locked" in client.prompts[1][1]
+
+
+def test_on_the_daily_round_it_chooses_and_prepares_on_its_own(home, monkeypatch):
+    import datetime as dt
+    found = [{"title": "Octopus sleep", "url": "https://example.org/octopus.pdf", "about": ""}]
+    monkeypatch.setattr(search, "papers", lambda q, prefer="any", limit=5: found)
+    client = ScriptedClient({"search": {"where": "papers", "query": "octopus sleep"}},
+                            {"reply": "你上次问到章鱼，选了这篇睡眠的。", "prepare": "https://example.org/octopus.pdf"},
+                            vets=[{"keep": [{"n": 1, "why": "fits"}]}])
+    prepared = []
+    lib, bot = librarian(client, prepared)
+    lib.state["read_at"] = "22:00"
+    lib.now = lambda: dt.datetime.fromisoformat("2026-10-08T21:16")
+    lib.state["asked"] = "2026-10-08"
+    lib.tick()
+    for job in lib.jobs:
+        job.join(5)
+    assert prepared == ["https://example.org/octopus.pdf"]
+    last = bot.sent[-1]
+    assert last.startswith("晚上好！今晚读这篇。") and "选了这篇睡眠的" in last and "备好了" in last

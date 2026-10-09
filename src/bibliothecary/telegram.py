@@ -10,8 +10,10 @@ printed in the terminal). What it does:
   and prepares the one you choose;
 - a voice message: transcribed, then handled like text;
 - anything else: the librarian talks with you about what to read, knowing your records;
-- once a day (``--ask-at``) it asks what you'd like to read tonight;
-- in the evening (``--decide-at``) it says what tonight's reading is;
+- on pairing it introduces itself and asks when you usually read (``/time`` changes it);
+- around that time each day it asks what you'd like (10 h before) and sends the prepared reading
+  (45 min before), choosing and preparing one itself when you said nothing; greetings follow the
+  time of day (good night for evening readers). Until it knows your time: ``--ask-at``/``--decide-at``;
 - when a session ends, it sends the reading report.
 
 Messages pass through Telegram's servers. The records stay in the local folder.
@@ -182,12 +184,143 @@ class Librarian:
     def read_here(self, folder: Path) -> tuple[str, list[tuple[str, str]] | None]:
         """How to start reading: a button for the phone and the Kindle's address, or the command."""
         if self.room is None:
-            return self.t("晚上在电脑上运行 biblio read 就能听。", "Run biblio read tonight to hear it."), None
+            return self.t("在电脑上运行 biblio read 就能听。", "Run biblio read on the computer to hear it."), None
         if self.room.folder is None or library.status(self.room.folder) == "read":
             self.room.open(folder.name)                   # nothing else open: the Kindle shows this one
         return (self.t(f"点下面的按钮在手机上读（要和电脑连同一个 Wi-Fi）；用 Kindle 就打开 {self.room.kindle}",
                        f"Tap below to read on your phone (same Wi-Fi as the computer); on the Kindle open {self.room.kindle}"),
                 [(self.t("📖 在手机上读", "📖 Read on this phone"), self.room.link(folder))])
+
+    # ---- getting to know each other -----------------------------------------------------
+    def introduction(self) -> str:
+        return self.t(
+            "你好，我是你的私人图书管理员。\n\n"
+            "我能帮你做这些事：\n"
+            "· 找值得读的东西。论文我从 OpenAlex、arXiv 里找能读到全文的；长文只从一批靠谱的来源里找，"
+            "比如 nobelprize.org、Quanta、Nature、知识分子。不推营销号，链接只给真正搜到的。\n"
+            "· 把文章备成讲稿：先补你可能缺的背景，再按顺序讲要点，最后问你几个问题。\n"
+            "· 陪你读。点我发的「📖 在手机上读」：上面是原文，讲到哪句就标到哪句，重要的地方会弹出批注；"
+            "下面是我的声音和一张会说话的嘴。随时开口打断我提问；我不确定的事，会先上网查。\n"
+            "· 记住你。每次的问答都记进读书报告，读完发给你；下次挑文章会参考你读过什么、哪里还没弄懂。\n\n"
+            "你也可以随时发我链接、PDF 或语音，我来备课。你的读书记录只存在你自己的电脑上"
+            "（聊天消息会经过 Telegram 的服务器）。\n\n"
+            "先问你一件事：你一般每天什么时候读？比如“晚上 10 点”“早上 7 点半”“午休 12 点半”。"
+            "我会每天提前问你想读什么，到点前把文章备好，你点开就能读。",
+            "Hello, I'm your personal librarian.\n\n"
+            "Here is what I do:\n"
+            "· Find things worth reading. Papers come from OpenAlex and arXiv, only ones you can read in full; "
+            "long reads only from a shelf of sources I trust, like nobelprize.org, Quanta and Nature. "
+            "No clickbait, and every link is one I really found.\n"
+            "· Prepare a reading: the background you may be missing, the main points in order, then a few "
+            "questions for you.\n"
+            "· Read it with you. Tap “📖 Read on this phone” when I send it: the article on top, the sentence "
+            "I'm on underlined, notes popping up where they matter, and my voice and a talking mouth below. "
+            "Interrupt me any time with a question; if I'm not sure of something, I look it up first.\n"
+            "· Remember you. Every question and answer goes into a reading report I send you afterwards, "
+            "and I choose the next reading with what you've read and what's still unclear in mind.\n\n"
+            "You can also send me a link, a PDF or a voice message any time. Your reading records stay on "
+            "your own computer (chat messages pass through Telegram's servers).\n\n"
+            "First, one question: when do you usually read? For example “10 pm”, “7:30 in the morning”, "
+            "“12:30 at lunch”. Each day I'll ask beforehand what you'd like, and have it ready on time.")
+
+    @property
+    def read_at(self) -> str | None:
+        return self.state.get("read_at")
+
+    def set_reading_time(self, text: str, *, asked: bool = False) -> None:
+        when = parse_time(text) if text else None
+        if when is None and text and self.client is not None:
+            try:
+                data = self.client.chat_json(
+                    "Extract the time of day the person usually reads. Return JSON {\"time\": \"HH:MM\"} in 24-hour "
+                    "time, or {\"time\": null} if there is no time in what they said.", text, max_tokens=60)
+                when = parse_time(str(data.get("time") or ""))
+            except Exception as err:
+                self.log(f"could not read the time: {err}")
+        if when is None:
+            if not text and self.read_at:
+                return self.send(self.t(f"现在是每天 {self.read_at} 读。要改就发 /time 加时间，比如 /time 21:30。",
+                                        f"You read at {self.read_at} each day. To change it: /time 21:30"))
+            return self.send(self.t("没太听懂几点。告诉我一个时间就行，比如 /time 晚上10点 或者 /time 7:30。",
+                                    "I didn't catch the time. Send one, like /time 10pm or /time 7:30."))
+        self.state.update(read_at=when)
+        self.state.pop("setup", None)
+        self.save()
+        hh, mm = _hhmm(when)
+        ask = (dt.datetime(2000, 1, 1, hh, mm) - dt.timedelta(hours=10)).strftime("%H:%M")
+        ready = (dt.datetime(2000, 1, 1, hh, mm) - dt.timedelta(minutes=45)).strftime("%H:%M")
+        part = day_part(when)
+        self.send(self.t(
+            f"好，记下了：每天 {when} 读。\n"
+            f"我会在 {ask} 左右问你想读什么；你没说的话，我就按我对你的了解自己挑。"
+            f"{ready} 左右把备好的文章发给你，点开就能读。\n"
+            + ("读完我跟你说晚安。" if is_bedtime(when) else
+               "早上读的话，我就跟你说早上好。" if part == "morning" else "")
+            + "\n要改时间，随时发 /time 加时间，比如 /time 21:30。\n\n"
+            "现在就想读点什么也行，直接告诉我。",
+            f"Got it: you read at {when} every day.\n"
+            f"Around {ask} I'll ask what you'd like; if you don't say, I'll choose from what I know about you. "
+            f"Around {ready} I'll send the prepared reading, ready to open.\n"
+            "To change the time, send /time with a time, like /time 21:30.\n\n"
+            "If you'd like something right now, just tell me."))
+
+    def greeting(self) -> str:
+        part = day_part(self.read_at or "21:00")
+        return self.t({"morning": "早上好！", "noon": "中午好！", "afternoon": "下午好！", "night": "晚上好！"}[part],
+                      {"morning": "Good morning!", "noon": "Good afternoon!", "afternoon": "Good afternoon!",
+                       "night": "Good evening!"}[part])
+
+    def when_word(self, now: dt.datetime, at: dt.datetime) -> str:
+        part = day_part(at.strftime("%H:%M"))
+        tomorrow = at.date() > now.date()
+        zh = {"morning": "早上", "noon": "中午", "afternoon": "下午", "night": "晚上"}[part]
+        if part == "night" and not tomorrow:
+            return self.t("今晚", "tonight")
+        return self.t(("明天" if tomorrow else "今天") + zh,
+                      ("tomorrow " if tomorrow else "this ") + {"morning": "morning", "noon": "lunchtime",
+                                                                 "afternoon": "afternoon", "night": "evening"}[part])
+
+    def next_reading(self, now: dt.datetime) -> dt.datetime:
+        """The next reading time (today's still counts until two hours after it)."""
+        hh, mm = _hhmm(self.read_at)
+        at = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if at < now - dt.timedelta(hours=2):
+            at += dt.timedelta(days=1)
+        return at
+
+    def deliver(self, now: dt.datetime, at: dt.datetime) -> None:
+        """Before the reading time: a prepared reading, ready to open, or one chosen and prepared now."""
+        waiting = library.next_unread()
+        greet = self.greeting()
+        intro = greet + self.t(f"{self.when_word(now, at)}读这篇。", f" Here's your reading for {self.when_word(now, at)}.")
+        if waiting is not None:
+            how, buttons = self.read_here(waiting)
+            return self.send(intro + "\n\n" + self.guide(waiting) + "\n\n" + how, buttons)
+        if self.client is None:
+            return self.send(greet + self.t("还没有备好的篇目，发我一个链接吧。", " Nothing is prepared yet; send me a link."))
+        job = threading.Thread(target=self._choose_and_prepare, args=(greet, intro, now, at), daemon=True,
+                               name="bibliothecary-choose")
+        self.jobs.append(job)
+        job.start()
+
+    def _choose_and_prepare(self, greet: str, intro: str, now: dt.datetime, at: dt.datetime) -> None:
+        task = (f"It is time to choose the reading for {self.when_word(now, at)} ({at:%H:%M}). Using what you know "
+                "about the reader and anything they said today, choose ONE piece that suits them, search as "
+                "needed, and return it with \"prepare\": \"<url>\" and a short reply saying why this one. "
+                "Do not pick something they have already read. If you know nothing about them yet, still "
+                "choose one good, broadly interesting piece.")
+        try:
+            answer = self.desk.reply(task, choose=True)
+        except Exception as err:
+            self.log(f"choosing a reading failed: {err}")
+            return self.send(greet + self.t("今天我没挑成，发我一个链接或者说说想读什么吧。",
+                                            " I couldn't choose one today; send me a link or an idea."))
+        for line in answer.trace:
+            self.log(line)
+        if not answer.prepare:
+            return self.send(greet + self.t("", " ") + (answer.text or self.t(
+                "今天想读点什么？", "What would you like to read today?")))
+        self._prepare_now(answer.prepare, intro=intro + ("\n" + answer.text if answer.text else ""))
 
     # ---- incoming messages -----------------------------------------------------------
     def handle(self, update: dict) -> None:
@@ -202,14 +335,9 @@ class Librarian:
                 self.state.pop("code", None)
                 self.save()
                 self.log(f"paired with Telegram chat {chat}")
-                self.send(self.t(
-                    "你好，我是你的图书管理员。发我一个链接或文件，我来备课；想读什么也可以直接跟我聊。"
-                    "每天我会问你一次今晚想读什么。\n\n提醒一句：聊天消息会经过 Telegram 的服务器；"
-                    "你的读书记录只存在你自己的电脑上。\n\n命令：/tonight 今晚读什么 · /records 读过的 · /report 最近的读书报告 · /profile 我记得的关于你的事",
-                    "Hello, I'm your librarian. Send me a link or a file and I'll prepare it; or just tell me what "
-                    "you'd like to read. Once a day I'll ask what you want to read tonight.\n\nNote: chat messages "
-                    "pass through Telegram's servers; your reading records stay on your own computer.\n\n"
-                    "Commands: /tonight · /records · /report · /profile"))
+                self.state.update(setup="read_at", introduced=True)
+                self.save()
+                self.send(self.introduction())
             return
         if chat != self.owner:
             return                                 # a librarian never talks about you to strangers
@@ -223,6 +351,10 @@ class Librarian:
             return
         self._remember("reader", text)
         command = text.split()[0].split("@")[0].lower() if text.startswith("/") else ""
+        if command == "/time":
+            return self.set_reading_time(text[len(text.split()[0]):].strip(), asked=True)
+        if self.state.get("setup") == "read_at" and not command and answers_time(text):
+            return self.set_reading_time(text)       # the answer to "when do you read?"; anything else is a chat
         if command in ("/start", "/help"):
             return self.send(self.t("发链接或文件给我备课；/tonight 今晚读什么；/records 读过的；/report 最近的读书报告。",
                                     "Send a link or file to prepare it. /tonight · /records · /report"))
@@ -280,14 +412,15 @@ class Librarian:
         self.jobs.append(job)
         job.start()
 
-    def _prepare_now(self, article: str) -> None:
+    def _prepare_now(self, article: str, *, intro: str | None = None) -> None:
         try:
             if self._prepare is not None:
                 folder = self._prepare(article)
             else:
                 from .prepare import prepare
 
-                folder = prepare(self.client, article, explain=self.explain, bedtime=self.bedtime,
+                bedtime = self.bedtime and (self.read_at is None or is_bedtime(self.read_at))
+                folder = prepare(self.client, article, explain=self.explain, bedtime=bedtime,
                                  review=self.review, log=self.log)
         except Exception as err:
             self.log(f"preparing {article} failed: {err}")
@@ -299,7 +432,7 @@ class Librarian:
             return self.send(self.t(f"这篇没备成：{err}", f"I couldn't prepare that one: {err}"))
         how, buttons = self.read_here(folder)
         with self._lock:
-            self.send(self.guide(folder) + "\n\n" + how, buttons)
+            self.send((intro + "\n\n" if intro else "") + self.guide(folder) + "\n\n" + how, buttons)
 
     def guide(self, folder: Path) -> str:
         lesson = Lesson.load(folder / "lesson.json")
@@ -429,15 +562,31 @@ class Librarian:
         """Called every few seconds: the daily question, tonight's choice, new reports."""
         if self.owner is None:
             return
+        if not self.state.get("introduced"):             # paired before the introduction existed: once
+            self.state.update(setup="read_at", introduced=True)
+            self.save()
+            self.send(self.introduction())
         now = self.now()
         today, clock = now.date().isoformat(), (now.hour, now.minute)
         late = (min(23, self.decide_at[0] + 3), self.decide_at[1])
+        if self.read_at:                                  # the round follows the reader's own reading time
+            at = self.next_reading(now)
+            key = at.date().isoformat()
+            ask, ready = at - dt.timedelta(hours=10), at - dt.timedelta(minutes=45)
+            if ask <= now < ready and self.state.get("asked") != key:
+                self.state["asked"] = key
+                self.save()
+                self.send(self.daily_question(self.when_word(now, at)))
+            if ready <= now < at + dt.timedelta(hours=2) and self.state.get("decided") != key:
+                self.state["decided"] = key
+                self.save()
+                self.deliver(now, at)
         # each message only within its own window, so starting the bot at midnight sends nothing
-        if self.ask_at <= clock < self.decide_at and self.state.get("asked") != today:
+        elif self.ask_at <= clock < self.decide_at and self.state.get("asked") != today:
             self.state["asked"] = today
             self.save()
             self.send(self.daily_question())
-        if self.decide_at <= clock < late and self.state.get("decided") != today:
+        if not self.read_at and self.decide_at <= clock < late and self.state.get("decided") != today:
             self.state["decided"] = today
             self.save()
             self.send(*self.tonight())
@@ -451,8 +600,9 @@ class Librarian:
             self.state["reported"], self.state["watching"] = sorted(sent), True
             self.save()
 
-    def daily_question(self) -> str:
-        lines = [self.t("今晚想读点什么？", "What would you like to read tonight?")]
+    def daily_question(self, when: str | None = None) -> str:
+        when = when or self.t("今晚", "tonight")
+        lines = [self.t(f"{when}想读点什么？", f"What would you like to read {when}?")]
         waiting = [f for f in library.readings() if library.status(f) != "read"]
         if waiting:
             titles = "、".join(f"《{Lesson.load(f / 'lesson.json').title}》" for f in waiting[:3])
@@ -463,9 +613,88 @@ class Librarian:
             threads = json.loads((latest / "summary.json").read_text(encoding="utf-8")).get("threads") or []
             if threads:
                 lines.append(self.t(f"上次读完留下的线索：{threads[0]}", f"A thread from last time: {threads[0]}"))
-        lines.append(self.t("发我一个链接或文件，或者跟我说说想读什么方向。",
-                            "Send me a link or a file, or tell me what you're in the mood for."))
+        lines.append(self.t("发我一个链接或文件，或者跟我说说想读什么方向；不说的话，到时候我按我对你的了解挑一篇。",
+                            "Send me a link or a file, or tell me what you're in the mood for; if you don't, "
+                            "I'll choose one from what I know about you."))
         return "\n".join(lines)
+
+
+# ---- reading time ----------------------------------------------------------------------
+_ZH_NUM = {"零": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9,
+           "十": 10, "十一": 11, "十二": 12}
+_PM = re.compile(r"下午|晚上|晚|今晚|夜里|夜|睡前|傍晚|pm|p\.m\.|evening|night|tonight|bed", re.IGNORECASE)
+_AM = re.compile(r"早上|早晨|上午|清晨|凌晨|早|am|a\.m\.|morning", re.IGNORECASE)
+_NOON = re.compile(r"中午|午休|午饭|noon|lunch", re.IGNORECASE)
+
+
+def parse_time(text: str) -> str | None:
+    """"晚上10点半", "早上7:30", "22:00", "10pm", "睡前" -> "HH:MM" (None when there is no time in it)."""
+    t = text.strip().lower()
+    m = re.search(r"(\d{1,2})\s*[:：.]\s*(\d{2})", t) or re.search(r"(\d{1,2})\s*(?:点|點|时|時|h\b|o'?clock|am|pm|a\.m|p\.m)", t)
+    hour = minute = None
+    if m:
+        hour = int(m.group(1))
+        minute = int(m.group(2)) if m.lastindex and m.lastindex >= 2 and m.group(2) else 0
+    else:
+        z = re.search(r"(十[一二]?|[一二两三四五六七八九十])\s*[点點时時]", t)
+        if z:
+            hour, minute = _ZH_NUM[z.group(1)], 0
+    if hour is not None:
+        if re.search(r"[点點时時]\s*半|半\b|:30|half", t) and minute == 0:
+            minute = 30
+        q = re.search(r"[点點时時]\s*(\d{1,2})\s*分?|[点點]\s*(一刻|三刻)", t)
+        if q and minute == 0:
+            minute = int(q.group(1)) if q.group(1) else (15 if q.group(2) == "一刻" else 45)
+        if _NOON.search(t) and hour < 6:
+            hour += 12
+        elif _PM.search(t) and hour < 12:
+            hour += 12
+        elif _PM.search(t) and hour == 12 and re.search(r"晚上|夜|midnight|night", t):
+            hour = 0                               # "晚上12点" is midnight
+        elif not _AM.search(t) and not _NOON.search(t) and 1 <= hour <= 11:
+            hour += 12          # a bare "10点": most people read in the evening (the reply says which, to correct)
+        if hour == 24:
+            hour = 0
+        if 0 <= hour < 24 and 0 <= minute < 60:
+            return f"{hour:02d}:{minute:02d}"
+        return None
+    if re.search(r"睡前|before bed|bedtime", t):
+        return "22:30"
+    if _NOON.search(t):
+        return "12:30"
+    if _AM.search(t):
+        return "07:30"
+    if re.search(r"下午|afternoon", t):
+        return "15:00"
+    if _PM.search(t):
+        return "21:30"
+    return None
+
+
+def answers_time(text: str) -> bool:
+    """Is this the answer to "when do you read?" (and not a request like "今晚读什么" or a link)?"""
+    if URL.search(text) or re.search(r"[?？]|什么|吗|呢|哪|what|which", text, re.IGNORECASE):
+        return False
+    if parse_time(text) is None:
+        return False
+    explicit = re.search(r"\d|[一二两三四五六七八九十]\s*[点點时時]", text)
+    return bool(explicit) or len(re.sub(r"[\s,，。.!！]|一般|每天|通常|大概|左右|的时候|读|看|书|吧|我|在", "", text)) <= 4
+
+
+def day_part(hhmm: str) -> str:
+    hour = int(hhmm.split(":")[0])
+    if 5 <= hour < 11:
+        return "morning"
+    if 11 <= hour < 13:
+        return "noon"
+    if 13 <= hour < 18:
+        return "afternoon"
+    return "night"
+
+
+def is_bedtime(hhmm: str) -> bool:
+    hour = int(hhmm.split(":")[0])
+    return hour >= 20 or hour < 4
 
 
 def _hhmm(value: str) -> tuple[int, int]:

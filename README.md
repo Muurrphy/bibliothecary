@@ -112,7 +112,8 @@ Then, from anywhere:
 
 - **Send a link, a .txt/.md/.html/.pdf file, or a voice message.** It prepares the reading and sends back the guide: the background and the main points.
 - **Just talk.** "A classic paper on octopus sleep", "a good long read on black holes": it searches open-access papers (OpenAlex, arXiv; classic means well cited, new means the last year) or the collection's own shelves of sites (science writing and primary sources such as nobelprize.org, serious news, essays, full-text books; see `src/bibliothecary/shelves.toml`), suggests two or three with a reason each, and prepares the one you pick. Nothing from outside the collection gets through, and it only offers links it actually found. To change the collection, copy `shelves.toml` to `~/Bibliothecary/` and edit it. It knows what you have read and what was left unclear.
-- **Every day** (`--ask-at 12:00`) it asks what you'd like to read tonight; in the evening (`--decide-at 19:00`) it tells you tonight's reading.
+- **When you pair**, it introduces itself (what it does, where it finds readings, how reading with it works) and asks **when you usually read** ("10 pm", "7:30 in the morning", "before bed"; change it later with `/time 21:30`).
+- **Every day, around your reading time**: about ten hours before, it asks what you'd like (a morning reader is asked the evening before); 45 minutes before, it sends the prepared reading with a “📖 Read on this phone” button, ready to open. If you didn't say what you wanted, it chooses one from what it knows about you and prepares it. Evening readers get "Good evening" and a good night at the end; morning readers get "Good morning". Until it knows your time, `--ask-at 12:00` and `--decide-at 19:00` apply.
 - **After the session**, the reading report arrives in the chat.
 - `/tonight`, `/records`, `/report` do what they say; `/profile` shows what it remembers about you.
 

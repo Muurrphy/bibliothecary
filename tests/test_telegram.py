@@ -257,3 +257,60 @@ def test_an_empty_account_is_named_not_called_a_connection_problem(home):
     lib, bot, _ = paired(client=Broke())
     lib.handle(message(ME, "今晚读什么"))
     assert "余额用完" in bot.sent[-1][1]
+
+
+def test_on_pairing_it_introduces_itself_and_asks_when_you_read(home):
+    bot = FakeBot()
+    lib = telegram.Librarian(bot, FakeClient(), explain="Simplified Chinese")
+    lib.handle(message(ME, f"/start {lib.pairing_code()}"))
+    intro = bot.sent[-1][1]
+    assert "私人图书管理员" in intro and "OpenAlex" in intro and "批注" in intro and "什么时候读" in intro
+    lib.handle(message(ME, "今晚读什么"))                  # not an answer to the question: a normal chat
+    assert lib.read_at is None
+    lib.handle(message(ME, "一般晚上10点半"))
+    assert lib.read_at == "22:30" and "晚安" in bot.sent[-1][1] and "/time" in bot.sent[-1][1]
+    lib.handle(message(ME, "/time 早上7点"))
+    assert lib.read_at == "07:00" and "早上好" in bot.sent[-1][1]
+
+
+def test_reading_times_are_understood():
+    p = telegram.parse_time
+    assert [p("晚上10点"), p("早上7点半"), p("22:15"), p("10pm"), p("睡前"), p("午休12点半"), p("九点半"),
+            p("晚上12点"), p("明天再说")] == ["22:00", "07:30", "22:15", "22:00", "22:30", "12:30", "21:30",
+                                              "00:00", None]
+
+
+def test_the_round_follows_an_evening_readers_time(home):
+    lib, bot, _ = paired(clock="2026-10-08T09:00")
+    lib.state["read_at"] = "22:00"
+    lib.tick()
+    assert bot.sent == []                                  # before 12:00 nothing yet
+    lib.now = lambda: dt.datetime.fromisoformat("2026-10-08T12:30")
+    lib.tick()
+    lib.tick()
+    assert sum("今晚想读点什么" in t for _, t in bot.sent) == 1
+    library.new_reading(Lesson.load(OCTOPUS))
+    lib.now = lambda: dt.datetime.fromisoformat("2026-10-08T21:20")
+    lib.tick()
+    lib.tick()
+    delivered = [t for _, t in bot.sent if "今晚读这篇" in t]
+    assert len(delivered) == 1 and delivered[0].startswith("晚上好！") and "备好了" in delivered[0]
+
+
+def test_a_morning_reader_is_asked_the_evening_before_and_greeted_in_the_morning(home):
+    lib, bot, _ = paired(clock="2026-10-08T21:40")
+    lib.state["read_at"] = "07:30"
+    lib.tick()
+    assert "明天早上想读点什么" in bot.sent[-1][1]
+    library.new_reading(Lesson.load(OCTOPUS))
+    lib.now = lambda: dt.datetime.fromisoformat("2026-10-09T06:50")
+    lib.tick()
+    assert bot.sent[-1][1].startswith("早上好！今天早上读这篇。")
+
+
+def test_someone_paired_before_the_introduction_gets_it_once(home):
+    lib, bot, _ = paired(clock="2026-10-08T09:00")
+    lib.state.pop("introduced")
+    lib.tick()
+    lib.tick()
+    assert sum("私人图书管理员" in t for _, t in bot.sent) == 1 and lib.state["setup"] == "read_at"

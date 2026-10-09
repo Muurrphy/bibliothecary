@@ -223,9 +223,14 @@ class Desk:
         return ([r for r, good in zip(kept, ok) if good], [r for r, good in zip(kept, ok) if not good])
 
     # ---- a turn of conversation ------------------------------------------------------
-    def reply(self, text: str) -> Reply:
-        """Answer what the reader just said (already in the chat log), searching as needed."""
+    def reply(self, text: str, *, choose: bool = False) -> Reply:
+        """Answer what the reader just said (already in the chat log), searching as needed.
+
+        ``choose``: ``text`` is the librarian's own task (the daily round: pick tonight's reading
+        and prepare it), not something the reader said; a vetted piece may be prepared at once."""
         context, work, trace, allowed, learned = self.context(), "", [], set(), ""
+        if choose:
+            context += f"\n\n(Your own task now, not the reader speaking: {text})"
         shelves = "\n".join(f"        {name}: {shelf['about']}" for name, shelf in search.shelves().items())
         for left in range(self.searches, -1, -1):
             budget = (f"You may search {left} more time{'s' if left != 1 else ''} before replying." if left
@@ -260,7 +265,8 @@ class Desk:
                 continue
             reply = str(data.get("reply") or "").strip()
             url = str(data.get("prepare") or "").strip()
-            given = url and url.rstrip("/") in context        # offered earlier, or the reader's own link
+            given = url and (url.rstrip("/") in context          # offered earlier, or the reader's own link
+                             or (choose and url in allowed))         # or chosen on the daily round
             if url and not given:
                 self.log(f"ignored a link that was neither found nor given: {url}")
             return Reply(reply, url if given else None, trace)
