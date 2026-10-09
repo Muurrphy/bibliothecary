@@ -48,6 +48,18 @@ def find(query: str) -> dict[str, Any] | None:
                  or q in b.get("author", "").lower()), None)
 
 
+def year(value, chinese: bool) -> str:
+    try:
+        y = int(value)
+    except (TypeError, ValueError):
+        return ""
+    if y < 0:
+        return f"公元前 {-y} 年" if chinese else f"{-y} BC"
+    if y < 1000:
+        return f"约公元 {y} 年" if chinese else f"c. AD {y}"
+    return str(y)
+
+
 def listing(chinese: bool) -> str:
     lines = []
     for shelf, names in SHELVES.items():
@@ -56,8 +68,9 @@ def listing(chinese: bool) -> str:
             if b.get("shelf") == shelf:
                 name = b.get("title_zh") if chinese and b.get("title_zh") else b["title"]
                 author = b.get("author", "")
-                lines.append(f"· {b['id']} — {name}（{author}，{b.get('year', '')}）" if chinese
-                             else f"· {b['id']} — {name} ({author}, {b.get('year', '')})")
+                when = year(b.get("year"), chinese)
+                lines.append(f"· {b['id']} — {name}（{author}，{when}）" if chinese
+                             else f"· {b['id']} — {name} ({author}, {when})")
         lines.append("")
     return "\n".join(lines).strip()
 
@@ -146,7 +159,7 @@ def get(client, query: str, *, explain: str = "English", log=None) -> books.Book
 def _shelve(client, path: Path, book: dict[str, Any], *, explain: str, log=None) -> books.Book:
     title = book.get("title_zh") if books.is_chinese(explain) and book.get("title_zh") else book["title"]
     shelved = books.add(path, client=None, title=title, mode=book.get("mode"), explain=explain, log=log)
-    shelved.data.update(catalog=book["id"], source=source_url(book), author=book.get("author") or shelved.data.get("author"),
+    shelved.data.update(catalog=book["id"], source=source_url(book), original_title=book["title"], author=book.get("author") or shelved.data.get("author"),
                         kind=shelved.data.get("kind") or ("nonfiction" if book.get("mode") == "digest" else "essays"),
                         why=book.get("why_zh") if books.is_chinese(explain) else book.get("why", ""))
     if book.get("language"):
@@ -162,6 +175,6 @@ def sample(*, explain: str = "English", log=None) -> books.Book:
             return shelved
     entry = {"id": "sample-seneca", "title": "On the Shortness of Life", "title_zh": "论生命之短暂",
              "author": "Seneca", "source": "standardebooks", "ref": "seneca/dialogues/aubrey-stewart", "mode": "text",
-             "why": "Seneca's letter on how time is lost (Aubrey Stewart's translation, 1900). About 8,000 words.",
-             "why_zh": "塞涅卡谈时间怎样被浪费（Aubrey Stewart 1900 年英译本），约八千词。"}
+             "why": "Seneca's letter on how time is lost (Aubrey Stewart's translation, 1900).",
+             "why_zh": "塞涅卡谈时间怎样被浪费（Aubrey Stewart 1900 年英译本）。"}
     return _shelve(None, SAMPLE, entry, explain=explain, log=log)

@@ -46,11 +46,15 @@ class Parsed:
 
 # ---- shared -------------------------------------------------------------------------------
 _SKIP_TITLES = re.compile(
-    r"^\W*(detailed |table of )?contents\W*$|^\W*(list of )?(illustrations|plates|figures)\W*$|^\W*(general )?index\W*$|"
-    r"^\W*(foot|end)?notes\W*$|^\W*(bibliography|references)\W*$|^\s*目\s*[录錄]\s*$|^\s*索\s*引\s*$|^\s*(注释|参考文献)\s*$|"
-    r"^\s*(the )?full project gutenberg license|^\W*copyright( page)?\W*$|^\s*版权(信息|页)?\s*$|^\W*cover\W*$|^\s*封面\s*$|"
-    r"^\W*(title ?page|half ?title|imprint|colophon|uncopyright|endnotes|rights)\W*$",
+    r"\bcontents\W*$|^\W*(list of )?(illustrations|plates|figures)\W*$|^\W*(general )?index\W*$|"
+    r"^\W*(foot|end)?notes\b|^\W*(bibliography|references|glossary)\b|transcriber'?s?’?s? notes?|"
+    r"^\s*目\s*[录錄]\s*$|^\s*索\s*引\s*$|^\s*(注释|参考文献)\s*$|project gutenberg|"
+    r"^\W*copyright( page)?\W*$|^\s*版权(信息|页)?\s*$|^\W*cover\W*$|^\s*封面\s*$|"
+    r"^\W*(title ?page|half ?title|imprint|colophon|uncopyright|rights)\W*$",
     re.IGNORECASE)
+_NOT_TEXT = re.compile(r"(colophon|imprint|uncopyright|titlepage|halftitlepage|endnotes(-\d+)?|loi|cover|wrap\d+)\.x?html?$",
+                       re.IGNORECASE)                       # Standard Ebooks' and Gutenberg's own pages
+_FOLD = re.compile(r"^\W*((chapter )?summary|argument|note)\W*$", re.IGNORECASE)   # belongs to the next chapter
 _PG_START = re.compile(r"\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE)
 _PG_END = re.compile(r"\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE)
 _BARE_NUMBER = re.compile(r"((chapter|lecture|part|book|essay)\s+)?([ivxlcdm]+|\d+)\.?", re.IGNORECASE)
@@ -78,12 +82,15 @@ def _tidy(chapters: list[Chapter]) -> list[Chapter]:
         title = chapter.title.lower()
         while keep and len(keep[0]) <= 80 and keep[0].lower().strip(" .") in title:
             keep.pop(0)                                       # the heading again, already the chapter's title
-        name = chapter.title
+        name = chapter.title.strip()
+        if not re.search(r"\b(chapter|lecture|part|book|section|essay|letter|volume|vol|no)\.?\s+\d+$", name, re.IGNORECASE):
+            if len(name.split()) >= 3:
+                name = re.sub(r"(?<=[A-Za-z.)’'\"])\s+\d{1,4}$", "", name)      # "THE WILL TO BELIEVE 1": a page
         if keep and _BARE_NUMBER.fullmatch(name.strip()) and len(keep[0]) <= 100 \
                 and not re.search(r"[,;:!?。！？，；：]$", keep[0]):
             name = f"{name.strip()} {keep.pop(0)}"             # "IV." alone: the real title is the first line
-        if keep and not _SKIP_TITLES.search(name):
-            out.append(Chapter(name, keep))
+        if (keep or name.strip()) and not _SKIP_TITLES.search(name) and not _SKIP_TITLES.search(name.split(" · ")[-1]):
+            out.append(Chapter(name, keep))                  # a heading alone still names what follows
     sizes = sorted(c.size for c in out)
     typical = sizes[len(sizes) * 3 // 4] if sizes else 0
     while len(out) > 2 and out[0].size < typical * 0.1:      # title pages, "works by", contents at the front
@@ -91,9 +98,16 @@ def _tidy(chapters: list[Chapter]) -> list[Chapter]:
     merged: list[Chapter] = []
     carry: Chapter | None = None
     for chapter in out:
-        if carry is not None:
-            chapter = Chapter(chapter.title, carry.paragraphs + chapter.paragraphs)
-            carry = None
+        fold = bool(_FOLD.match(chapter.title.split(" · ")[-1]))
+        if carry is not None:                       # a heading alone, then "Chapter Summary": one chapter
+            chapter = Chapter(carry.title if fold and carry.title else chapter.title, carry.paragraphs + chapter.paragraphs)
+            carry, fold = None, False
+        if merged and chapter.title == merged[-1].title:   # the contents listed the same chapter twice
+            merged[-1].paragraphs += chapter.paragraphs
+            continue
+        if fold and merged:                         # "Chapter Summary" after its chapter: part of it
+            merged[-1].paragraphs += chapter.paragraphs
+            continue
         if chapter.size < MIN_CHAPTER:
             carry = chapter
             continue
@@ -117,6 +131,8 @@ class _Blocks(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.paragraphs: list[str] = []
         self.headings: list[int] = []            # indexes of paragraphs that were headings
+        self.levels: dict[int, int] = {}          # paragraph index -> heading level (1-6)
+        self._level = 0
         self.ids: dict[str, int] = {}
         self._buf: list[str] = []
         self._skip = 0
@@ -128,6 +144,7 @@ class _Blocks(HTMLParser):
         if text:
             if self._heading:
                 self.headings.append(len(self.paragraphs))
+                self.levels[len(self.paragraphs)] = self._level
             self.paragraphs.append(text)
 
     def handle_starttag(self, tag, attrs):
@@ -137,7 +154,7 @@ class _Blocks(HTMLParser):
         if tag in self.BLOCK:
             self._flush()
         if re.fullmatch(r"h[1-6]", tag):
-            self._heading = True
+            self._heading, self._level = True, int(tag[1])
         for key, value in attrs:
             if key in ("id", "name") and value and value not in self.ids:
                 self.ids[value] = len(self.paragraphs)
@@ -242,9 +259,10 @@ def _sizes(starts: list[tuple[int, int, str]], flat: list[tuple[int, int, str]])
 def _choose_level(levels: dict[int, list[tuple[int, int, str]]], flat) -> list[tuple[int, int, str]]:
     """The shallowest contents level that reads like chapters: at least three real pieces, and pieces
     none bigger than a very long chapter (deeper levels are sections inside chapters)."""
+    total = sum(len(p) for _, _, p in flat) or 1
     for depth in sorted(levels):
         real = sorted(s for s in _sizes(levels[depth], flat) if s >= 3000)
-        if len(real) >= 3 and real[-1] <= 300_000:
+        if len(real) >= 3 and real[-1] <= 300_000 and (real[-1] <= total * 0.5 or total < 60_000):
             return levels[depth]
     return levels[max(levels)]
 
@@ -263,6 +281,7 @@ def parse_epub(path: str | Path) -> Parsed:
         manifest = {e.get("id"): e for e in _find_all(opf, "item")}
         spine = [manifest[r.get("idref")] for r in _find_all(opf, "itemref") if r.get("idref") in manifest]
         files = [posixpath.normpath(posixpath.join(base, unquote(item.get("href")))) for item in spine]
+        files = [f for f in files if not _NOT_TEXT.match(posixpath.basename(f))]
 
         toc: Toc = []
         nav = next((e for e in manifest.values() if "nav" in (e.get("properties") or "").split()), None)
@@ -285,12 +304,20 @@ def parse_epub(path: str | Path) -> Parsed:
 
     flat: list[tuple[int, int, str]] = [(fi, pi, p) for fi, f in enumerate(files) if f in parsed
                                         for pi, p in enumerate(parsed[f].paragraphs)]
+    heads = {(fi, h): level for fi, f in enumerate(files) if f in parsed for h, level in parsed[f].levels.items()}
     # every place a chapter may start: (file index, paragraph index, title), per contents depth
     levels: dict[int, list[tuple[int, int, str]]] = {}
     deepest = max((d for d, _, _ in toc), default=0)
+    parents: dict[int, str] = {}
+    named: list[tuple[int, str, str]] = []
+    for d, title, target in toc:
+        parents[d] = title
+        parent = parents.get(d - 1, "") if d > 1 else ""
+        short = len(title) <= 12 or _BARE_NUMBER.fullmatch(title.strip())
+        named.append((d, f"{parent} · {title}" if parent and short else title, target))   # "On Anger · I"
     for depth in range(1, min(deepest, 4) + 1):
         found = set()
-        for d, title, target in toc:
+        for d, title, target in named:
             name, _, anchor = target.partition("#")
             if d > depth or name not in parsed:
                 continue
@@ -301,14 +328,41 @@ def parse_epub(path: str | Path) -> Parsed:
     if not starts:                                   # no usable contents: one chapter per file
         starts = [(i, 0, (parsed[f].paragraphs[h[0]] if (h := parsed[f].headings) else f"Part {i + 1}"))
                   for i, f in enumerate(files) if f in parsed]
-    chapters: list[Chapter] = []
-    lead = [p for fi, pi, p in flat if (fi, pi) < starts[0][:2]]
+    pieces: list[tuple[str, list[tuple[int, int, str]]]] = []
+    lead = [x for x in flat if x[:2] < starts[0][:2]]
     if lead:
-        chapters.append(Chapter("", lead))
+        pieces.append(("", lead))
     for n, (fi, pi, title) in enumerate(starts):
         stop = starts[n + 1][:2] if n + 1 < len(starts) else (len(files), 0)
-        chapters.append(Chapter(title or f"Part {n + 1}", [p for f, i, p in flat if (fi, pi) <= (f, i) < stop]))
-    return Parsed(meta("title") or Path(path).stem, meta("creator"), meta("language"), _tidy(chapters))
+        pieces.append((title or f"Part {n + 1}", [x for x in flat if (fi, pi) <= x[:2] < stop]))
+    chapters: list[Chapter] = []
+    for title, items in pieces:
+        chapters += _split_at_headings(Chapter(title, [p for _, _, p in items]), [x[:2] for x in items], heads,
+                                       alone=len(pieces) <= 2)
+    tidied = _tidy(chapters)
+    if len(tidied) <= 2 and sum(c.size for c in tidied) > 40_000:       # contents name only the book
+        by_text = _tidy(split_text("\n\n".join(p for c in chapters for p in c.paragraphs), standalone=False))
+        if len(by_text) >= 3:
+            tidied = by_text
+    return Parsed(meta("title") or Path(path).stem, meta("creator"), meta("language"), tidied)
+
+
+def _split_at_headings(chapter: Chapter, keys: list[tuple[int, int]], heads: dict, *, alone: bool) -> list[Chapter]:
+    """A chapter far too long (or the whole book in one piece, when the contents list only the title) is cut
+    at its own headings of the highest level that appears at least three times."""
+    if chapter.size < (40_000 if alone else 150_000):
+        return [chapter]
+    levels = [heads[k] for k in keys if k in heads]
+    level = next((lv for lv in sorted(set(levels)) if levels.count(lv) >= 3), None)
+    if level is None:
+        return [chapter]
+    out: list[Chapter] = [Chapter(chapter.title, [])]
+    for key, paragraph in zip(keys, chapter.paragraphs, strict=True):
+        if heads.get(key) == level:
+            out.append(Chapter(paragraph, []))
+        else:
+            out[-1].paragraphs.append(paragraph)
+    return [c for c in out if c.paragraphs]
 
 
 # ---- TXT ----------------------------------------------------------------------------------
@@ -316,7 +370,8 @@ _NUM = r"[0-9０-９零〇一二三四五六七八九十百千两]+"
 _HEADING = re.compile(
     rf"^\s*(第{_NUM}[章回节節卷篇部集讲講]|卷{_NUM}|(chapter|lecture|book|part|letter|essay)\s+([0-9]+|[ivxlcdm]+)\b(?!.*\d)|"
     r"(序|序言|自序|前言|引言|楔子|小引|后记|後記|尾声|尾聲|跋|目录|索引|注释|参考文献)\s*$|"
-    r"(index|bibliography|references|notes|footnotes|contents)\W*$)", re.IGNORECASE)
+    r"(index|bibliography|references|notes|footnotes|contents|introduction|preface|prologue|epilogue|conclusion|"
+    r"afterword|foreword)\W*$)", re.IGNORECASE)
 _ROMAN = re.compile(r"^\s*[ivxlcdm]+\.\s*$", re.IGNORECASE)          # "IV." alone: a heading in plain text
 
 

@@ -25,7 +25,7 @@ The job has changed over the centuries. The early *bibliothecary* — at Alexand
 
 ## What works today, and what comes next
 
-Version 0.3 does the reading, the instruction, the records and the daily chat. The collection and the knowledge map are specified in the [requirements](docs/requirements.md) and come next.
+Version 0.4 (2026-10-09) adds whole books, read three ways, and a list of public-domain books to start from; 0.3 did the reading, the instruction, the records and the daily chat. The knowledge map is specified in the [requirements](docs/requirements.md) and comes next. Every release is described in the [changelog](CHANGELOG.md).
 
 | | |
 |---|---|

@@ -320,3 +320,82 @@ def test_the_daily_round_continues_the_open_book(home, tmp_path):
     lib._choose_and_prepare("晚上好。", "", dt.datetime(2026, 10, 9, 21, tzinfo=dt.UTC), dt.datetime(2026, 10, 9, 22, tzinfo=dt.UTC))
     assert "接着读《A Test Book》" in bot.sent[-1]
     assert books.book_of(library.next_unread())["segments"][0][0] == 1
+
+
+def test_a_long_paper_stays_an_article_and_asbook_makes_it_a_book(home, tmp_path):
+    paper = tmp_path / "paper.txt"
+    paper.write_text("\n\n".join(f"{t}\n\n" + "\n\n".join(["Results were measured carefully in every trial. " * 30] * 12)
+                                 for t in ["Introduction", "Methods", "Results", "Discussion"]), encoding="utf-8")
+    assert not books.looks_like_book(paper)
+    novel = tmp_path / "novel.txt"
+    novel.write_text("\n\n".join(f"Chapter {n}\n\n" + "\n\n".join(["She walked on and on. " * 60] * 12)
+                                 for n in range(1, 6)), encoding="utf-8")
+    assert books.looks_like_book(novel)
+
+    lib, bot = _librarian(home, {"p": paper.read_bytes()}, FakeClient(kind="nonfiction", mode="digest"))
+    prepared = []
+    lib.start_prepare = lambda article, **_: prepared.append(article)
+    lib.handle({"update_id": 2, "message": {"chat": {"id": 7}, "document": {"file_id": "p", "file_name": "paper.txt"}}})
+    assert prepared and books.shelf() == []
+    lib.handle({"update_id": 3, "message": {"chat": {"id": 7}, "text": "/asbook"}})
+    _wait(lib)
+    assert books.shelf() and books.current().data["file_name"] == "paper.txt"
+
+
+def test_a_text_session_plays_through_quietly_answers_a_question_and_ends(home, tmp_path):
+    """The player walks the paced steps (no voice), takes a question during a pause, and the open
+    question at the end is answered and recorded."""
+    import time
+
+    from margin.bus import Bus
+    from margin.lesson import Step
+    from margin.player import Player
+    from test_bibliothecary import QuickVoice
+
+    path = make_epub(tmp_path / "novel.epub", [(f"Chapter {n}", sentences("one", 6, size=600)) for n in (1, 2)])
+    client = FakeClient(kind="fiction", mode="text")
+    book = books.add(path, client=client)
+    folder = books.prepare_next(client, book)
+    lesson = Lesson.load(folder / "lesson.json")
+    for step in lesson.steps:
+        step.pause = min(step.pause, 0.05)
+    focused, events, asked = [], [], []
+    bus = Bus()
+    bus.publish = (lambda publish: lambda kind, **data: (focused.append(data["sentence"]) if kind == "focus" else None,
+                                                         publish(kind, **data))[1])(bus.publish)
+
+    def answerer(lesson_, question, current, position=None, history=None, review=None):
+        asked.append((question, review))
+        return {"steps": [Step(say="Answered.")], "then": "continue"}
+
+    player = Player(bus, QuickVoice(), answerer, record=lambda kind, **data: events.append((kind, data)))
+    player.load(lesson)
+    player.play()
+    end = time.time() + 5
+    while time.time() < end and "p3.s1" not in focused:
+        time.sleep(0.01)
+    player.ask("what does this word mean?")
+    while time.time() < end and not player.review:
+        time.sleep(0.01)
+    assert player.review and player.review["expect"].startswith(brain.OPEN)
+    player.ask("I noticed the ending.")
+    while time.time() < end and not (events and events[-1][0] == "end"):
+        time.sleep(0.01)
+    assert events[-1][0] == "end"
+    assert {f"p{n}.s1" for n in range(1, len(lesson.paragraphs) + 1)} <= set(focused)   # every paragraph reached
+    assert asked[0] == ("what does this word mean?", None) and asked[1][1]["expect"].startswith(brain.OPEN)
+
+
+def test_up_next_is_the_open_books_part_not_a_paused_books(home, tmp_path):
+    client = FakeClient(kind="fiction", mode="text")
+    first = books.add(make_epub(tmp_path / "a.epub", [("Chapter 1", sentences("one", 6))]), client=client)
+    a = books.prepare_next(client, first)
+    books.set_status(first, "paused")
+    other = tmp_path / "b.epub"
+    make_epub(other, [("Chapter 1", sentences("two", 6))])
+    second = books.add(other, client=client)
+    b = books.prepare_next(client, second)
+    assert library.next_unread() == a                     # the oldest unread
+    assert books.up_next() == b                           # but the open book comes first
+    books.set_status(second, "paused")
+    assert books.up_next() is None                        # both paused: nothing is pushed

@@ -300,7 +300,7 @@ class Librarian:
 
     def deliver(self, now: dt.datetime, at: dt.datetime) -> None:
         """Before the reading time: a prepared reading, ready to open, or one chosen and prepared now."""
-        waiting = library.next_unread()
+        waiting = books.up_next()
         greet = self.greeting()
         intro = greet + self.t(f"{self.when_word(now, at)}读这篇。", f" Here's your reading for {self.when_word(now, at)}.")
         if waiting is not None:
@@ -376,6 +376,11 @@ class Librarian:
                                     "Send a link or file to prepare it. /tonight · /records · /report\n"
                                     "Books: send an EPUB/TXT/PDF, or pick one from /library. /book · /books · /mode digest|excerpts|text · /next · "
                                     "/book pause"))
+        if command == "/asbook":
+            last = Path(self.state.get("last_file") or "")
+            if not last.is_file():
+                return self.send(self.t("先把书的文件发给我。", "Send me the book's file first."))
+            return self.start_book(last)
         if command in ("/library", "/get"):
             return self.catalog_command(command, text[len(text.split()[0]):].strip())
         if command in ("/book", "/books", "/mode", "/next"):
@@ -423,6 +428,11 @@ class Librarian:
         self._remember("reader", f"(file) {name}")
         if name.lower().endswith((".epub", ".txt", ".pdf")) and books.looks_like_book(path):
             return self.start_book(path)
+        self.state["last_file"] = str(path)
+        self.save()
+        if name.lower().endswith((".txt", ".pdf")) and path.stat().st_size > 300_000:
+            self.send(self.t("我先当一篇文章备课。如果这其实是一本书，发 /asbook，我按整本书一段一段读。",
+                             "I'll prepare it as one article. If it is really a book, send /asbook and I'll read it part by part."))
         self.start_prepare(str(path))
 
     # ---- whole books -----------------------------------------------------------------
@@ -479,6 +489,8 @@ class Librarian:
                 "Shortness of Life). All public domain, fetched from Standard Ebooks, Project Gutenberg or Wikisource."))
         if self.client is None:
             return self.send(self.t("读书需要模型密钥（.env 里的 OPENAI_API_KEY）。", "Books need a model key (OPENAI_API_KEY)."))
+        if arg.lower() not in ("sample", "示例", "样书") and catalog.find(arg) is None:
+            return self.send(self.t(f"书单里没有“{arg}”。/library 看书单。", f"“{arg}” isn't in the list. /library shows it."))
         self.send(self.t("好，我去取书。", "OK, fetching it."))
         self._job(self._fetch_book, arg)
 
@@ -538,6 +550,11 @@ class Librarian:
                              f"OK, “{book.title}” is now read as {books.MODE_NAMES[mode][1]}. Preparing this part again."))
             return self._job(self._book_session, book)
         if command == "/next":
+            waiting = books.pending(books.sync(book))
+            if waiting is not None:                       # the part already prepared comes first
+                how, buttons = self.read_here(waiting)
+                return self.send(self.t("上一段还没读完，先读这一段：", "The last part isn't finished yet; this one first:")
+                                 + "\n\n" + self.guide(waiting) + "\n\n" + how, buttons)
             self.send(self.t("好，我去备下一段。", "OK, preparing the next part."))
             return self._job(self._book_session, book)
 
@@ -668,7 +685,7 @@ class Librarian:
         return reply
 
     def tonight(self) -> tuple[str, list[tuple[str, str]] | None]:
-        folder = library.next_unread()
+        folder = books.up_next()
         if folder is None:
             return self.t("今晚还没有要读的。发我一个链接吧。", "Nothing to read tonight yet. Send me a link."), None
         title = Lesson.load(folder / "lesson.json").title
@@ -751,6 +768,12 @@ class Librarian:
 
     def daily_question(self, when: str | None = None) -> str:
         when = when or self.t("今晚", "tonight")
+        book = books.current()
+        if book is not None:                              # a book is open: the day's reading is its next part
+            return self.t(f"{when}接着读《{book.title}》（进度 {book.progress()}），到时候我把下一段备好。"
+                          "想换别的就告诉我，或者发 /book pause 先放一放。",
+                          f"{when.capitalize()} we go on with “{book.title}” ({book.progress()}); I'll have the next "
+                          "part ready. Tell me if you'd rather read something else, or /book pause.")
         lines = [self.t(f"{when}想读点什么？", f"What would you like to read {when}?")]
         waiting = [f for f in library.readings() if library.status(f) != "read"]
         if waiting:

@@ -56,7 +56,9 @@ def cmd_read(args) -> int:
         folder = library.new_reading(lesson)
         _log(f"filed {where.name} as {folder.name}")
     else:
-        folder = _folder(args.reading, fallback=library.next_unread)
+        from . import books
+
+        folder = _folder(args.reading, fallback=books.up_next)
         lesson = Lesson.load(folder / "lesson.json")
     if not (folder / "report.md").exists():
         report.write(folder)

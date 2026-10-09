@@ -25,7 +25,7 @@
 
 ## 现在能做什么，接下来做什么
 
-0.3 版做好了讲读、读者教育、借阅记录和每日聊天。书库和知识地图都写在[需求文档](docs/requirements.zh-CN.md)里，接下来做。
+0.4 版（2026-10-09）加了读整本书（三种读法）和一份公版书单；0.3 版做好了讲读、读者教育、借阅记录和每日聊天。知识地图写在[需求文档](docs/requirements.zh-CN.md)里，接下来做。每次更新做了什么，都写在[更新记录](CHANGELOG.zh-CN.md)里。
 
 | | |
 |---|---|
@@ -213,7 +213,7 @@ pip install -e ".[dev,elevenlabs,serial]"
 python -m pytest
 ```
 
-测试全部离线：不用密钥、不开麦克风、不动电机。[参与贡献](CONTRIBUTING.md) · [更新记录](CHANGELOG.md)
+测试全部离线：不用密钥、不开麦克风、不动电机。[参与贡献](CONTRIBUTING.md) · [更新记录](CHANGELOG.zh-CN.md)（[English](CHANGELOG.md)）
 
 ## 许可
 

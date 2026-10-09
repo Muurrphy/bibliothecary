@@ -29,6 +29,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+import re
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -199,14 +200,22 @@ def find(query: str) -> Book | None:
     q = (query or "").strip().lower()
     if not q:
         return current()
+    def names(b: Book) -> list[str]:
+        return [str(b.data.get(k) or "").lower() for k in ("title", "original_title", "catalog", "author", "file_name")] \
+            + [b.folder.name.lower()]
+
     for book in shelf():
-        if q in (book.folder.name.lower(), book.title.lower()):
+        if q in names(book):
             return book
-    return next((b for b in shelf() if q in b.title.lower() or q in b.folder.name.lower()), None)
+    return next((b for b in shelf() if any(q in n for n in names(b))), None)
+
+
+_BOOKISH = re.compile(r"^\s*(第.{1,4}[章回卷篇部]|卷.{1,3}|(chapter|lecture|part|book|letter)\b)", re.IGNORECASE)
 
 
 def looks_like_book(path: str | Path) -> bool:
-    """An EPUB always is; a TXT or PDF is when it is long or has chapters."""
+    """An EPUB always is. A TXT or PDF is when it is very long, or long with real chapters ("Chapter 3",
+    "第三章"): a paper with sections (Introduction, Methods…) stays an article. /asbook overrides."""
     if Path(path).suffix.lower() == ".epub":
         return True
     try:
@@ -214,7 +223,9 @@ def looks_like_book(path: str | Path) -> bool:
     except Exception:
         return False
     size = sum(c.size for c in parsed.chapters)
-    return size > 40_000 or (len(parsed.chapters) >= 3 and size > 15_000)
+    chapters = sum(1 for c in parsed.chapters if _BOOKISH.match(c.title))
+    return size > 200_000 or (size > 60_000 and chapters >= 3)
+
 
 
 CLASSIFY = """You are a librarian looking at a book someone just brought in. From its title, author, contents
@@ -272,6 +283,7 @@ def add(path: str | Path, *, client=None, title: str | None = None, mode: str | 
         "kind": found.get("kind", ""), "why": found.get("why", ""),
         "mode": mode if mode in MODES else (found.get("mode") or "text"),
         "chapters": [{"title": c.title or f"{i + 1}", "size": c.size} for i, c in enumerate(parsed.chapters)],
+        "words": sum(len(re.findall(r"[A-Za-z]+(?:['’][A-Za-z]+)?", p)) for c in parsed.chapters for p in c.paragraphs),
         "position": [0, 0], "furthest": [0, 0], "sessions": [], "status": "reading",
         "used": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
     }
@@ -337,6 +349,22 @@ def pending(book: Book) -> Path | None:
     for session in reversed(book.data.get("sessions", [])):
         folder = _reading(session["reading"])
         if not session.get("done") and folder.is_dir() and library.status(folder) != "read":
+            return folder
+    return None
+
+
+def up_next() -> Path | None:
+    """What to read next: the open book's prepared part first; otherwise the oldest unread reading,
+    leaving out parts of books that are paused or not the one being read."""
+    book = current()
+    if book is not None:
+        waiting = pending(sync(book))
+        if waiting is not None:
+            return waiting
+    elsewhere = {s["reading"] for b in shelf() if book is None or b.folder != book.folder
+                 for s in b.data.get("sessions", [])}
+    for folder in library.readings():
+        if folder.name not in elsewhere and library.status(folder) != "read":
             return folder
     return None
 
@@ -853,10 +881,10 @@ def book_of(folder: Path) -> dict | None:
 def describe(book: Book, chinese: bool) -> str:
     name = MODE_NAMES.get(book.mode, (book.mode, book.mode))[0 if chinese else 1]
     size = sum(c["size"] for c in book.chapters)
-    words = round(size / 6)
+    words = book.data.get("words") or round(size / 6)
     amount = (f"约 {round(size / 10000, 1)} 万字" if book.lang == "zh" else
-              (f"约 {round(words / 10000, 1)} 万词" if words >= 10000 else f"约 {words} 词")) if chinese \
-        else (f"about {round(size / 6 / 1000)}k words" if book.lang == "en" else f"about {size // 1000}k characters")
+              (f"约 {round(words / 10000, 1)} 万词" if words >= 10000 else f"约 {round(words, -2)} 词")) if chinese \
+        else (f"about {max(1, round(words / 1000))}k words" if book.lang == "en" else f"about {size // 1000}k characters")
     head = (f"《{book.title}》" + (f"（{book.data['author']}）" if book.data.get("author") else "")
             + f"，{len(book.chapters)} 章，{amount}。读法：{name}，进度 {book.progress()}。") if chinese \
         else (f"“{book.title}”" + (f" by {book.data['author']}" if book.data.get("author") else "")
