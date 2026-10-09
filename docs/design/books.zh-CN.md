@@ -87,7 +87,7 @@ BooookScore（ICLR 2024）比较了两种整本书摘要的做法：**逐章增�
 ## 5. 书从哪来
 
 - 读者自己的文件：EPUB、TXT（中文小说常见，按"第 X 章/回"切章）、PDF（有书签就按书签切）。在 Telegram 里直接把文件发给图书管理员。
-- 公版书：Standard Ebooks、Project Gutenberg、维基文库（需求文档 4.2 已列）。
+- 公版书：Standard Ebooks、Project Gutenberg、维基文库（需求文档 4.2 已列）。已实现为书单 `catalog.toml`（`/library`、`/get`），项目自带一本示例书：塞涅卡《论生命之短暂》。
 - 有 DRM 的商店电子书（Kindle 商店、微信读书等）读不到，也不去破解；Kindle 上只能用我们的网页阅读页。
 - 书的原文只存在本地，只把当晚需要的那一段发给模型。
 

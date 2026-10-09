@@ -206,7 +206,8 @@ class Librarian:
             "下面是我的声音和一张会说话的嘴。随时开口打断我提问；我不确定的事，会先上网查。\n"
             "· 记住你。每次的问答都记进读书报告，读完发给你；下次挑文章会参考你读过什么、哪里还没弄懂。\n"
             "· 陪你读整本书。把 EPUB、TXT 或 PDF 发给我，我记住你读到哪，每次备一段：小说散文就读原文，"
-            "我只在难处加注，开头说一句前情提要（绝不剧透）；知识类的书可以拆书讲，或者只挑最值得读的原文段落。\n\n"
+            "我只在难处加注，开头说一句前情提要（绝不剧透）；知识类的书可以拆书讲，或者只挑最值得读的原文段落。"
+            "没有书的话，/library 里有一份公版书单。\n\n"
             "你也可以随时发我链接、PDF 或语音，我来备课。你的读书记录只存在你自己的电脑上"
             "（聊天消息会经过 Telegram 的服务器）。\n\n"
             "先问你一件事：你一般每天什么时候读？比如“晚上 10 点”“早上 7 点半”“午休 12 点半”。"
@@ -225,7 +226,8 @@ class Librarian:
             "and I choose the next reading with what you've read and what's still unclear in mind.\n"
             "· Read whole books with you. Send an EPUB, TXT or PDF; I keep your place and prepare one part at a "
             "time: novels and essays in their own words, with notes only where it's hard and a “previously” that "
-            "never gives anything away; idea books as a digest, or just the passages most worth reading.\n\n"
+            "never gives anything away; idea books as a digest, or just the passages most worth reading. "
+            "No book at hand? /library has a list of public-domain ones.\n\n"
             "You can also send me a link, a PDF or a voice message any time. Your reading records stay on "
             "your own computer (chat messages pass through Telegram's servers).\n\n"
             "First, one question: when do you usually read? For example “10 pm”, “7:30 in the morning”, "
@@ -369,11 +371,13 @@ class Librarian:
             return self.set_reading_time(text)       # the answer to "when do you read?"; anything else is a chat
         if command in ("/start", "/help"):
             return self.send(self.t("发链接或文件给我备课；/tonight 今晚读什么；/records 读过的；/report 最近的读书报告。\n"
-                                    "整本书：发 EPUB/TXT/PDF；/book 在读的书；/books 书架；/mode 拆书、精华 或 原文；"
+                                    "整本书：发 EPUB/TXT/PDF，或 /library 从公版书单里挑；/book 在读的书；/books 书架；/mode 拆书、精华 或 原文；"
                                     "/next 备下一段；/book pause 先放一放。",
                                     "Send a link or file to prepare it. /tonight · /records · /report\n"
-                                    "Books: send an EPUB/TXT/PDF. /book · /books · /mode digest|excerpts|text · /next · "
+                                    "Books: send an EPUB/TXT/PDF, or pick one from /library. /book · /books · /mode digest|excerpts|text · /next · "
                                     "/book pause"))
+        if command in ("/library", "/get"):
+            return self.catalog_command(command, text[len(text.split()[0]):].strip())
         if command in ("/book", "/books", "/mode", "/next"):
             return self.book_command(command, text[len(text.split()[0]):].strip())
         if command == "/tonight":
@@ -462,6 +466,38 @@ class Librarian:
         how, buttons = self.read_here(folder)
         with self._lock:
             self.send((intro + "\n\n" if intro else "") + self.guide(folder) + "\n\n" + how, buttons)
+
+    def catalog_command(self, command: str, arg: str) -> None:
+        from . import catalog
+
+        chinese = books.is_chinese(self.explain)
+        if command == "/library" or not arg:
+            return self.send(catalog.listing(chinese) + "\n\n" + self.t(
+                "想读哪本就发 /get 加编号，比如 /get darwin-emotions；/get sample 是自带的示例书（塞涅卡《论生命之短暂》）。"
+                "都是公版书，从 Standard Ebooks、Project Gutenberg 或维基文库下载。",
+                "Send /get with an id, e.g. /get darwin-emotions; /get sample is the bundled sample (Seneca, On the "
+                "Shortness of Life). All public domain, fetched from Standard Ebooks, Project Gutenberg or Wikisource."))
+        if self.client is None:
+            return self.send(self.t("读书需要模型密钥（.env 里的 OPENAI_API_KEY）。", "Books need a model key (OPENAI_API_KEY)."))
+        self.send(self.t("好，我去取书。", "OK, fetching it."))
+        self._job(self._fetch_book, arg)
+
+    def _fetch_book(self, query: str) -> None:
+        from . import catalog
+
+        try:
+            book = catalog.get(self.client, query, explain=self.explain, log=self.log)
+        except Exception as err:
+            self.log(f"fetching {query} failed: {err}")
+            return self.send(self.t(f"没取到这本：{err}。/library 看书单。", f"I couldn't get that one: {err}. /library lists them."))
+        chinese = books.is_chinese(self.explain)
+        lines = [books.describe(book, chinese)]
+        if book.data.get("why"):
+            lines.append(book.data["why"])
+        lines.append(self.t("换读法发 /mode 拆书、/mode 精华 或 /mode 原文。我先备第一段。",
+                            "To read it another way: /mode digest, /mode excerpts or /mode text. Preparing the first part."))
+        self.send("\n".join(lines))
+        self._book_session(book)
 
     def book_command(self, command: str, arg: str) -> None:
         chinese = books.is_chinese(self.explain)

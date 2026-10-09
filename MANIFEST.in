@@ -7,4 +7,5 @@ recursive-include firmware *.h *.ino *.md *.yaml
 recursive-include tools *.py
 recursive-include benchmarks *.py *.json *.md
 recursive-include tests *.py
+recursive-include src/bibliothecary *.toml *.epub *.md
 global-exclude *.py[cod] __pycache__ .DS_Store

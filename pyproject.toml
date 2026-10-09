@@ -40,7 +40,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 margin = ["static/*"]
 robot_lipsync = ["data/*.json", "renderers/*.js"]
-bibliothecary = ["shelves.toml"]
+bibliothecary = ["shelves.toml", "catalog.toml", "samples/*.epub"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

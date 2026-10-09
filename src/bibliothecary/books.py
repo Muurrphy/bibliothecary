@@ -604,6 +604,8 @@ def _lesson(book: Book, segments: list[Segment], title: str, explain: str) -> Le
 def _title(book: Book, segments: list[Segment], chinese: bool) -> str:
     names = [book.chapters[c]["title"] for c, _, _ in segments]
     first = names[0] + (("（续）" if chinese else " (cont.)") if segments[0][1] > 0 else "")
+    if len(names) > 1 and all(len(n) <= 8 for n in names):
+        return f"{book.title} · {first}–{names[-1]}"                # numbered parts: "I–IV"
     if len(names) == 2:
         first += ("、" if chinese else ", ") + names[1]
     elif len(names) > 2:
@@ -851,7 +853,9 @@ def book_of(folder: Path) -> dict | None:
 def describe(book: Book, chinese: bool) -> str:
     name = MODE_NAMES.get(book.mode, (book.mode, book.mode))[0 if chinese else 1]
     size = sum(c["size"] for c in book.chapters)
-    amount = (f"约 {round(size / 10000, 1)} 万字" if book.lang == "zh" else f"约 {round(size / 6 / 1000)} 千词") if chinese \
+    words = round(size / 6)
+    amount = (f"约 {round(size / 10000, 1)} 万字" if book.lang == "zh" else
+              (f"约 {round(words / 10000, 1)} 万词" if words >= 10000 else f"约 {words} 词")) if chinese \
         else (f"about {round(size / 6 / 1000)}k words" if book.lang == "en" else f"about {size // 1000}k characters")
     head = (f"《{book.title}》" + (f"（{book.data['author']}）" if book.data.get("author") else "")
             + f"，{len(book.chapters)} 章，{amount}。读法：{name}，进度 {book.progress()}。") if chinese \

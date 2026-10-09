@@ -1,0 +1,375 @@
+# The library's own books: public-domain books the librarian can fetch for you.
+#
+#   biblio book catalog            the list          (Telegram: /library)
+#   biblio book get darwin-emotions                  (Telegram: /get darwin-emotions)
+#
+# Nothing here is stored in this repository except the one sample book. Each entry says where the
+# book is fetched from, and only three sources are used, because their texts are clean to reuse:
+#
+#   standardebooks  Standard Ebooks: carefully produced; its own work is dedicated to the public
+#                   domain (CC0), the texts are public domain in the United States.
+#   gutenberg       Project Gutenberg: public-domain texts. "Project Gutenberg" is a trademark, so
+#                   its header and licence are left out when the book is shelved.
+#   wikisource      Wikisource: public-domain texts transcribed by volunteers.
+#
+# Every book here is in the public domain in the United States, and its author (and translator)
+# died more than 70 years ago, so it is free in the countries that count life + 70 or life + 50
+# too. Modern translations and annotated editions are left out: they have copyrights of their own.
+#
+# "mode" is how the librarian suggests reading it: text (读原文), digest (拆书), excerpts (精华原文).
+# Your own additions go in ~/Bibliothecary/catalog.toml, in the same form; an entry with the same
+# id replaces this one.
+
+# ---- life and mind -------------------------------------------------------------------------
+[[book]]
+id = "darwin-emotions"
+title = "The Expression of the Emotions in Man and Animals"
+title_zh = "人类和动物的表情"
+author = "Charles Darwin"
+year = 1872
+shelf = "life"
+source = "gutenberg"
+ref = "1227"
+mode = "digest"
+why = "Why we frown, blush and bare our teeth: expressions traced to habits our ancestors had."
+why_zh = "人为什么会皱眉、脸红、龇牙：达尔文把表情追溯到祖先的习惯动作。"
+
+[[book]]
+id = "darwin-origin"
+title = "On the Origin of Species"
+title_zh = "物种起源"
+author = "Charles Darwin"
+year = 1859
+shelf = "life"
+source = "standardebooks"
+ref = "charles-darwin/the-origin-of-species"
+mode = "digest"
+why = "The argument for evolution by natural selection, built from pigeons, barnacles and islands."
+why_zh = "自然选择学说的原始论证，证据从鸽子、藤壶到海岛。"
+
+[[book]]
+id = "darwin-descent"
+title = "The Descent of Man"
+title_zh = "人类的由来"
+author = "Charles Darwin"
+year = 1871
+shelf = "life"
+source = "gutenberg"
+ref = "2300"
+mode = "digest"
+why = "Evolution applied to humans, and the theory of sexual selection."
+why_zh = "把进化论用到人身上，并提出性选择。"
+
+[[book]]
+id = "darwin-beagle"
+title = "The Voyage of the Beagle"
+title_zh = "小猎犬号航海记"
+author = "Charles Darwin"
+year = 1839
+shelf = "life"
+source = "standardebooks"
+ref = "charles-darwin/the-voyage-of-the-beagle"
+mode = "text"
+why = "Five years round the world as a young naturalist, written as a travel journal."
+why_zh = "年轻的达尔文随船环球五年的博物学日记。"
+
+[[book]]
+id = "darwin-worms"
+title = "The Formation of Vegetable Mould Through the Action of Worms"
+title_zh = "腐殖土的形成与蚯蚓的作用"
+author = "Charles Darwin"
+year = 1881
+shelf = "life"
+source = "gutenberg"
+ref = "2355"
+mode = "excerpts"
+why = "His last book: decades of experiments showing how earthworms remake the soil."
+why_zh = "达尔文最后一本书：几十年的实验，看蚯蚓怎样一点点翻新整片土地。"
+
+[[book]]
+id = "darwin-autobiography"
+title = "The Autobiography of Charles Darwin"
+title_zh = "达尔文自传"
+author = "Charles Darwin"
+year = 1887
+shelf = "life"
+source = "gutenberg"
+ref = "2010"
+mode = "text"
+why = "Short and frank: how he worked, and what he thought he had lost along the way."
+why_zh = "篇幅不长，写得很坦白：他怎么做研究，也写他觉得自己失去了什么。"
+
+[[book]]
+id = "huxley-evolution-ethics"
+title = "Evolution and Ethics, and Other Essays"
+title_zh = "进化论与伦理学"
+author = "Thomas Henry Huxley"
+year = 1894
+shelf = "life"
+source = "gutenberg"
+ref = "2940"
+mode = "excerpts"
+why = "The essays behind Yan Fu's 天演论: whether morality can follow the rules of evolution."
+why_zh = "严复《天演论》的原著：道德能不能照着进化的规律走。"
+
+[[book]]
+id = "huxley-lay-sermons"
+title = "Lay Sermons, Addresses and Reviews"
+title_zh = "俗人讲道集（含《一支粉笔》）"
+author = "Thomas Henry Huxley"
+year = 1870
+shelf = "life"
+source = "gutenberg"
+ref = "16729"
+mode = "excerpts"
+why = "Public lectures on science, including “On a Piece of Chalk”."
+why_zh = "赫胥黎的公众科学讲演，收有名篇《一支粉笔》。"
+
+[[book]]
+id = "james-principles-1"
+title = "The Principles of Psychology, Volume 1"
+title_zh = "心理学原理（第一卷）"
+author = "William James"
+year = 1890
+shelf = "life"
+source = "gutenberg"
+ref = "57628"
+mode = "digest"
+why = "The brain, habit, the stream of thought, the self, attention: the founding text of American psychology."
+why_zh = "大脑、习惯、意识流、自我、注意：美国心理学的奠基之作。"
+
+[[book]]
+id = "james-principles-2"
+title = "The Principles of Psychology, Volume 2"
+title_zh = "心理学原理（第二卷）"
+author = "William James"
+year = 1890
+shelf = "life"
+source = "gutenberg"
+ref = "57634"
+mode = "digest"
+why = "Perception, space, memory of things, instinct, emotion and will."
+why_zh = "知觉、空间、本能、情绪（詹姆斯–兰格情绪理论）和意志。"
+
+[[book]]
+id = "james-essays"
+title = "The Will to Believe, and Other Essays"
+title_zh = "信仰的意志及其他"
+author = "William James"
+year = 1897
+shelf = "life"
+source = "gutenberg"
+ref = "26659"
+mode = "excerpts"
+why = "Shorter pieces, including “The Will to Believe” and “Is Life Worth Living?”."
+why_zh = "较短的文章，收有《信仰的意志》《人生值得过吗？》。"
+
+[[book]]
+id = "james-pragmatism"
+title = "Pragmatism"
+title_zh = "实用主义"
+author = "William James"
+year = 1907
+shelf = "life"
+source = "standardebooks"
+ref = "william-james/pragmatism"
+mode = "digest"
+why = "Lectures on judging ideas by what difference they make in practice."
+why_zh = "演讲集：一个想法对不对，要看它在实际中带来什么不同。"
+
+[[book]]
+id = "faraday-candle"
+title = "The Chemical History of a Candle"
+title_zh = "蜡烛的化学史"
+author = "Michael Faraday"
+year = 1861
+shelf = "life"
+source = "gutenberg"
+ref = "14474"
+mode = "text"
+why = "Six Christmas lectures for young people, all science starting from one candle."
+why_zh = "法拉第给青少年的六次圣诞讲座，从一支蜡烛讲遍燃烧与空气。"
+
+# ---- civilization and essays ----------------------------------------------------------------
+[[book]]
+id = "tagore-nationalism"
+title = "Nationalism"
+title_zh = "民族主义"
+author = "Rabindranath Tagore"
+year = 1917
+shelf = "civilization"
+source = "gutenberg"
+ref = "40766"
+mode = "excerpts"
+why = "Lectures given in Japan and America on the nation as a machine and what it does to people."
+why_zh = "泰戈尔在日本和美国的演讲：把民族国家看作一台机器，以及它对人的影响。"
+
+[[book]]
+id = "tagore-reminiscences"
+title = "My Reminiscences"
+title_zh = "我的回忆"
+author = "Rabindranath Tagore"
+year = 1917
+shelf = "civilization"
+source = "standardebooks"
+ref = "rabindranath-tagore/my-reminiscences/the-macmillan-company"
+mode = "text"
+why = "Tagore's memoir of childhood and youth in Calcutta."
+why_zh = "泰戈尔回忆在加尔各答的童年和青年。"
+
+[[book]]
+id = "montaigne-essays"
+title = "Essays"
+title_zh = "蒙田随笔"
+author = "Michel de Montaigne"
+year = 1580
+shelf = "civilization"
+source = "gutenberg"
+ref = "3600"
+mode = "excerpts"
+why = "The book that named the essay: a man examining himself on every subject (Cotton's translation)."
+why_zh = "“随笔”这个文体就从这里来：蒙田拿各种题目审视自己（Cotton 英译本）。"
+
+[[book]]
+id = "bacon-essays"
+title = "The Essays or Counsels, Civil and Moral"
+title_zh = "培根随笔"
+author = "Francis Bacon"
+year = 1625
+shelf = "civilization"
+source = "gutenberg"
+ref = "575"
+mode = "text"
+why = "Short, dense essays on truth, studies, ambition and friendship."
+why_zh = "短而密的文章：论真理、论读书、论野心、论友谊。"
+
+[[book]]
+id = "emerson-essays"
+title = "Essays"
+title_zh = "爱默生散文集"
+author = "Ralph Waldo Emerson"
+year = 1841
+shelf = "civilization"
+source = "standardebooks"
+ref = "ralph-waldo-emerson/essays"
+mode = "excerpts"
+why = "“Self-Reliance”, “History”, “Circles” and the rest of both series."
+why_zh = "《论自助》《论历史》《圆》等两辑散文。"
+
+[[book]]
+id = "emerson-nature"
+title = "Nature"
+title_zh = "论自然"
+author = "Ralph Waldo Emerson"
+year = 1836
+shelf = "civilization"
+source = "gutenberg"
+ref = "29433"
+mode = "text"
+why = "A short book on how a person stands toward the natural world; the start of Transcendentalism."
+why_zh = "一本小书，讲人怎样面对自然，是超验主义的起点。"
+
+[[book]]
+id = "thoreau-walden"
+title = "Walden"
+title_zh = "瓦尔登湖"
+author = "Henry David Thoreau"
+year = 1854
+shelf = "civilization"
+source = "standardebooks"
+ref = "henry-david-thoreau/walden"
+mode = "text"
+why = "Two years alone in a cabin by a pond, and what he made of it."
+why_zh = "在湖边小屋独居两年，以及他从中得出的东西。"
+
+[[book]]
+id = "marcus-meditations"
+title = "Meditations"
+title_zh = "沉思录"
+author = "Marcus Aurelius"
+year = 180
+shelf = "civilization"
+source = "standardebooks"
+ref = "marcus-aurelius/meditations/george-long"
+mode = "text"
+why = "A Roman emperor's private notes to himself (George Long's translation)."
+why_zh = "一位罗马皇帝写给自己的笔记（George Long 英译本）。"
+
+[[book]]
+id = "seneca-dialogues"
+title = "Dialogues"
+title_zh = "塞涅卡对话录"
+author = "Seneca"
+year = 50
+shelf = "civilization"
+source = "standardebooks"
+ref = "seneca/dialogues/aubrey-stewart"
+mode = "text"
+why = "On anger, on a happy life, on the shortness of life (Aubrey Stewart's translation)."
+why_zh = "《论愤怒》《论幸福生活》《论生命之短暂》等（Aubrey Stewart 英译本）。"
+
+[[book]]
+id = "epictetus-discourses"
+title = "Discourses"
+title_zh = "爱比克泰德论说集"
+author = "Epictetus"
+year = 108
+shelf = "civilization"
+source = "standardebooks"
+ref = "epictetus/discourses/george-long"
+mode = "excerpts"
+why = "A freed slave's lessons on what is up to us and what is not (George Long's translation)."
+why_zh = "一位获释奴隶的讲课记录：什么在我们掌控之中，什么不在（George Long 英译本）。"
+
+[[book]]
+id = "plato-dialogues"
+title = "Dialogues"
+title_zh = "柏拉图对话集"
+author = "Plato"
+year = -380
+shelf = "civilization"
+source = "standardebooks"
+ref = "plato/dialogues/benjamin-jowett"
+mode = "excerpts"
+why = "The dialogues in Jowett's translation, from the Apology to the Republic."
+why_zh = "Jowett 英译的柏拉图对话，从《申辩篇》到《理想国》。"
+
+[[book]]
+id = "mill-on-liberty"
+title = "On Liberty"
+title_zh = "论自由"
+author = "John Stuart Mill"
+year = 1859
+shelf = "civilization"
+source = "standardebooks"
+ref = "john-stuart-mill/on-liberty"
+mode = "digest"
+why = "Where society's power over the individual should stop; the book Yan Fu translated as 群己权界论."
+why_zh = "社会管个人该管到哪里为止；严复译作《群己权界论》。"
+
+[[book]]
+id = "tocqueville-democracy"
+title = "Democracy in America, Volume 1"
+title_zh = "论美国的民主（上卷）"
+author = "Alexis de Tocqueville"
+year = 1835
+shelf = "civilization"
+source = "gutenberg"
+ref = "815"
+mode = "digest"
+why = "A French aristocrat studies American equality and what it does to a society (Reeve's translation)."
+why_zh = "一位法国贵族观察美国的平等，以及平等怎样改变一个社会（Reeve 英译本）。"
+
+[[book]]
+id = "wang-guowei-renjian-cihua"
+title = "人間詞話"
+title_zh = "人间词话"
+author = "王國維"
+year = 1910
+shelf = "civilization"
+source = "wikisource"
+ref = "人間詞話"
+language = "zh"
+mode = "text"
+why = "Short notes on classical poetry, built around the idea of 境界."
+why_zh = "论词的短札，以“境界”为核心。"

@@ -48,10 +48,12 @@ class Parsed:
 _SKIP_TITLES = re.compile(
     r"^\W*(detailed |table of )?contents\W*$|^\W*(list of )?(illustrations|plates|figures)\W*$|^\W*(general )?index\W*$|"
     r"^\W*(foot|end)?notes\W*$|^\W*(bibliography|references)\W*$|^\s*目\s*[录錄]\s*$|^\s*索\s*引\s*$|^\s*(注释|参考文献)\s*$|"
-    r"^\s*(the )?full project gutenberg license|^\W*copyright( page)?\W*$|^\s*版权(信息|页)?\s*$|^\W*cover\W*$|^\s*封面\s*$",
+    r"^\s*(the )?full project gutenberg license|^\W*copyright( page)?\W*$|^\s*版权(信息|页)?\s*$|^\W*cover\W*$|^\s*封面\s*$|"
+    r"^\W*(title ?page|half ?title|imprint|colophon|uncopyright|endnotes|rights)\W*$",
     re.IGNORECASE)
 _PG_START = re.compile(r"\*\*\*\s*START OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE)
 _PG_END = re.compile(r"\*\*\*\s*END OF (THE|THIS) PROJECT GUTENBERG", re.IGNORECASE)
+_BARE_NUMBER = re.compile(r"((chapter|lecture|part|book|essay)\s+)?([ivxlcdm]+|\d+)\.?", re.IGNORECASE)
 MIN_CHAPTER = 300            # characters; shorter pieces (title pages, epigraphs) join the next chapter
 
 
@@ -76,8 +78,12 @@ def _tidy(chapters: list[Chapter]) -> list[Chapter]:
         title = chapter.title.lower()
         while keep and len(keep[0]) <= 80 and keep[0].lower().strip(" .") in title:
             keep.pop(0)                                       # the heading again, already the chapter's title
-        if keep and not _SKIP_TITLES.search(chapter.title):
-            out.append(Chapter(chapter.title, keep))
+        name = chapter.title
+        if keep and _BARE_NUMBER.fullmatch(name.strip()) and len(keep[0]) <= 100 \
+                and not re.search(r"[,;:!?。！？，；：]$", keep[0]):
+            name = f"{name.strip()} {keep.pop(0)}"             # "IV." alone: the real title is the first line
+        if keep and not _SKIP_TITLES.search(name):
+            out.append(Chapter(name, keep))
     sizes = sorted(c.size for c in out)
     typical = sizes[len(sizes) * 3 // 4] if sizes else 0
     while len(out) > 2 and out[0].size < typical * 0.1:      # title pages, "works by", contents at the front
@@ -480,3 +486,69 @@ def parse(path: str | Path) -> Parsed:
     if suffix in (".txt", ".md"):
         return parse_txt(path)
     raise ValueError(f"not a book file I can read: {Path(path).name} (EPUB, TXT or PDF)")
+
+
+# ---- writing a small EPUB (a sample book, a book assembled from Wikisource) -------------------
+def _escape(text: str) -> str:
+    return html.escape(text, quote=True)
+
+
+def write_epub(path: str | Path, book: Parsed, *, rights: str = "", source: str = "") -> Path:
+    """A plain EPUB 3: one XHTML file per chapter and a flat table of contents."""
+    import uuid
+
+    path = Path(path)
+    lang = book.language or "en"
+    chapters = [c for c in book.chapters if c.paragraphs]
+    xhtml = ('<?xml version="1.0" encoding="utf-8"?>\n<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" '
+             'xmlns:epub="http://www.idpf.org/2007/ops" lang="{lang}" xml:lang="{lang}"><head><title>{title}</title>'
+             '</head><body>{body}</body></html>')
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        z.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        z.writestr("META-INF/container.xml",
+                   '<?xml version="1.0" encoding="utf-8"?><container version="1.0" '
+                   'xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile '
+                   'full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        items, refs, nav = [], [], []
+        for n, chapter in enumerate(chapters, 1):
+            name = f"c{n:03d}.xhtml"
+            body = f"<section><h2>{_escape(chapter.title)}</h2>" + "".join(
+                f"<p>{_escape(p)}</p>" for p in chapter.paragraphs) + "</section>"
+            z.writestr(f"OEBPS/{name}", xhtml.format(lang=lang, title=_escape(chapter.title), body=body))
+            items.append(f'<item id="c{n}" href="{name}" media-type="application/xhtml+xml"/>')
+            refs.append(f'<itemref idref="c{n}"/>')
+            nav.append(f'<li><a href="{name}">{_escape(chapter.title)}</a></li>')
+        z.writestr("OEBPS/nav.xhtml", xhtml.format(lang=lang, title="Contents", body=(
+            f'<nav epub:type="toc" id="toc"><h1>Contents</h1><ol>{"".join(nav)}</ol></nav>')))
+        meta = (f"<dc:identifier id=\"id\">urn:uuid:{uuid.uuid5(uuid.NAMESPACE_URL, source or book.title)}</dc:identifier>"
+                f"<dc:title>{_escape(book.title)}</dc:title><dc:language>{_escape(lang)}</dc:language>"
+                + (f"<dc:creator>{_escape(book.author)}</dc:creator>" if book.author else "")
+                + (f"<dc:source>{_escape(source)}</dc:source>" if source else "")
+                + (f"<dc:rights>{_escape(rights)}</dc:rights>" if rights else "")
+                + '<meta property="dcterms:modified">2026-01-01T00:00:00Z</meta>')
+        z.writestr("OEBPS/content.opf",
+                   '<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+                   f'unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/">{meta}</metadata>'
+                   f'<manifest><item id="nav" href="nav.xhtml" properties="nav" media-type="application/xhtml+xml"/>'
+                   f'{"".join(items)}</manifest><spine>{"".join(refs)}</spine></package>')
+    return path
+
+
+def chapters_from_html(markup: str, *, level: str = "h2") -> list[Chapter]:
+    """Chapters from one rendered page: a new chapter at each ``level`` heading, smaller headings kept
+    as their own paragraphs. Footnote markers and editors' boxes (tables, divs) are left out."""
+    markup = re.sub(r"<(sup|table|style|script)\b[\s\S]*?</\1>", "", markup)
+    markup = re.sub(r'<span class="mw-editsection[\s\S]*?</span>\s*</span>', "", markup)
+    parts = re.findall(r"<(h[1-6]|p)\b[^>]*>([\s\S]*?)</\1>", markup)
+    chapters: list[Chapter] = []
+    for tag, inner in parts:
+        text = _clean(re.sub(r"<[^>]+>", "", inner))
+        if not text:
+            continue
+        if tag == level:
+            chapters.append(Chapter(text, []))
+        else:
+            if not chapters:
+                chapters.append(Chapter("", []))
+            chapters[-1].paragraphs.append(text)
+    return [c for c in chapters if c.paragraphs]

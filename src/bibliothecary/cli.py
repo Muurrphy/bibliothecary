@@ -168,6 +168,20 @@ def cmd_book(args) -> int:
         print("\n  " + books.describe(book, chinese) + (f"\n  {book.data['why']}" if book.data.get("why") else "")
               + "\n\n  Prepare the next session with: biblio book next\n")
         return 0
+    if args.action == "catalog":
+        from . import catalog
+
+        print(catalog.listing(chinese) + "\n\n  Fetch one with: biblio book get <id>   (or the bundled sample: biblio book get sample)\n")
+        return 0
+    if args.action == "get":
+        from . import catalog
+
+        if not args.what:
+            raise SystemExit("biblio book get <id>   (see: biblio book catalog)")
+        book = catalog.get(OpenAICompatible.from_env(), args.what, explain=args.explain, log=_log)
+        print("\n  " + books.describe(book, chinese) + (f"\n  {book.data['why']}" if book.data.get("why") else "")
+              + f"\n  {book.data.get('source', '')}\n\n  Prepare the first session with: biblio book next\n")
+        return 0
     if args.action == "list":
         found = books.shelf()
         if not found:
@@ -249,8 +263,9 @@ def main(argv: list[str] | None = None) -> int:
     tg.set_defaults(fn=cmd_telegram)
 
     bk = sub.add_parser("book", help="whole books: add a book, see the shelf, prepare the next session")
-    bk.add_argument("action", choices=["add", "list", "show", "next", "mode", "pause", "resume"])
-    bk.add_argument("what", nargs="?", help="add: the file (.epub .txt .pdf); others: the book (default: the current one)")
+    bk.add_argument("action", choices=["add", "list", "show", "next", "mode", "pause", "resume", "catalog", "get"])
+    bk.add_argument("what", nargs="?", help="add: the file (.epub .txt .pdf); get: a catalog id or 'sample'; "
+                    "others: the book (default: the current one)")
     bk.add_argument("--mode", help="text (读原文) · digest (拆书) · excerpts (精华原文)")
     bk.add_argument("--title", help="add: a title of your own")
     bk.add_argument("--explain", default="English", help="language it explains in, e.g. 'Simplified Chinese'")

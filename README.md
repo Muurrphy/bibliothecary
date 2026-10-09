@@ -138,6 +138,12 @@ There are three ways to read a book. The librarian suggests one from the kind of
 
 No spoilers: chapter notes are made only as far as you have read, the "previously" uses nothing beyond your place, and during the reading the librarian won't tell you what happens later even if it knows the book. A session counts once you finish it; then your place moves on. In Telegram: `/book` (the open book and your progress), `/books` (the shelf), `/mode`, `/next`, `/book pause`. While a book is open, the daily round prepares its next part instead of choosing an article. Session length follows `BIBLIOTHECARY_BOOK_MINUTES` (default 20). The map, the notes and the choice of passages use `BIBLIOTHECARY_BOOK_MODEL` (else `BIBLIOTHECARY_CHAT_MODEL`). Books with DRM (Kindle store, WeChat Read) can't be read; your own files and public-domain books (Standard Ebooks, Project Gutenberg, Wikisource) can. Design notes: [docs/design/books.zh-CN.md](docs/design/books.zh-CN.md).
 
+### The library's own books
+
+No book at hand? The librarian keeps a short list of public-domain books worth reading ([`catalog.toml`](src/bibliothecary/catalog.toml)), on two shelves: life and mind (Darwin, Huxley, William James, Faraday) and civilization and essays (Montaigne, Emerson, Thoreau, Marcus Aurelius, Seneca, Tagore, Mill, Tocqueville, Plato, 王国维). `biblio book catalog` lists them and `biblio book get darwin-emotions` fetches one onto your shelf; in Telegram, `/library` and `/get darwin-emotions`. Books come only from three clean sources: [Standard Ebooks](https://standardebooks.org) (its own work dedicated to the public domain, CC0), [Project Gutenberg](https://www.gutenberg.org) (its trademarked header and licence are left out when shelved) and [Wikisource](https://zh.wikisource.org). Every book is public domain in the United States and its author and translator died more than 70 years ago, so it is free in life + 70 and life + 50 countries too; modern translations and annotated editions are left out. Add your own entries in `~/Bibliothecary/catalog.toml`.
+
+One short book ships with the project, so this works without fetching anything: Seneca's *On the Shortness of Life* (Aubrey Stewart's translation, 1900, from Standard Ebooks; about 8,000 words). `biblio book get sample`, or `/get sample`.
+
 ## The reading report
 
 Each reading has its own folder, all on your computer:

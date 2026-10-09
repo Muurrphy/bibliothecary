@@ -138,6 +138,12 @@ biblio read --paused
 
 不剧透：章节笔记只做到你读到的地方，前情提要只用你读过的内容，讲读时就算它知道这本书，也不会告诉你后面发生什么。一段读完才算数，进度随之往前走。Telegram 里：`/book`（在读的书和进度）、`/books`（书架）、`/mode`、`/next`、`/book pause`。有书在读时，每天的固定时间会备这本书的下一段，而不是另挑文章。每段的长度由 `BIBLIOTHECARY_BOOK_MINUTES` 决定（默认 20 分钟）。全书地图、注释和挑段落用 `BIBLIOTHECARY_BOOK_MODEL`（没设就用 `BIBLIOTHECARY_CHAT_MODEL`）。有 DRM 的书（Kindle 商店、微信读书）读不了；你自己的文件和公版书（Standard Ebooks、Project Gutenberg、维基文库）都可以。设计说明见 [docs/design/books.zh-CN.md](docs/design/books.zh-CN.md)。
 
+### 图书馆自己的书
+
+手边没书也行：图书管理员有一份值得读的公版书单（[`catalog.toml`](src/bibliothecary/catalog.toml)），分两个书架：生命与心智（达尔文、赫胥黎、威廉·詹姆斯、法拉第），文明与散文（蒙田、爱默生、梭罗、马可·奥勒留、塞涅卡、泰戈尔、密尔、托克维尔、柏拉图、王国维）。`biblio book catalog` 看书单，`biblio book get darwin-emotions` 把一本取到你的书架上；Telegram 里是 `/library` 和 `/get darwin-emotions`。书只从三个干净的来源取：[Standard Ebooks](https://standardebooks.org)（它自己做的部分以 CC0 捐给公有领域）、[Project Gutenberg](https://www.gutenberg.org)（上架时去掉它带商标的页眉和许可声明）和[维基文库](https://zh.wikisource.org)。书单里每本书在美国都是公版，作者和译者都已去世七十年以上，所以在按“去世后 70 年”或“50 年”计算的国家也都是公版；现代译本和带注释的版本一律不收。想加自己的书，写在 `~/Bibliothecary/catalog.toml`。
+
+项目里自带一本短书，不联网也能试：塞涅卡《论生命之短暂》（Aubrey Stewart 1900 年英译本，来自 Standard Ebooks，约八千词）。`biblio book get sample`，或者在 Telegram 里发 `/get sample`。
+
 ## 读书报告
 
 每篇文章一个文件夹，全部在你自己的电脑上：
