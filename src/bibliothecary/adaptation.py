@@ -67,7 +67,12 @@ def context(store=None):
     chosen = {}
     for row in rows:
         style = row['style']; chosen['detail' if style in ('depth','concise') else style] = row
-    return '\n'.join(STYLES[row['style']]+' Evidence: '+row['source'] for row in chosen.values())
+    lines = [STYLES[row['style']]+' Evidence: '+row['source'] for row in chosen.values()]
+    active_sources = {r['source'] for r in leads(store)}
+    for _,item in store.all('extension'):
+        if item.get('evidence') in active_sources:
+            lines.append('Optional material already prepared: '+item['reading']+'; topic: '+item['query']+'; source of interest: '+item['evidence'])
+    return '\n'.join(lines)
 
 
 def leads(store=None):

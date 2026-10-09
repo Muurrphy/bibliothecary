@@ -279,3 +279,16 @@ def test_publisher_blurb_is_rejected_even_when_model_approves(monkeypatch):
     with pytest.raises(ValueError,match='没有找到'):
         nav.prepare_query({'query':'read the actual work','original':True})
     assert library.readings()==[folder]
+
+
+def test_prepared_extension_is_available_to_conversation_without_another_web_search():
+    from bibliothecary.store import Store
+    player,ledger,folder=make_player()
+    poem=Lesson('A poem',[['Actual poem text.']],[Step(say='Actual poem text.',focus='p1.s1')])
+    prepared=library.new_reading(poem)
+    Store().put('extension','poem',{'reading':prepared.name,'query':'A poem','evidence':'reading#1'})
+    class Client:
+        def chat_json(self,system,user):return {'query':'A poem','prepared':prepared.name}
+        def web_search(self,*a):raise AssertionError('Already prepared; no search needed')
+    nav,_,_=navigator_for(player,ledger,Client())
+    assert nav.prepare_query({'query':'A poem','original':True})==prepared
