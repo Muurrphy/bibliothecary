@@ -76,10 +76,18 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
   function layout() {
     var h = window.innerHeight || 800, d = document.documentElement.clientHeight;
     if (d && d < h) h = d;                       // what is really visible
-    var cap = Math.round(h * (PHONE ? 0.2 : 0.25));
+    // The caption shows whole lines only (three on a phone): a window that ends mid-line leaves
+    // the last line cut in half under the edge.
+    var lh = 0;
+    try { lh = parseFloat(window.getComputedStyle($('say'), null).lineHeight); } catch (e) {}
+    if (!lh || isNaN(lh)) lh = PHONE ? 25.5 : 30;
+    var head = $('who').offsetHeight + 7;                  // the label row and its gap
+    var lines = PHONE ? 3 : Math.max(2, Math.floor((h * 0.25 - 9 - head) / lh));
+    var box = Math.ceil(lines * lh);
+    var cap = head + box + 6;                              // a little air under the last line
     $('cap').style.height = cap + 'px';
-    $('cb').style.height = (cap - 9 - 30) + 'px';
-    $('say').style.paddingBottom = (cap - 9 - 30) + 'px';   // room to bring the newest sentence to the top
+    $('cb').style.height = box + 'px';
+    $('say').style.paddingBottom = box + 'px';           // room to bring the newest sentence to the top
     $('art').style.height = (h - cap - 38 - 7 - 18) + 'px';
   }
   function sentenceHTML(s, marks) {
@@ -215,7 +223,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
       capPrev = text;
       var cb = $('cb'), nw = $('nw');
       var natural = cb.scrollHeight - cb.clientHeight;     // height without the extra room
-      cb.scrollTop = (kept && nw && natural > cb.clientHeight) ? Math.max(0, nw.offsetTop - 2) : 0;
+      cb.scrollTop = (kept && nw && natural > cb.clientHeight) ? Math.max(0, nw.offsetTop) : 0;
     }
     var p = S.progress || [0, 0];
     $('meta').innerHTML = p[1] ? p[0] + ' / ' + p[1] : '';
