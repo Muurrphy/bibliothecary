@@ -166,7 +166,7 @@ def test_exploration_rejects_review_and_opens_only_verified_body(monkeypatch):
     class Client:
         def chat_json(self,system,user):
             if 'public author' in system:return {'query':'A poet original poem'}
-            return {'matches':json.loads(user)['title']=='Poem'}
+            return {'matches':json.loads(user)['title']=='Poem','primary_text':json.loads(user)['body']}
         def web_search(self,query):
             return {'sources':[{'url':'https://example.test/review'},{'url':'https://example.test/poem'}]}
     player,ledger,folder=make_player()
@@ -174,7 +174,7 @@ def test_exploration_rejects_review_and_opens_only_verified_body(monkeypatch):
     monkeypatch.setattr(collection,'cached_article',lambda url:('Poem' if url.endswith('poem') else 'Review', 'These are retrieved source words. '*10,url))
     result=nav.prepare_query({'query':'read the poem','original':True})
     lesson=Lesson.load(result/'lesson.json')
-    assert lesson.title=='Poem' and lesson.source.endswith('/poem')
+    assert lesson.title=='Poem · 原文节选' and lesson.source.endswith('/poem')
     assert all(s.say==lesson.sentence(s.focus) for s in lesson.steps)
 
 
@@ -262,3 +262,20 @@ def test_requested_web_search_is_required_and_keeps_uncited_source_links():
     found=client.web_search('Find an original work')
     assert bodies[0]['tool_choice']=='required'
     assert found['sources'][0]['url']=='https://example.test/original'
+
+
+def test_publisher_blurb_is_rejected_even_when_model_approves(monkeypatch):
+    import pytest
+    from bibliothecary import collection
+    class Client:
+        def chat_json(self,system,user):
+            if 'public author' in system:return {'query':'original poetry'}
+            return {'matches':True,'primary_text':json.loads(user)['body']}
+        def web_search(self,query):
+            return {'sources':[{'url':'https://www.penguinrandomhouse.com/books/123/a-book/'}]}
+    player,ledger,folder=make_player()
+    nav,_,_=navigator_for(player,ledger,Client())
+    monkeypatch.setattr(collection,'cached_article',lambda url:('A book','A notable book and award finalist. A moving portrait of a young artist. '*4,url))
+    with pytest.raises(ValueError,match='没有找到'):
+        nav.prepare_query({'query':'read the actual work','original':True})
+    assert library.readings()==[folder]
