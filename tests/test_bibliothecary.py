@@ -285,3 +285,31 @@ def test_ask_me_again_goes_back_to_the_review_questions():
     player.ask("再问一遍")
     assert _wait(lambda: (player.review or {}).get("question") == lesson.steps[first].say)
     assert _wait(lambda: bus.screen()["screen"]["status"] == "waiting")
+
+
+def test_a_spoken_question_that_needs_the_web_is_looked_up():
+    """The realtime model answers from memory; a question about something recent goes to the web."""
+    import threading as _t
+    from margin.live import LiveQuestion
+
+    class Turn:
+        def __init__(self, text):
+            self.transcript, self.heard = text, _t.Event()
+            self.heard.set()
+            self.t_first_text = self.t_commit = None
+
+    bus, voice = Bus(), QuickVoice()
+    memory = brain.StreamedAnswer(lambda: iter(['{"then": "continue", "steps": [{"say": "From memory."}]}']),
+                                  Lesson.load(OCTOPUS), None)
+    cancelled = []
+
+    def answerer(lesson, question, current, position=None, history=None, review=None):
+        return brain.StreamedAnswer(lambda: iter(['{"then": "continue", "search": "q", "steps": [{"say": "Looking."}]}']),
+                                    lesson, current,
+                                    lookup=lambda q: {"steps": [Step(say=f"Found: {question}")], "then": "continue"})
+
+    player = Player(bus, voice, answerer)
+    player.load(Lesson.load(OCTOPUS))
+    player.ask_live(LiveQuestion(Turn("今年的诺贝尔奖给了谁"), memory, lambda t: False, lambda: cancelled.append(1)))
+    assert _wait(lambda: "Found: 今年的诺贝尔奖给了谁" in voice.said)
+    assert "From memory." not in voice.said and "Looking." in voice.said and cancelled

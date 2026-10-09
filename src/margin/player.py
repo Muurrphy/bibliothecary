@@ -16,7 +16,7 @@ import time
 import traceback
 from collections.abc import Callable
 
-from .brain import quick_intent
+from .brain import needs_lookup, quick_intent
 from .bus import Bus
 from .lesson import Lesson, Step
 from .speaker import NoSpeaker
@@ -468,6 +468,14 @@ class Player:
                 if intent:                        # "继续", "等一下", "从头讲": do it now, no model
                     live.cancel()
                     steps, stream, then, command_only = [], None, intent, True
+                elif heard and needs_lookup(heard) and self.answerer:
+                    # it needs the web: drop the realtime answer, look it up and answer from that
+                    live.cancel()
+                    retry = self._ask_answerer(heard)
+                    if hasattr(retry, "start"):
+                        stream = retry.start(on_step=lambda st: self._prepare([st], answer=True))
+                    else:
+                        steps, stream = list((retry or {}).get("steps") or []), None
                 elif planned:                     # a planned moment (e.g. for filming): use it as written
                     live.cancel()
                     steps, stream = list(planned), None

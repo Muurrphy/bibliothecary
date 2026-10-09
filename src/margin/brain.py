@@ -8,6 +8,7 @@ checks them against the article before anything reaches the screen.
 from __future__ import annotations
 
 import json
+import os
 import queue
 import re
 import threading
@@ -98,7 +99,22 @@ sequence.
   "restart":  they want to start the article over.
   "ignore":   nothing was said to you (noise, other people talking, or your own voice reading).
 When they only ask you to go on (or where you were), one very short step is enough, or none.
-The listener may speak any language; answer in {explain}."""
+{lookup}The listener may speak any language; answer in {explain}."""
+
+LOOKUP = """Looking things up: today is {today}; what you learned in training may be out of date. You can
+search the web. When the answer needs facts you are not sure of,
+anything recent (this year's events, prizes, news, current figures), a specific name, number or
+date you might get wrong, or they ask you to look something up, do not guess and never say you
+cannot go online. Reply instead with exactly:
+  {{"then": "continue", "steps": [{{"say": "<one short sentence in {explain}: you are looking it up>"}}], "search": "<what to search for>"}}
+You will then get the results and answer from them.
+"""
+
+FOUND = """
+
+You looked this up on the web just now ({query}). What the search found:
+{found}
+Answer from this (say briefly where it comes from if it helps). Do not search again."""
 
 STYLE = """- Talk like a person, not like an AI: plain words, concrete facts and examples, short sentences.
   Do not label, praise or frame things; just say what they are. Never use phrases like
@@ -223,9 +239,13 @@ def _review(review: dict | None) -> str:
 
 def _answer_prompt(lesson: Lesson, question: str, current: str | None, position: int | None,
                    explain_language: str | None, history: list[dict] | None = None,
-                   review: dict | None = None) -> tuple[str, str]:
+                   review: dict | None = None, *, can_search: bool = True,
+                   found: tuple[str, str] | None = None) -> tuple[str, str]:
     explain = explain_language or lesson.explain_language
-    system = ANSWER_SYSTEM.format(shape=_shape(explain), explain=explain, style=STYLE)
+    import datetime as _dt
+    lookup = (LOOKUP.format(explain=explain, today=_dt.date.today().isoformat())
+              if can_search and not found else "")
+    system = ANSWER_SYSTEM.format(shape=_shape(explain), explain=explain, style=STYLE, lookup=lookup)
     where = f"\n\nYou were explaining {current}: {lesson.sentence(current)}" if current else ""
     where += _review(review)
     context = f"{lesson.context()}{plan_summary(lesson, position)}{_history(history)}{where}"
@@ -233,6 +253,8 @@ def _answer_prompt(lesson: Lesson, question: str, current: str | None, position:
         system += ("\nYou can also show things on the computer screen: add \"cue\": \"<name>\" to the step "
                    "that talks about it, only when they ask to see it or it clearly helps. Available:\n"
                    + "\n".join(f"  {k}: {v}" for k, v in lesson.cues.items()))
+    if found:
+        context += FOUND.format(query=found[0], found=found[1])
     return system, f"{context}\n\nThe listener said: {question}"
 
 
@@ -251,11 +273,49 @@ def _then(value: Any) -> str:
 
 def answer(client: OpenAICompatible, lesson: Lesson, question: str, *, current: str | None,
            position: int | None = None, explain_language: str | None = None,
-           history: list[dict] | None = None, review: dict | None = None) -> dict[str, Any]:
+           history: list[dict] | None = None, review: dict | None = None,
+           found: tuple[str, str] | None = None) -> dict[str, Any]:
     """{"steps": [Step, ...], "then": "continue" | "pause" | "back" | "skip" | "restart" | "ignore"}"""
-    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review)
+    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review,
+                                  can_search=hasattr(client, "web_search"), found=found)
     data = client.chat_json(system, user, max_tokens=900)
+    query = str(data.get("search") or "").strip()
+    if query and not found and hasattr(client, "web_search"):
+        return answer(client, lesson, question, current=current, position=position,
+                      explain_language=explain_language, history=history, review=review,
+                      found=(query, web_lookup(client, query)))
     return {"steps": clean_steps(lesson, data.get("steps", []), current=current), "then": _then(data.get("then"))}
+
+
+_NEEDS_WEB = re.compile(r"查一下|查查|查一查|帮我查|去查|搜一下|搜搜|搜索|上网|联网|最新|最近|今年|去年|如今|目前|新闻|刚刚|"
+                        r"上市|批准|获批|look (it|that|this) up|search|latest|recent|this year|last year|"
+                        r"nowadays|currently|right now|news|approved|20[2-3]\d|"
+                        # a fact (who, which, when, how many) is easy to get wrong from memory
+                        r"谁|哪个|哪位|哪家|哪一年|哪年|什么时候|几年|多少|"
+                        r"\bwho\b|\bwhich\b|\bwhen\b|how many|how much", re.IGNORECASE)
+
+
+def needs_lookup(question: str) -> bool:
+    """A question that asks for the web, or for something recent: look it up before answering."""
+    return bool(question and _NEEDS_WEB.search(question))
+
+
+def _looking(explain: str) -> str:
+    zh = "chin" in explain.lower() or explain.lower().startswith("zh") or "中文" in explain
+    return "我上网查一下。" if zh else "Let me look that up."
+
+
+def web_lookup(client, query: str) -> str:
+    """What a quick web search says (for an answer during the reading). A fast model by default:
+    the listener is waiting; MARGIN_LOOKUP_MODEL picks another."""
+    try:
+        import datetime as _dt
+        dated = f"{query} (today is {_dt.date.today().isoformat()})"   # "this year" means this year
+        found = client.web_search(dated, model=os.environ.get("MARGIN_LOOKUP_MODEL", "gpt-4.1-mini"))
+        text = str(found.get("text") or "").replace("?utm_source=openai", "").replace("&utm_source=openai", "")
+        return text[:2500] or "(nothing found)"
+    except Exception as err:
+        return f"(the search failed: {err}; answer from what you know and say you could not check)"
 
 
 class _StepScanner:
@@ -317,8 +377,12 @@ class StreamedAnswer:
     step, ``fallback`` (a plain request) is tried instead."""
 
     def __init__(self, pieces: Callable[[], Iterable[str]], lesson: Lesson, current: str | None,
-                 fallback: Callable[[], dict] | None = None) -> None:
+                 fallback: Callable[[], dict] | None = None,
+                 lookup: Callable[[str], dict] | None = None) -> None:
+        """``lookup(query)``: when the model asks to search the web, the answer from what was found
+        ({"steps", "then"}); its steps follow the ones already spoken ("let me look that up")."""
         self._pieces, self.lesson, self.current, self._fallback = pieces, lesson, current, fallback
+        self._lookup = lookup
         self._queue: queue.Queue = queue.Queue()
         self._first = threading.Event()
         self.then = "continue"
@@ -346,10 +410,19 @@ class StreamedAnswer:
                             self.current = step.focus or self.current
                             self._emit(step, on_step)
                 try:
-                    self.then = _then(json.loads(scanner.text).get("then"))
+                    whole = json.loads(scanner.text)
+                    self.then = _then(whole.get("then"))
+                    query = str(whole.get("search") or "").strip()
                 except json.JSONDecodeError:
                     m = re.search(r'"then"\s*:\s*"(\w+)"', scanner.text)
                     self.then = _then(m.group(1) if m else None)
+                    q = re.search(r'"search"\s*:\s*"((?:[^"\\]|\\.)*)"', scanner.text)
+                    query = q.group(1) if q else ""
+                if query and self._lookup is not None:
+                    data = self._lookup(query)
+                    self.then = _then(data.get("then"))
+                    for step in data.get("steps") or []:
+                        self._emit(step, on_step)
             except Exception as err:
                 self.error = err
                 if self.count == 0 and self._fallback is not None:
@@ -380,7 +453,8 @@ def answer_stream(client: OpenAICompatible, lesson: Lesson, question: str, *, cu
                   position: int | None = None, explain_language: str | None = None,
                   history: list[dict] | None = None, review: dict | None = None) -> StreamedAnswer:
     """Like ``answer`` but streamed. If streaming fails: a plain request, then the lesson's own answers."""
-    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review)
+    system, user = _answer_prompt(lesson, question, current, position, explain_language, history, review,
+                                  can_search=hasattr(client, "web_search"))
 
     def fallback() -> dict:
         try:
@@ -389,8 +463,21 @@ def answer_stream(client: OpenAICompatible, lesson: Lesson, question: str, *, cu
         except Exception:
             return {"steps": scripted_answer(lesson, question) or [], "then": "continue"}
 
+    def lookup(query: str) -> dict:
+        return answer(client, lesson, question, current=current, position=position,
+                      explain_language=explain_language, history=history, review=review,
+                      found=(query, web_lookup(client, query)))
+
+    if hasattr(client, "web_search") and needs_lookup(question):
+        # say so at once, search, then answer from what was found
+        query = f"{question} (about: {lesson.title})"
+        opening = json.dumps({"then": "continue", "search": query,
+                              "steps": [{"say": _looking(explain_language or lesson.explain_language)}]},
+                             ensure_ascii=False)
+        return StreamedAnswer(lambda: iter([opening]), lesson, current, fallback=fallback, lookup=lookup)
+
     return StreamedAnswer(lambda: client.chat_json_stream(system, user, max_tokens=900), lesson, current,
-                          fallback=fallback)
+                          fallback=fallback, lookup=lookup if hasattr(client, "web_search") else None)
 
 
 def clean_steps(lesson: Lesson, raw: list[Any], current: str | None = None) -> list[Step]:

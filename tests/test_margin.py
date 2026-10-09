@@ -385,3 +385,41 @@ def test_several_speakers_are_told_when_to_start():
     assert second["at"] > time.time() * 1000         # two: a shared moment just ahead
     hub.finished(second["id"])
     t.join(1)
+
+
+OCTOPUS = Path(__file__).resolve().parents[1] / "examples" / "octopus.lesson.json"
+
+
+def test_an_answer_can_look_things_up_on_the_web():
+    lesson = Lesson.load(OCTOPUS)
+
+    class Client:
+        def __init__(self):
+            self.prompts, self.searched = [], []
+
+        def chat_json(self, system, user, **_):
+            self.prompts.append((system, user))
+            if "What the search found" in user:
+                return {"then": "continue", "steps": [{"say": "今年颁给了光遗传学。"}]}
+            return {"then": "continue", "steps": [{"say": "我查一下。"}], "search": "2026 Nobel medicine"}
+
+        def web_search(self, query, **_):
+            self.searched.append(query)
+            return {"text": "The 2026 prize went to optogenetics.", "sources": []}
+
+    client = Client()
+    result = brain.answer(client, lesson, "今年诺奖给了谁？", current=None)
+    assert len(client.searched) == 1 and client.searched[0].startswith("2026 Nobel medicine (today is ")
+    assert [s.say for s in result["steps"]] == ["今年颁给了光遗传学。"]
+    assert "Looking things up" in client.prompts[0][0] and "optogenetics" in client.prompts[1][1]
+    assert "Looking things up" not in client.prompts[1][0]          # no second search
+
+
+def test_a_streamed_answer_says_it_is_looking_and_then_answers():
+    lesson = Lesson.load(OCTOPUS)
+    pieces = ['{"then": "continue", "steps": [{"say": "我上网查一下。"}], ', '"search": "who won"}']
+    asked = []
+    stream = brain.StreamedAnswer(lambda: iter(pieces), lesson, None,
+                                  lookup=lambda q: (asked.append(q), {"steps": [Step(say="是光遗传学。")],
+                                                                      "then": "continue"})[1]).start()
+    assert [s.say for s in stream] == ["我上网查一下。", "是光遗传学。"] and asked == ["who won"]

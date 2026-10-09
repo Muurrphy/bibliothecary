@@ -142,6 +142,14 @@ def start(lesson: Lesson | None, args, *, client: OpenAICompatible | None = None
         app.ears.link = RealtimeLink(client.api_key, log=_log)
         app.ears.instructions = lambda: brain.live_instructions(player.lesson, player.focus, player.index,
                                                                 player.history, player.review)
+
+        def live_lookup(query, question):           # the realtime model asked to search the web
+            _log(f"looking up: {query}")
+            return brain.answer(client, player.lesson, question, current=player.focus, position=player.index,
+                                history=player.history, review=player.review,
+                                found=(query, brain.web_lookup(client, query)))
+
+        app.ears.lookup = live_lookup
     # one port for everything: the Kindle uses http://, the tablet https:// (same port)
     servers = [serve(app, args.host, args.port, tls=tls[:2] if tls else None)]
     if tls:
