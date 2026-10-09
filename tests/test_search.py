@@ -245,7 +245,7 @@ def test_the_chat_is_a_librarian_with_its_own_model(home, monkeypatch):
     assert "finance" in system and "ask one or two real questions" in system
     assert "Quanta, Aeon, Nautilus" in system and "never pad" in system
     lib.handle({"message": {"chat": {"id": ME}, "text": "/profile"}})
-    assert bot.sent[-1] == "· 在拍 demo"
+    assert "在拍 demo" in bot.sent[-1] and "inferred" in bot.sent[-1] and "chat#event" in bot.sent[-1]
     assert "- 在拍 demo" in lib.desk.context()                          # remembered for next time
 
 

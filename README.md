@@ -1,5 +1,7 @@
 # Bibliothecary
 
+> **0.5.0a1 preview:** every captured reader utterance is retained as text, alongside separately organized, source-linked notes. No “save this” command is required and microphone audio is not archived. The original black-and-white reading design is preserved. SQLite, jobs, memory correction and learning plans are integrated; device and seven-day acceptance remain pending. [Upgrade and acceptance](docs/longterm-acceptance.md).
+
 **A personal librarian.** It prepares what you read at bedtime, reads it with you on an old Kindle or a phone, and files every question and answer in a reading report, so the next reading starts from what you already know.
 
 *Bibliothecary* is an older English word for librarian, in use since the 1610s, from Latin *bibliothecarius*. In Chinese the project is simply 图书管理员; in plain English, **The Librarian**.
@@ -25,14 +27,14 @@ The job has changed over the centuries. The early *bibliothecary* — at Alexand
 
 ## What works today, and what comes next
 
-Version 0.4 (2026-10-09) adds whole books, read three ways, and a list of public-domain books to start from; 0.3 did the reading, the instruction, the records and the daily chat. The knowledge map is specified in the [requirements](docs/requirements.md) and comes next. Every release is described in the [changelog](CHANGELOG.md).
+Version 0.5.0a1 continues the complete 0.4.0 baseline as a reliability and automatic-notes preview. See [acceptance](docs/longterm-acceptance.md) for implemented scope and pending checks, and the [changelog](CHANGELOG.md) for history.
 
 | | |
 |---|---|
 | **Works now** | `biblio prepare` turns an article into a three-part session: background, reading, review questions. `biblio read` reads it on the Kindle and phone, takes spoken questions, waits for your answers to the review questions, and files a reading report when it ends. |
 | **Also now** | `biblio telegram`: the librarian in a Telegram chat. Send it a link, a file or a voice message; it prepares the reading, asks you each day what you'd like to read tonight, and sends the reading report when you finish. |
 | **Also now** | Whole books: an EPUB, TXT or PDF read part by part, with your place kept, in three ways (the text itself, a digest, the best passages) and without spoilers. |
-| **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
+| **Next** | Device and seven-day acceptance; MCP, native apps and public access remain later work |
 
 ## Three parts: use them together or on their own
 
@@ -56,7 +58,7 @@ The Kindle is optional. Everything is a web page served by your own computer, so
 | Kindle + phone | Kindle: `http://<computer>:8765/` · phone: `https://<computer>:8765/speaker` |
 | Phone + iPad | one opens `/` (the article), the other `/speaker` (voice and mouth) |
 
-With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room only serves your home Wi-Fi, from your own computer: everyone runs their own librarian, and nobody else can reach yours. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
+With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room runs on your computer on the home network. It has no per-user authentication; other devices that can reach its port can access it. Keep it off the public Internet. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
 
 ## Quick start
 
@@ -182,13 +184,13 @@ computer: reading + your question → answer → voice + character timing → re
 - **Voice questions use a realtime model.** The phone streams audio through the computer to OpenAI. A stalled turn can fall back to transcription and a text model.
 - **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
 - **The mouth uses speech timestamps and the audio clock.** Local waveform checks correct phrase edges when pauses match clearly and close the mouth during detected silence. Phoneme timing within each character is still estimated; this is not phoneme-accurate forced alignment. See [mouth timing](docs/lipsync.md#timing-checks-in-the-reading-companion).
-- **Nothing said is lost.** Each question and answer is appended to the reading's log as soon as it is spoken; the report is rebuilt from that log.
+- **Captured text is retained before answering.** Comments and tangents are archived as well as questions. Failed transcription is marked as a gap; summaries never replace the original turns.
 
 More: [requirements](docs/requirements.md), [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
 
 ## Privacy
 
-A real librarian never discloses what you borrowed, so everything stays on your own machine. Readings, logs and reports live in a local folder. The model and voice services you configure receive only what one request needs (the article and the current question, or a line to speak), never your archive. See [SECURITY.md](SECURITY.md).
+A real librarian never discloses what you borrowed, so everything stays on your own machine. Readings, logs and reports live in a local folder. Your configured model and voice services receive request context: source text, relevant retrieved history, speech for transcription and conversation turns for post-reading organization. The local archive is not published; this is not an offline-only model. See [SECURITY.md](SECURITY.md).
 
 ## The reading room and the mouth on their own
 

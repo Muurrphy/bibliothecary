@@ -158,13 +158,14 @@ def render(lesson: Lesson, events: list[dict], *, prepared: dt.date | None = Non
 
 
 def summarize(client, lesson: Lesson, events: list[dict]) -> dict:
-    talk = "\n".join(f"- {s.say}" for s in lesson.steps if s.say)
-    said = "\n".join(
-        (f"- Review question: {e['review']}\n  Their answer: {e.get('question', '(skipped)')}"
-         if e.get("review") else f"- They asked: {e['question']}\n  Answer: {e['answer']}")
-        for e in events if e.get("kind") in ("exchange", "review_skipped"))
+    from .organize import turns
+    from margin.brain import bounded, protected
+    rows = turns(events)
+    focus = next((e.get("focus") for e in reversed(events) if e.get("focus")), None)
+    context = bounded(lesson, focus).context() if protected(lesson) else lesson.context()
+    said = json.dumps(rows, ensure_ascii=False)
     data = client.chat_json(SUMMARY_SYSTEM.format(explain=lesson.explain_language),
-                            f"{lesson.context()}\n\nWhat they heard:\n{talk}\n\nWhat they said:\n{said or '(nothing)'}")
+                            f"{context}\n\nActual conversation, with source roles and verbatim text:\n{said}")
     return {key: [str(x).strip() for x in (data.get(key) or []) if str(x).strip()][:8]
             for key in ("unclear", "threads", "concepts")}
 
@@ -178,10 +179,17 @@ def write(folder: Path, *, client=None) -> Path:
     lesson = Lesson.load(folder / "lesson.json")
     events = library.events(folder)
     summary_file = folder / "summary.json"
-    summary = None
+    summary = safe.read_json(summary_file) if summary_file.is_file() else None
+    path = folder / "report.md"
+    # Publish raw records before any model work. A failed organizer or summary cannot hide them.
+    safe.atomic(path, render(lesson, events, summary=summary) + "\n")
+    from . import organize
+    organize.write(folder, client=client if events else None)
     if client is not None and events:
         summary = summarize(client, lesson, events)
-        summary_file.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        from .store import Store
+        Store().put("summary", folder.name, summary)
+        safe.write_json(summary_file, summary)
     elif summary_file.is_file():
         summary = safe.read_json(summary_file)
     prepared = None
@@ -190,5 +198,9 @@ def write(folder: Path, *, client=None) -> Path:
     except ValueError:
         pass
     path = folder / "report.md"
-    safe.atomic(path, render(lesson, events, prepared=prepared, summary=summary) + "\n")
+    # A model summary may have taken minutes: export the newest raw events, never its old snapshot.
+    with safe.locked(folder / ".report.lock"):
+        safe.atomic(path, render(lesson, library.events(folder), prepared=prepared, summary=summary) +
+                    "\n\n---\n\n" + (folder / "notes.md").read_text(encoding="utf-8").replace("transcript.md#", "#") +
+                    "\n\n---\n\n" + (folder / "transcript.md").read_text(encoding="utf-8"))
     return path

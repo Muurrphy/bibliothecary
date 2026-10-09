@@ -86,6 +86,7 @@ class Player:
         self._generation = 0
         self._active_generation = 0
         self._started = False
+        self._manual_wait = False
         self._record = record or (lambda *_a, **_k: None)
         self.forced = None                    # (lesson, question) -> steps that must be used, or None
         self._t_sound: float | None = None
@@ -108,7 +109,7 @@ class Player:
 
     def checkpoint(self) -> dict:
         return {"index": self.index, "focus": self.focus, "history": self.history,
-                "review": self.review, "started": self._started}
+                "review": self.review, "started": self._started, "manual_wait": self._manual_wait}
 
     def _checkpoint(self) -> None:
         owner = getattr(self._record, "__self__", None)
@@ -135,6 +136,9 @@ class Player:
     def prev(self) -> None:
         self._command("seek", -1, interrupt=True)
 
+    def finish(self) -> None:
+        self._command("finish", interrupt=True)
+
     def restart(self) -> None:
         self._command("restart", interrupt=True)
 
@@ -149,13 +153,18 @@ class Player:
         self._held_until = 0.0
         self._cmds.put(("resume_status", ()))
 
-    def ask(self, question: str, since: float | None = None) -> None:
+    def capture_utterance(self, channel="text"):
+        owner = getattr(self._record, "__self__", None)
+        return owner.capture_utterance(channel, self.focus) if hasattr(owner, "capture_utterance") else (lambda *a: None)
+
+    def ask(self, question: str, since: float | None = None, *, recorded: bool = False) -> None:
         """``since``: when the question was received (``time.monotonic()``), for timing logs."""
-        self._command("ask", question, since, None, interrupt=True)
+        if not recorded: self.capture_utterance()(question)
+        self._command("ask", question, since, None, self._generation, interrupt=True)
 
     def ask_live(self, live, since: float | None = None) -> None:
         """A question already on its way to a realtime model (see ``live.LiveQuestion``)."""
-        self._command("ask", "", since, live, interrupt=True)
+        self._command("ask", "", since, live, self._generation, interrupt=True)
 
     def wait_idle(self, timeout: float = 10.0) -> bool:
         """For tests: wait until the queue is empty and nothing is playing."""
@@ -245,6 +254,7 @@ class Player:
             self.history = saved.get("history", [])[-3:]
             self.review = saved.get("review")
             self._started = bool(saved.get("started"))
+            self._manual_wait = bool(saved.get("manual_wait"))
             self.playing = False if saved or len(args) > 1 and args[1] is not None else self.playing
             self.fillers = default_fillers(self.lesson.explain_language) if self._wants_fillers() else []
             self._prepare([Step(say=f) for f in self.fillers])
@@ -264,12 +274,25 @@ class Player:
             self.playing = True
             self.bus.publish("clear_answer")
             self.bus.publish("status", state="reading")
+        elif name == "finish" and self.lesson:
+            self.playing = False
+            if self.index >= len(self.lesson.steps):
+                self._note("end")
+                self.bus.publish("status", state="done")
         elif name == "pause":
             self.playing = False
             self.bus.publish("status", state="paused")
         elif name == "seek" and self.lesson:
             self._skip_review()
-            self.index = max(0, min(len(self.lesson.steps) - 1, self.index + args[0]))
+            if self.lesson.manual and self._manual_wait and args[0] > 0:
+                self._manual_wait = False
+                self.playing = True
+            else:
+                offset = args[0] - 1 if self.lesson.manual and self._manual_wait and args[0] < 0 else args[0]
+                self.index = max(0, min(len(self.lesson.steps) - 1, self.index + offset))
+                if self.lesson.manual:
+                    self._manual_wait = False
+                    self.playing = True
             self._cut = None
             self.bus.publish("clear_answer")
         elif name == "restart" and self.lesson:
@@ -279,6 +302,9 @@ class Player:
             self.playing = True
             self.bus.publish("status", state="reading")
         elif name == "ask":
+            if len(args) > 3 and args[3] != self._generation:
+                if args[2] is not None: args[2].cancel()
+                return
             self._held_until = 0.0
             self._answer(args[0], args[1] if len(args) > 1 else None, args[2] if len(args) > 2 else None)
         elif name == "resume_status":
@@ -297,6 +323,10 @@ class Player:
                 if step.expect:                   # a review question: wait for the answer ("go on" skips it)
                     self.review = {"question": step.say, "expect": step.expect}
                 self._advance()
+                if self.lesson.manual and not step.say and step.focus:
+                    self._manual_wait = True
+                    self.playing = False
+                    self.bus.publish("status", state="paused")
                 if self.review:
                     self.playing = False
                     self.bus.publish("status", state="waiting")
@@ -359,7 +389,11 @@ class Player:
                 if self._stop.is_set():
                     break
                 self._say(piece)
-        if step.pause and not self._stop.is_set():
+                owner = getattr(self._record, "__self__", None)
+                if hasattr(owner, "companion"):
+                    owner.companion(piece, self.focus, "question" if step.expect else "explanation" if answer is not None else "reading",
+                                    interrupted=self._stop.is_set() or self._playback_failed)
+        if step.pause and not self._stop.is_set() and not (self.lesson.manual and not step.say):
             self._stop.wait(step.pause)
         return not self._stop.is_set() and self._active_generation == self._generation
 
@@ -400,7 +434,8 @@ class Player:
             self.playing = False
             if not self.review:
                 self.bus.publish("status", state="done")
-                self._note("end")
+                if not self.lesson.manual: self._note("end")
+                else: self.bus.publish("status", state="awaiting_finish")
 
     def _skip_review(self) -> None:
         if self.review:
@@ -465,12 +500,32 @@ class Player:
         self._prepare([Step(say=text)])            # ready for next time
         return True
 
+    def _try_action(self, question, live=None):
+        handler = getattr(self, "action", None)
+        if not handler or not question or self._active_generation != self._generation:
+            return False
+        try:
+            reply = handler(question)
+        except Exception as err:
+            self._log(f"reader action failed: {type(err).__name__}")
+            reply = "这次没有保存成功，阅读位置还在。请再试一次。"
+        if reply is None:
+            return False
+        if live is not None: live.cancel()
+        self.bus.publish("answer", question=question, text=reply, done=True)
+        self._perform(Step(say=reply), answer={"question":question, "text":""})
+        self._note("reader_action", question=question, answer=reply, focus=self.focus)
+        self.bus.publish("status", state="reading" if self.playing else "paused")
+        return True
+
     def _answer(self, question: str, since: float | None = None, live=None) -> None:
         """Answer, then go back to the plan on our own unless asked not to.
 
         A question cuts into the line being read: you asked because you were looking at it,
         so once answered we go on with the next line instead of reading it again."""
         if not self.lesson:
+            return
+        if live is None and self._try_action(question):
             return
         skip_cut = self._cut is not None and self._cut == self.index
         self._cut = None
@@ -503,6 +558,8 @@ class Player:
                 question = heard or "…"
                 if heard:
                     self._log(f"question: {heard}")
+                if heard and self._try_action(heard, live):
+                    return
                 intent = quick_intent(heard) if heard else None
                 planned = self.forced(self.lesson, heard) if (heard and self.forced) else None
                 if intent:                        # "继续", "等一下", "从头讲": do it now, no model
@@ -634,7 +691,12 @@ class Player:
             self.bus.publish("status", state="waiting")
             return
         self.bus.publish("status", state="reading" if self.playing else ("done" if self.index >= n else "paused"))
-        if self.index >= n and pending_review:
+        if self.lesson.manual and quick_intent(question) in ("continue", "skip", "back"):
+            self._manual_wait = False
+        if self.lesson.manual and self._manual_wait:
+            self.playing = False
+            self.bus.publish("status", state="paused")
+        if self.index >= n and pending_review and not self.lesson.manual:
             self._note("end")                        # the last review question was answered or skipped
 
     def _next_paragraph(self, index: int) -> int:

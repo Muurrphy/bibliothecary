@@ -14,6 +14,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 iframe{border:0;display:block;width:100%}
 #text{flex:1 1 auto;background:#fff}
 #voice{flex:0 0 34%;min-height:190px}
+#page.quiet #voice{flex:0 0 1px;min-height:0;opacity:0;pointer-events:none}
 @media (orientation: landscape){#page{flex-direction:row}#voice{flex:0 0 36%;min-height:0;height:100%}#text{height:100%}}
 </style>
 </head>
@@ -26,5 +27,14 @@ iframe{border:0;display:block;width:100%}
 // pass the speaker's options on (?palette=..., ?listen=0, ?sens=...)
 var q = location.search;
 if (q) document.getElementById("voice").src = "/speaker" + q;
+// The companion changes presentation when asked; no reader control panel.
+function presentation(p) {
+  document.getElementById('page').classList.toggle('quiet', !!p.folded);
+  document.getElementById('text').contentWindow.postMessage({type:'reading-preferences',font:p.font||18,theme:p.theme||'light'},location.origin);
+}
+function syncPresentation(){
+  fetch('/api/screen').then(function(r){return r.json()}).then(function(r){presentation(r.preferences||{})}).catch(function(){}).finally(function(){setTimeout(syncPresentation,2000)});
+}
+syncPresentation();
 </script>
 </body></html>

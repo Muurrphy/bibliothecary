@@ -146,6 +146,12 @@ def cmd_chat(args) -> int:
                 return 0
             if not text:
                 continue
+        from . import learning, collection
+        from .store import Store
+        local = learning.command(Store(), text) or collection.command(Store(), text)
+        if local:
+            print(f"librarian> {local}\n", flush=True)
+            continue
         desk.remember("reader", text)
         answer = desk.reply(text)
         for line in answer.trace:
@@ -226,6 +232,38 @@ def cmd_book(args) -> int:
     return 0
 
 
+def cmd_local(args) -> int:
+    from .store import Store
+    from . import learning, collection
+    store = Store()
+    if args.cmd == "migrate":
+        import json
+        print(json.dumps(store.get("system", "migration"), ensure_ascii=False, indent=2))
+    elif args.cmd == "health":
+        with store.connect() as db:
+            print("database:", db.execute("PRAGMA integrity_check").fetchone()[0])
+        print("library:", store.root)
+        print("migration errors:", len(store.get("system", "migration").get("errors", [])))
+        print("jobs:", ", ".join(j["status"] for j in store.jobs()) or "none")
+    elif args.cmd == "export":
+        print(store.backup(args.destination))
+    elif args.cmd == "restore":
+        import shutil, sqlite3
+        source = Path(args.backup).expanduser().resolve()
+        target = Path(args.destination).expanduser().resolve()
+        if target.exists(): raise SystemExit("restore requires a new directory; stop the librarian before switching homes")
+        db = sqlite3.connect(f"file:{source / 'library.sqlite3'}?mode=ro", uri=True)
+        try:
+            if db.execute("PRAGMA integrity_check").fetchone()[0] != "ok": raise SystemExit("backup database is damaged")
+        finally: db.close()
+        shutil.copytree(source,target)
+        print(target)
+    else:
+        text = "/" + args.cmd + (" " + " ".join(args.words) if args.words else "")
+        print(learning.command(store,text) or collection.command(store,text) or "Unknown command")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="biblio", description="Bibliothecary: a personal librarian. "
                                 "Readings and reports are kept in " + str(library.readings_dir()))
@@ -282,6 +320,27 @@ def main(argv: list[str] | None = None) -> int:
     ch.add_argument("--explain", default="English", help="language it talks in, e.g. 'Simplified Chinese'")
     ch.add_argument("--chat-model", help="as for telegram")
     ch.set_defaults(fn=cmd_chat)
+
+    for name in ("profile", "goals", "plan", "review", "weekly", "shelf", "tag", "reject", "less"):
+        local = sub.add_parser(name, help="local library, memory and learning controls")
+        local.add_argument("words", nargs="*")
+        local.set_defaults(fn=cmd_local)
+    for name in ("health", "migrate"):
+        local = sub.add_parser(name)
+        local.set_defaults(fn=cmd_local)
+    export = sub.add_parser("export", help="consistent database backup with source text and reports")
+    export.add_argument("destination")
+    export.set_defaults(fn=cmd_local)
+    restore = sub.add_parser("restore", help="restore a backup into a NEW directory")
+    restore.add_argument("backup")
+    restore.add_argument("destination")
+    restore.set_defaults(fn=cmd_local)
+
+    from .service import command as service_command
+    service = sub.add_parser("service", help="opt-in macOS login startup using an existing launcher")
+    service.add_argument("action", choices=["write", "enable", "disable", "status"])
+    service.add_argument("--launcher")
+    service.set_defaults(fn=service_command)
 
     args = p.parse_args(argv)
     margin_cli.load_env()

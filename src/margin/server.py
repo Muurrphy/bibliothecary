@@ -50,7 +50,7 @@ def _reexec() -> None:
     import os
     import sys
 
-    os.execv(sys.executable, [sys.executable, "-m", "margin", *sys.argv[1:]])
+    os.execv(sys.executable, [sys.executable, *sys.orig_argv[1:]])
 
 
 def _static(name: str) -> bytes:
@@ -84,6 +84,10 @@ class App:
         self.log = log or (lambda _m: None)
         self.hub = hub or SpeakerHub(bus, self.log)
         self.ca_file = ca_file
+        self.reading_rate = 1.0
+        self.annotation = None
+        self.annotations = None
+        self.reading_id = lambda: None
         self.opener: Callable[[str], bool] | None = None    # name -> loaded? (set by the librarian)
         from .live import Ears
 
@@ -111,7 +115,7 @@ class App:
                 self.hub.register(sid)
                 if self.single_speaker:
                     self.hub.owner = sid
-            return {"ok": True, "primary": primary, "owner": self.speaker_owner}
+            return {"ok": True, "primary": primary, "owner": self.speaker_owner, "rate": self.reading_rate}
 
     def handler(self) -> type[BaseHTTPRequestHandler]:
         app = self
@@ -179,8 +183,15 @@ class App:
                         return self._send(200, f.read(), "application/x-x509-ca-cert")
                 if url.path == "/api/time":     # for speaker pages to agree on "now"
                     return self._json({"t": time.time() * 1000})
+                if url.path == "/api/annotations":
+                    return self._json({"items": app.annotations() if app.annotations else []})
+                if url.path == "/api/health":
+                    return self._json({"ok": True, "reading": app.reading_id(), "status": app.bus.screen()["screen"]["status"]})
                 if url.path == "/api/screen":
                     data = app.bus.screen()
+                    data["reading_id"] = app.reading_id()
+                    data["rate"] = app.reading_rate
+                    data["preferences"] = getattr(app, "reading_preferences", {})
                     data["active_clip"] = app.hub.active()
                     if data["active_clip"]:
                         data["active_clip"]["resume"] = True
@@ -213,9 +224,24 @@ class App:
                     if not sid or sid != app.speaker_owner:
                         self._body()
                         return self._json({"error": "This page is display-only; use the primary mouth microphone."}, 409)
+                if url.path == "/api/preferences":
+                    try: rate = float(json.loads(self._body() or b"{}").get("rate", 1))
+                    except (TypeError, ValueError): return self._json({"error": "Invalid rate"}, 400)
+                    if not 0.75 <= rate <= 1.5: return self._json({"error": "Rate must be 0.75–1.5"}, 400)
+                    app.reading_rate = rate
+                    app.hub.reading_rate = rate
+                    app.bus.publish("preferences", rate=rate)
+                    return self._json({"rate": rate})
+                if url.path == "/api/annotations":
+                    if not app.annotation: return self._json({"error": "Open a librarian reading first"}, 409)
+                    try: result = app.annotation(json.loads(self._body() or b"{}"))
+                    except (ValueError,KeyError,TypeError) as err: return self._json({"error": str(err)}, 400)
+                    return self._json(result)
                 if url.path == "/api/control":
                     action = json.loads(self._body() or b"{}").get("action", "")
-                    fn = {"play": app.player.play, "pause": app.player.pause, "toggle": app.player.toggle,
+                    if action == "finish" and (not app.player.lesson or app.player.index < len(app.player.lesson.steps)):
+                        return self._json({"error": "还有未读内容；暂停会保留位置，不会标记整段读完。"}, 409)
+                    fn = {"finish": app.player.finish, "play": app.player.play, "pause": app.player.pause, "toggle": app.player.toggle,
                           "next": app.player.next, "prev": app.player.prev, "restart": app.player.restart,
                           "cancel": app.player.cancel_listening}.get(action)
                     if not fn:
@@ -260,14 +286,20 @@ class App:
                 if url.path == "/api/ask":
                     received = time.monotonic()
                     body = self._body()
-                    if ctype.startswith("audio/") or ctype == "application/octet-stream":
+                    audio = ctype.startswith("audio/") or ctype == "application/octet-stream"
+                    generation = app.player._generation
+                    capture = app.player.capture_utterance("voice") if audio else None
+                    if audio:
                         if not app.transcriber:
+                            capture("", "transcription_unavailable")
                             app.player.cancel_listening()
                             return self._json({"error": "no speech-to-text configured (set OPENAI_API_KEY)"}, 400)
                         try:
                             text = app.transcriber(body, ctype).strip()
+                            capture(text, "echo_candidate" if app.is_echo(text) else "received")
                             app.log(f"speech to text: {time.monotonic() - received:.1f}s")
                         except Exception as err:
+                            capture("", "transcription_failed")
                             app.player.cancel_listening()
                             return self._json({"error": str(err)}, 502)
                         if app.is_echo(text):
@@ -282,7 +314,9 @@ class App:
                         app.player.cancel_listening()
                         return self._json({"error": "empty question"}, 400)
                     app.log(f"question: {text}")
-                    app.player.ask(text, since=received)
+                    if generation != app.player._generation:
+                        return self._json({"error": "Reading changed; transcript kept with the original reading"}, 409)
+                    app.player.ask(text, since=received, recorded=audio)
                     return self._json({"ok": True, "question": text})
                 self._send(404, b'{"error": "not found"}')
 

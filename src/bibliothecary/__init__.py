@@ -5,4 +5,4 @@ over each one) and hands the reading itself to Margin, the reading room.
 Everything is stored in a local folder; see ``library.home()``.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0a1"

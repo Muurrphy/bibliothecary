@@ -357,6 +357,7 @@ def test_a_text_session_plays_through_quietly_answers_a_question_and_ends(home, 
     book = books.add(path, client=client)
     folder = books.prepare_next(client, book)
     lesson = Lesson.load(folder / "lesson.json")
+    lesson.manual = False  # explicitly test the optional automatic pacing path
     for step in lesson.steps:
         step.pause = min(step.pause, 0.05)
     focused, events, asked = [], [], []

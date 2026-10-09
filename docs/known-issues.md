@@ -1,3 +1,5 @@
+> 0.5.0a1 is a preview. See [long-term acceptance](longterm-acceptance.md) for migration, complete transcript/derived-note semantics, and the pending device/seven-day checks. Capture cannot recover words never received/transcribed; gaps must remain explicit. The LAN reading room has no user authentication: reachable local devices can access it.
+
 # Known issues — 2026-10-08 snapshot
 
 Bibliothecary is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.

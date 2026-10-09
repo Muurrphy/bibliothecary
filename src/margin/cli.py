@@ -57,6 +57,8 @@ class Room:
         self.app, self.player, self.servers, self.urls, self.voice = app, player, servers, urls, voice
 
     def close(self) -> None:
+        self.player.pause()
+        self.player.wait_idle(5)
         for server in self.servers:
             server.shutdown()
 
@@ -65,6 +67,17 @@ def run(lesson: Lesson, args, *, client: OpenAICompatible | None = None, record=
         title: str = "Margin is ready.") -> int:
     """Serve a lesson until Ctrl-C. ``record`` keeps the session (see ``player.Recorder``)."""
     room = start(lesson, args, client=client, record=record)
+    owner = getattr(record, "__self__", None)
+    if owner is not None and hasattr(owner, "folder"):
+        from bibliothecary.annotations import save, listing
+        from bibliothecary.actions import install
+        install(room.app)
+        room.app.reading_id = lambda: owner.folder.name
+        def annotate(data):
+            if data.get("reading") != owner.folder.name: raise ValueError("The reading changed")
+            return save(owner.folder, lesson, data)
+        room.app.annotation = annotate
+        room.app.annotations = lambda: listing(owner.folder)
     print(f"""
   {title}
 

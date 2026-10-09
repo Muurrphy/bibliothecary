@@ -50,6 +50,8 @@ def new_reading(lesson: Lesson, day: dt.date | None = None) -> Path:
         folder, n = base.with_name(f"{base.name}-{n}"), n + 1
     folder.mkdir(parents=True)
     lesson.save(folder / "lesson.json")
+    from .store import Store
+    Store().put("lesson", folder.name, lesson.to_dict())
     return folder
 
 
@@ -63,6 +65,10 @@ def readings() -> list[Path]:
 
 def events(folder: Path) -> list[dict]:
     """The session log; a line cut off by a crash is skipped, the rest is kept."""
+    from .store import Store
+    store = Store()
+    stored = store.events(folder.name)
+    if stored: return stored
     path = folder / "session.jsonl"
     if not path.is_file():
         return []
@@ -72,6 +78,8 @@ def events(folder: Path) -> list[dict]:
             out.append(json.loads(line))
         except json.JSONDecodeError:
             continue
+    for n, event in enumerate(out):
+        store.append(folder.name, event, f"readings/{folder.name}/session.jsonl:{n}")
     return out
 
 

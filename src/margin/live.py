@@ -391,6 +391,8 @@ class Ears:
         with self.lock:
             if qid != self.qid:
                 self.qid, self.pcm, self.started = qid, bytearray(), time.monotonic()
+                self.generation = getattr(self.player, "_generation", 0)
+                self.capture = self.player.capture_utterance("voice")
                 self.turn = self.link.begin(qid) if self.link and self.link.connected.is_set() else None
             self.pcm += pcm24
             if self.turn:
@@ -402,7 +404,23 @@ class Ears:
                 return
             if self.turn:
                 self.link.cancel()
+            if self.pcm and hasattr(self, "capture"):
+                self._archive_later(self.turn, bytes(self.pcm), self.capture, "interrupted")
             self.qid, self.turn, self.pcm = None, None, bytearray()
+
+    def _archive_later(self, turn, pcm, capture, status="received"):
+        def archive():
+            text = ""
+            try:
+                if turn:
+                    turn.heard.wait(10)
+                    text = turn.transcript or ""
+                if not text and self.transcriber:
+                    text = self.transcriber(pcm_to_wav(pcm), "audio/wav").strip()
+                capture(text, ("echo_candidate" if self.is_echo(text) else status) if text else "transcription_unavailable")
+            except Exception:
+                capture("", "transcription_failed")
+        threading.Thread(target=archive, daemon=True, name="bibliothecary-transcript").start()
 
     def end(self, qid: str) -> dict:
         """The tablet says you stopped talking: answer."""
@@ -410,8 +428,14 @@ class Ears:
             if qid != self.qid:
                 return {"error": "unknown question"}
             turn, pcm, received = self.turn, bytes(self.pcm), time.monotonic()
+            generation, capture = self.generation, self.capture
             self.qid, self.turn, self.pcm = None, None, bytearray()
+        if generation != getattr(self.player, "_generation", 0):
+            if turn: self.link.cancel()
+            self._archive_later(turn, pcm, capture, "reading_changed")
+            return {"error": "reading changed; ask again"}
         if turn and self.link.commit(turn, self.instructions()):
+            self._archive_later(turn, pcm, capture)
             from .brain import StreamedAnswer
 
             lesson = self.player.lesson
@@ -429,18 +453,23 @@ class Ears:
             return {"ok": True, "live": True}
         # no realtime connection: the classic way (transcribe, then ask)
         if not self.transcriber:
+            capture("", "transcription_unavailable")
             self.player.cancel_listening()
             return {"error": "no speech-to-text configured"}
         try:
             text = self.transcriber(pcm_to_wav(pcm), "audio/wav").strip()
         except Exception as err:
+            capture("", "transcription_failed")
             self.player.cancel_listening()
             return {"error": str(err)}
+        capture(text, "echo_candidate" if self.is_echo(text) else "received")
+        if generation != getattr(self.player, "_generation", 0):
+            return {"error": "reading changed; ask again"}
         self.log(f"speech to text: {time.monotonic() - received:.1f}s")
         if self.is_echo(text):
             self.log(f"ignored what the microphone heard: {text!r}")
             self.player.cancel_listening()
             return {"ignored": text}
         self.log(f"question: {text}")
-        self.player.ask(text, since=received)
+        self.player.ask(text, since=received, recorded=True)
         return {"ok": True, "question": text}

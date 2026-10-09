@@ -364,13 +364,13 @@ class SpeakerHub:
         # several phones/tablets at once: tell them all to start at the same moment
         at = round(time.time() * 1000 + self.sync_delay * 1000) if self.speakers() > 1 else None
         payload = dict(id=clip.id, text=clip.text, mime=clip.mime, at=at,
-                       lips=not (clip.ready.is_set() and not clip.timeline), seconds=round(seconds, 2))
+                       lips=not (clip.ready.is_set() and not clip.timeline), seconds=round(seconds, 2), rate=getattr(self, "reading_rate", 1.0))
         with self._lock:
             self._active = payload
         self.bus.publish("speak", **payload)
         if on_start:
             on_start()
-        deadline = time.monotonic() + seconds + float(os.environ.get("MARGIN_CLIP_GRACE", "8"))
+        deadline = time.monotonic() + seconds / getattr(self, "reading_rate", 1.0) + float(os.environ.get("MARGIN_CLIP_GRACE", "8"))
         try:
             while not done.is_set():
                 if stop.wait(0.04):

@@ -39,7 +39,9 @@ from typing import Any
 
 from margin.lesson import Lesson
 
-from . import books, library, report
+from . import books, library, report, safe
+from .store import Store
+from . import learning, collection
 from .desk import Desk
 
 URL = re.compile(r"https?://\S+")
@@ -48,6 +50,10 @@ FILE_TYPES = (".txt", ".md", ".html", ".htm", ".pdf", ".epub")
 
 class TelegramError(RuntimeError):
     pass
+
+
+class UncertainDelivery(TelegramError):
+    delivery_uncertain = True
 
 
 class Bot:
@@ -66,7 +72,8 @@ class Bot:
         except urllib.error.HTTPError as err:
             body = json.loads(err.read() or b"{}")
         except (urllib.error.URLError, OSError) as err:
-            raise TelegramError(f"cannot reach Telegram: {getattr(err, 'reason', err)}") from err
+            error = UncertainDelivery if method in ("sendMessage", "sendDocument") else TelegramError
+            raise error("Telegram connection failed; delivery outcome may be unknown") from err
         if not body.get("ok"):
             raise TelegramError(f"{method}: {body.get('description', 'failed')}")
         return body["result"]
@@ -136,30 +143,89 @@ class Librarian:
     def __init__(self, bot, client=None, *, explain: str = "English", bedtime: bool = True, review: int = 3,
                  ask_at: str = "12:00", decide_at: str = "19:00", prepare: Callable[..., Path] | None = None,
                  now: Callable[[], dt.datetime] | None = None, log: Callable[[str], None] | None = None,
-                 chat_model: str | None = None, room=None) -> None:
+                 chat_model: str | None = None, room=None, background: bool = False) -> None:
         self.bot, self.client, self.explain = bot, client, explain
-        self.bedtime, self.review = bedtime, review
+        self.bedtime, self.review = bedtime, min(2, max(0, review))
         self.ask_at, self.decide_at = _hhmm(ask_at), _hhmm(decide_at)
         self._prepare = prepare
         self.now = now or (lambda: dt.datetime.now().astimezone())
         self.log = log or (lambda _msg: None)
+        self.store = Store()
+        self.queue = None
         self.state_file = library.home() / "telegram.json"
         self.state = self._load()
         self._lock = threading.Lock()
         self.jobs: list[threading.Thread] = []
         self.desk = Desk(client, language=explain, model=chat_model, now=self.now, log=self.log)
-        self.room = room                                   # a ReadingRoom, so links can open readings
+        self.room = room
+        if now is None:
+            from zoneinfo import ZoneInfo
+            self.now = lambda: dt.datetime.now(ZoneInfo(self.state["timezone"])) if self.state.get("timezone") else dt.datetime.now().astimezone()
+            self.desk.now = self.now
+        if background:
+            from .jobs import Worker
+            self.queue = Worker(self.store, self._dispatch, self.log)
+            self.queue.start()
+            # Resume note organization after interruption without resending a Telegram message.
+            if self.client:
+                for name, item in self.store.all("organization_pending"):
+                    if item.get("pending"):
+                        self.queue.submit("organize", {"reading": name}, key="organize:"+name+":"+item.get("at", ""))
 
     # ---- state -----------------------------------------------------------------------
     def _load(self) -> dict:
-        try:
-            return json.loads(self.state_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
+        return self.store.get("settings", "telegram") or safe.read_json(self.state_file)
 
     def save(self) -> None:
-        self.state_file.parent.mkdir(parents=True, exist_ok=True)
-        self.state_file.write_text(json.dumps(self.state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.store.put("settings", "telegram", self.state)
+        safe.write_json(self.state_file, self.state)
+
+    def _dispatch(self, kind, data):
+        if kind == "message": return self.handle(data)
+        if kind == "notice":
+            if self.now().timestamp() <= data["expires"]:
+                return self.send(data["text"], data.get("buttons"))
+            return
+        if kind == "prepare": return self._prepare_now(data["article"], intro=data.get("intro"))
+        if kind == "book":
+            book = books.find(data["book"])
+            if not book: raise ValueError("Book no longer exists")
+            return self._book_session(book, intro=data.get("intro"))
+        if kind == "shelve": return self._shelve(Path(data["path"]))
+        if kind == "fetch": return self._fetch_book(data["query"])
+        if kind == "choose":
+            at=dt.datetime.fromisoformat(data["at"])
+            if self.now() > at + dt.timedelta(hours=2): return
+            return self._choose_and_prepare(data["greet"],data["intro"],self.now(),at)
+        if kind == "organize": return report.write(library.readings_dir()/Path(data["reading"]).name, client=self.client)
+        if kind == "report": return self.send_report(library.readings_dir()/data["reading"])
+        raise ValueError("Unknown job kind")
+
+    def local_command(self, text):
+        head, _, arg=text.partition(" ")
+        if head in ("/jobs", "/cancel", "/retry"):
+            if head == "/cancel":
+                self.store.cancel(arg or None)
+                return "已取消；正在请求模型的任务会丢弃迟到结果。"
+            if head == "/retry":
+                if not any(j["id"]==arg and j["status"] in ("failed","uncertain") for j in self.store.jobs()):
+                    return "请用 /jobs 找到失败或结果不确定的任务编号。"
+                self.store.job_state(arg,"pending")
+                if self.queue: self.queue.wake.set()
+                return "已加入重试队列；结果不确定的发送可能重复。"
+            return "\n".join(f"{j['id']} · {j['kind']} · {j['status']} {j['error']}" for j in self.store.jobs()) or "没有后台任务。"
+        if head == "/timezone":
+            from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+            if not arg: return self.state.get("timezone", "跟随电脑时区")
+            try: ZoneInfo(arg)
+            except ZoneInfoNotFoundError: return "使用时区名称，例如 America/Toronto 或 Asia/Shanghai。"
+            self.state["timezone"]=arg;self.save();return "阅读时间按 " + arg + " 安排。"
+        if head == "/health":
+            with self.store.connect() as db: health=db.execute("PRAGMA quick_check").fetchone()[0]
+            return f"数据库：{health}；后台队列：{'运行中' if self.queue else '未启用'}；时区：{self.state.get('timezone','跟随电脑')}。"
+        try:
+            return learning.command(self.store,text,self.now().date()) or collection.command(self.store,text)
+        except (ValueError,TypeError) as err: return str(err)
 
     @property
     def owner(self) -> int | None:
@@ -178,6 +244,9 @@ class Librarian:
         self.desk.remember(who, text)
 
     def send(self, text: str, buttons: list[tuple[str, str]] | None = None) -> None:
+        if self.queue and self.queue.in_worker:
+            from .jobs import checkpoint
+            checkpoint()
         if buttons:
             self.bot.send(self.owner, text, buttons)
         else:
@@ -300,7 +369,13 @@ class Librarian:
 
     def deliver(self, now: dt.datetime, at: dt.datetime) -> None:
         """Before the reading time: a prepared reading, ready to open, or one chosen and prepared now."""
-        waiting = books.up_next()
+        mode = learning.schedule(self.store, now.date())
+        planned = any(g.get("status") == "active" for _, g in self.store.all("goal")) or bool(self.store.get("plan", now.date().isoformat()))
+        if planned and mode == "review":
+            return self.send(learning.command(self.store, "/review", now.date()))
+        if planned and mode == "flex" and "休息" in self.store.get("plan", now.date().isoformat()).get("note", ""):
+            return self.send(self.t("今晚留给休息；想读随时叫我，不补欠账。", "Rest tonight; ask whenever you want to read. Nothing to catch up on."))
+        waiting = books.up_next() if not planned or mode == "goal" else None
         greet = self.greeting()
         intro = greet + self.t(f"{self.when_word(now, at)}读这篇。", f" Here's your reading for {self.when_word(now, at)}.")
         if waiting is not None:
@@ -308,14 +383,19 @@ class Librarian:
             return self.send(intro + "\n\n" + self.guide(waiting) + "\n\n" + how, buttons)
         if self.client is None:
             return self.send(greet + self.t("还没有备好的篇目，发我一个链接吧。", " Nothing is prepared yet; send me a link."))
+        if self.queue:
+            self.queue.submit("choose", {"greet":greet,"intro":intro,"at":at.isoformat()}, key="daily:"+at.date().isoformat())
+            return
         job = threading.Thread(target=self._choose_and_prepare, args=(greet, intro, now, at), daemon=True,
                                name="bibliothecary-choose")
         self.jobs.append(job)
         job.start()
 
     def _choose_and_prepare(self, greet: str, intro: str, now: dt.datetime, at: dt.datetime) -> None:
+        mode = learning.schedule(self.store, now.date())
+        has_goals = any(g.get("status") == "active" for _, g in self.store.all("goal"))
         book = books.current()
-        if book is not None:                              # a book is open: tonight is its next part
+        if book is not None and (not has_goals or mode == "goal"):
             return self._book_session(book, intro=greet + self.t(f"{self.when_word(now, at)}接着读《{book.title}》。",
                                                                   f" Tonight we go on with “{book.title}”."))
         task = (f"It is time to choose the reading for {self.when_word(now, at)} ({at:%H:%M}). Using what you know "
@@ -324,9 +404,10 @@ class Librarian:
                 "Do not pick something they have already read. If you know nothing about them yet, still "
                 "choose one good, broadly interesting piece.")
         try:
-            answer = self.desk.reply(task, choose=True)
+            answer = self.desk.reply(task + "\n" + learning.plan_context(self.store, now.date()), choose=True)
         except Exception as err:
             self.log(f"choosing a reading failed: {err}")
+            if self.queue and self.queue.in_worker: raise
             return self.send(greet + self.t("今天我没挑成，发我一个链接或者说说想读什么吧。",
                                             " I couldn't choose one today; send me a link or an idea."))
         for line in answer.trace:
@@ -355,6 +436,12 @@ class Librarian:
             return
         if chat != self.owner:
             return                                 # a librarian never talks about you to strangers
+        if self.queue and not self.queue.in_worker and (msg.get("voice") or msg.get("audio") or msg.get("document") or not text.startswith("/")):
+            local = self.local_command(text) if text else None
+            if local is not None: return self.send(local)
+            key = self.queue.submit("message", update, key=f"telegram:{update['update_id']}" if "update_id" in update else None)
+            return self.send(self.t(f"收到，正在处理。任务 {key}；可以继续发消息，或 /cancel 取消。",
+                                    f"Working on it. Task {key}; you can keep messaging or /cancel."))
         if msg.get("voice") or msg.get("audio"):
             text = self._transcribe(msg)
             if not text:
@@ -365,6 +452,8 @@ class Librarian:
             return
         self._remember("reader", text)
         command = text.split()[0].split("@")[0].lower() if text.startswith("/") else ""
+        local = self.local_command(text)
+        if local is not None: return self.send(local)
         if command == "/time":
             return self.set_reading_time(text[len(text.split()[0]):].strip(), asked=True)
         if self.state.get("setup") == "read_at" and not command and answers_time(text):
@@ -424,6 +513,8 @@ class Librarian:
         inbox = library.home() / "inbox"
         inbox.mkdir(parents=True, exist_ok=True)
         path = inbox / name
+        if path.exists():
+            path = inbox / (__import__("uuid").uuid4().hex[:8] + "-" + name)
         path.write_bytes(self.bot.download(doc["file_id"]))
         self._remember("reader", f"(file) {name}")
         if name.lower().endswith((".epub", ".txt", ".pdf")) and books.looks_like_book(path):
@@ -437,6 +528,13 @@ class Librarian:
 
     # ---- whole books -----------------------------------------------------------------
     def _job(self, target, *args) -> None:
+        if self.queue:
+            name=target.__name__
+            kind,data = {"_book_session": ("book", {"book":args[0].folder.name} if name=="_book_session" else {}),
+                         "_shelve": ("shelve", {"path":str(args[0])}),
+                         "_fetch_book": ("fetch", {"query":str(args[0])})}[name]
+            self.queue.submit(kind,data)
+            return
         job = threading.Thread(target=target, args=args, daemon=True, name="bibliothecary-book")
         self.jobs.append(job)
         job.start()
@@ -455,6 +553,7 @@ class Librarian:
             book = books.add(path, client=self.client, explain=self.explain, log=self.log)
         except Exception as err:
             self.log(f"shelving {path.name} failed: {err}")
+            if self.queue and self.queue.in_worker: raise
             return self.send(self.t(f"这本书我没读进来：{err}", f"I couldn't read that book: {err}"))
         chinese = books.is_chinese(self.explain)
         lines = [books.describe(book, chinese)]
@@ -472,7 +571,11 @@ class Librarian:
                                         review=self.review, log=self.log)
         except Exception as err:
             self.log(f"preparing {book.title} failed: {err}")
+            if self.queue and self.queue.in_worker: raise
             return self.send(self.t(f"这一段没备成：{err}", f"I couldn't prepare the next part: {err}"))
+        latest = books.find(book.folder.name)
+        if latest is None or latest.data.get("status") == "paused" or latest.mode != book.mode:
+            return
         how, buttons = self.read_here(folder)
         with self._lock:
             self.send((intro + "\n\n" if intro else "") + self.guide(folder) + "\n\n" + how, buttons)
@@ -565,6 +668,9 @@ class Librarian:
                                     "Preparing needs a model key (OPENAI_API_KEY in .env)."))
         if not quiet:
             self.send(self.t("收到，我去备课，好了告诉你。", "Got it. I'll prepare it and tell you when it's ready."))
+        if self.queue:
+            self.queue.submit("prepare", {"article":article})
+            return
         job = threading.Thread(target=self._prepare_now, args=(article,), daemon=True, name="bibliothecary-prepare")
         self.jobs.append(job)
         job.start()
@@ -581,6 +687,7 @@ class Librarian:
                                  review=self.review, log=self.log)
         except Exception as err:
             self.log(f"preparing {article} failed: {err}")
+            if self.queue and self.queue.in_worker: raise
             if "almost no text" in str(err):
                 return self.send(self.t("这篇只读到了很少的文字，多半是付费墙或者只有摘要，没法备成讲稿。"
                                         "要不要我找一篇能读全文的？",
@@ -668,6 +775,7 @@ class Librarian:
             answer = self.desk.reply(text)
         except Exception as err:
             self.log(f"chat failed: {err}")
+            if self.queue and self.queue.in_worker: raise
             if any(w in str(err) for w in ("insufficient_quota", "credit_balance", "no credits")):
                 return self.t("OpenAI 账户余额用完了。充值后把刚才那句再发一次就行。",
                               "The OpenAI account is out of credit. Top it up, then send that again.")
@@ -717,13 +825,19 @@ class Librarian:
                         f"The reading report for “{lesson.title}”." + (f" You asked {asked} questions." if asked else ""))]
         summary = folder / "summary.json"
         if summary.is_file():
-            unclear = json.loads(summary.read_text(encoding="utf-8")).get("unclear") or []
+            unclear = safe.read_json(summary).get("unclear") or []
             if unclear:
                 lines.append(self.t("还没弄懂的：", "Still unclear:") + " " + "；".join(unclear))
         self.bot.send_file(self.owner, folder / "report.md", "\n".join(lines))
         self._remember("librarian", f"(sent the report) {lesson.title}")
 
     # ---- the daily round -------------------------------------------------------------
+    def _notice(self, text, key, expires, buttons=None):
+        if self.queue:
+            self.queue.submit("notice", {"text":text,"buttons":buttons,"expires":expires.timestamp()}, key=key)
+        else:
+            self.send(text, buttons)
+
     def tick(self) -> None:
         """Called every few seconds: the daily question, tonight's choice, new reports."""
         if self.owner is None:
@@ -740,7 +854,7 @@ class Librarian:
             key = at.date().isoformat()
             ask, ready = at - dt.timedelta(hours=10), at - dt.timedelta(minutes=45)
             if ask <= now < ready and self.state.get("asked") != key:
-                self.send(self.daily_question(self.when_word(now, at)))
+                self._notice(self.daily_question(self.when_word(now, at)), "ask:"+key, ready)
                 self.state["asked"] = key
                 self.save()
             if ready <= now < at + dt.timedelta(hours=2) and self.state.get("decided") != key:
@@ -749,18 +863,24 @@ class Librarian:
                 self.save()
         # each message only within its own window, so starting the bot at midnight sends nothing
         elif self.ask_at <= clock < self.decide_at and self.state.get("asked") != today:
-            self.send(self.daily_question())
+            self._notice(self.daily_question(), "ask:"+today, now.replace(hour=self.decide_at[0], minute=self.decide_at[1]))
             self.state["asked"] = today
             self.save()
         if not self.read_at and self.decide_at <= clock < late and self.state.get("decided") != today:
             self.send(*self.tonight())
             self.state["decided"] = today
             self.save()
+        week = now.strftime("%G-W%V")
+        if now.weekday() == 6 and 9 <= now.hour < 22 and self.state.get("weekly") != week:
+            self._notice(learning.weekly(self.store, now.date()), "weekly:"+week, now.replace(hour=22,minute=0))
+            self.state["weekly"] = week
+            self.save()
         sent = set(self.state.get("reported") or [])
         for folder in library.readings():
             if library.status(folder) == "read" and folder.name not in sent:
                 if self.state.get("watching"):           # not on the first start: old reports stay put
-                    self.send_report(folder)
+                    if self.queue: self.queue.submit("report", {"reading":folder.name}, key="report:"+folder.name)
+                    else: self.send_report(folder)
                 sent.add(folder.name)
         if sent != set(self.state.get("reported") or []) or not self.state.get("watching"):
             self.state["reported"], self.state["watching"] = sorted(sent), True
@@ -769,12 +889,13 @@ class Librarian:
     def daily_question(self, when: str | None = None) -> str:
         when = when or self.t("今晚", "tonight")
         book = books.current()
-        if book is not None:                              # a book is open: the day's reading is its next part
+        has_goals = any(g.get("status") == "active" for _, g in self.store.all("goal"))
+        if book is not None and (not has_goals or learning.schedule(self.store, self.now().date()) == "goal"):
             return self.t(f"{when}接着读《{book.title}》（进度 {book.progress()}），到时候我把下一段备好。"
                           "想换别的就告诉我，或者发 /book pause 先放一放。",
                           f"{when.capitalize()} we go on with “{book.title}” ({book.progress()}); I'll have the next "
                           "part ready. Tell me if you'd rather read something else, or /book pause.")
-        lines = [self.t(f"{when}想读点什么？", f"What would you like to read {when}?")]
+        lines = [learning.plan_context(self.store, self.now().date()), self.t(f"{when}想读点什么？", f"What would you like to read {when}?")]
         waiting = [f for f in library.readings() if library.status(f) != "read"]
         if waiting:
             titles = "、".join(f"《{Lesson.load(f / 'lesson.json').title}》" for f in waiting[:3])
@@ -782,7 +903,7 @@ class Librarian:
                 f"“{Lesson.load(f / 'lesson.json').title}”" for f in waiting[:3]) + "."))
         latest = self._latest_read()
         if latest and (latest / "summary.json").is_file():
-            threads = json.loads((latest / "summary.json").read_text(encoding="utf-8")).get("threads") or []
+            threads = safe.read_json(latest / "summary.json").get("threads") or []
             if threads:
                 lines.append(self.t(f"上次读完留下的线索：{threads[0]}", f"A thread from last time: {threads[0]}"))
         lines.append(self.t("发我一个链接或文件，或者跟我说说想读什么方向；不说的话，到时候我按我对你的了解挑一篇。",
@@ -876,22 +997,27 @@ def _hhmm(value: str) -> tuple[int, int]:
 
 def run(token: str, client, *, log: Callable[[str], None], room=None, **options) -> None:
     bot = Bot(token)
-    librarian = Librarian(bot, client, log=log, room=room, **options)
+    librarian = Librarian(bot, client, log=log, room=room, background=True, **options)
     me = bot.call("getMe")
     if librarian.owner is None:
         print(f"\n  In Telegram, open @{me['username']} and send:   /start {librarian.pairing_code()}\n", flush=True)
     else:
         print(f"\n  The librarian is on Telegram as @{me['username']}. Ctrl+C to stop.\n", flush=True)
-    offset = 0
+    offset = int(librarian.state.get("offset", 0))
     while True:
         try:
             for update in bot.updates(offset, wait=20):
                 offset = update["update_id"] + 1
                 try:
                     librarian.handle(update)
+                    librarian.state["offset"] = offset
+                    librarian.save()
                 except Exception as err:            # one bad message never stops the librarian
                     log(f"message failed: {err}")
             librarian.tick()
+        except KeyboardInterrupt:
+            if librarian.queue: librarian.queue.close()
+            raise
         except TelegramError as err:
             log(f"{err}; trying again in 10 s")
             time.sleep(10)
