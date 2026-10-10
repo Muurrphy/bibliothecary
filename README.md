@@ -1,10 +1,10 @@
 # Bibliothecary
 
-**A personal librarian.** It prepares what you read at bedtime, reads it with you on an old Kindle or a phone, and files every question and answer in a reading report, so the next reading starts from what you already know.
+**A personal librarian for books, articles and papers.** Choose reading material through Telegram, read or listen on a phone or optional Kindle, discuss it by voice, and return to saved progress and reading reports.
 
-*Bibliothecary* is an older English word for librarian, in use since the 1610s, from Latin *bibliothecarius*. In Chinese the project is simply 图书管理员; in plain English, **The Librarian**.
+The project is named **Bibliothecary**, an older English word for librarian. **图书管理员** and **The Librarian** are the descriptive labels used in the résumé and portfolio.
 
-[中文说明](README.zh-CN.md) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+[中文说明](README.zh-CN.md) · [Video](https://muurrphy.github.io/desktop-robot-murphy-demo/?project=margin) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
 
 ## Built from what a librarian does
 
@@ -19,7 +19,7 @@ We started from what a good librarian does, not from what AI can do, and mapped 
 | **Circulation records** | Every evening's questions and answers are kept in full and written up as that day's reading report |
 | **Reader instruction**: teaching people to read and understand | A structured session: background first, then the text, then review with questions |
 | **Knowing the reader's level** | A knowledge map built from daytime chats and past reading reports: what you know, where the gaps are |
-| **Confidentiality** | A real librarian never discloses what you borrowed, so everything stays on your own machine |
+| **Confidentiality** | Reading records are stored locally; configured model, voice and Telegram services receive the data needed for the features you use |
 
 The job has changed over the centuries. The early *bibliothecary* — at Alexandria, in medieval monasteries, at the Bodleian in the 17th century — was above all a keeper: collecting, cataloguing, making sure no book was lost, sometimes chaining books to the shelves. In 1627 Gabriel Naudé advised collecting both the great old authors and the new ones. The modern librarian serves the reader: answering questions, recommending, teaching, and keeping what each person reads confidential. Bibliothecary takes from both: careful cataloguing and a collection chosen with taste, and service built around one person whose records stay private.
 
@@ -122,7 +122,7 @@ It talks like a librarian, not a search box: when you ask "what should I read to
 
 Conversation and choosing need judgement, so they can use a stronger model than preparing does: set `BIBLIOTHECARY_CHAT_MODEL` in `.env` (or `--chat-model`). To try the librarian without Telegram, `biblio chat "what should I read tonight?"` talks in the terminal, shares the same memory, and prints every search with what was kept and why.
 
-The computer has to be on for the bot to answer. Chat messages pass through Telegram's servers; the readings and records stay on your computer. Your chat with the librarian is kept locally in `~/Bibliothecary/chat.jsonl`.
+The computer has to be on for the bot to answer. Messages, submitted files and delivered reports pass through Telegram's servers. The local reading archive stays on your computer; model and voice requests send the relevant context described in [Privacy](#privacy). A local chat transcript is kept in `~/Bibliothecary/chat.jsonl`.
 
 ## Whole books
 
@@ -188,7 +188,7 @@ More: [requirements](docs/requirements.md), [architecture](docs/device-companion
 
 ## Privacy
 
-A real librarian never discloses what you borrowed, so everything stays on your own machine. Readings, logs and reports live in a local folder. The model and voice services you configure receive only what one request needs (the article and the current question, or a line to speak), never your archive. See [SECURITY.md](SECURITY.md).
+Readings, conversation transcripts and reports are stored on your computer. Configured model services receive the source text, relevant retrieved history and conversation context needed for preparation, answers and note organization. Speech services receive audio for transcription or text for synthesis. Telegram receives messages, files and reports sent through the bot. Local storage does not mean offline processing; handling by external services follows their policies. See [SECURITY.md](SECURITY.md).
 
 ## The reading room and the mouth on their own
 
