@@ -153,6 +153,8 @@ class Lesson:
     cues: dict[str, str] = field(default_factory=dict)   # name -> what it shows, for the model to choose
     guide: str = ""              # extra context for answering (e.g. which book, what was read before, no spoilers)
 
+    manual: bool = False
+
     # ---- ids -------------------------------------------------------------------------
     def sentence_ids(self) -> list[str]:
         return [f"p{p + 1}.s{s + 1}" for p, para in enumerate(self.paragraphs) for s in range(len(para))]
@@ -173,6 +175,7 @@ class Lesson:
             "title": self.title,
             "source": self.source,
             "steps": len(self.steps),
+            "manual": self.manual,
             "paragraphs": [
                 {"id": f"p{p + 1}", "sentences": [{"id": f"p{p + 1}.s{s + 1}", "text": t} for s, t in enumerate(para)]}
                 for p, para in enumerate(self.paragraphs)
@@ -234,6 +237,7 @@ class Lesson:
             questions=list(data.get("questions", [])),
             cues={str(k): str(v) for k, v in (data.get("cues") or {}).items()},
             guide=str(data.get("guide") or ""),
+            manual=bool(data.get("manual", False)),
         )
 
     @classmethod
@@ -249,6 +253,7 @@ class Lesson:
             "paragraphs": [{"sentences": para} for para in self.paragraphs],
             "steps": [s.to_dict() for s in self.steps],
             "questions": self.questions,
+            "manual": self.manual,
             **({"cues": self.cues} if self.cues else {}),
             **({"guide": self.guide} if self.guide else {}),
         }

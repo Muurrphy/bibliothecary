@@ -154,26 +154,11 @@ class Book:
         return self.position[0] >= len(self.chapters)
 
     def save(self) -> None:
+        from .store import Store
         with safe.locked(self.folder / ".metadata.lock"):
-            latest = safe.read_json(self.folder / "book.json")
-            if not latest:
-                latest = copy.deepcopy(self.data)
-            else:
-                for key, value in self.data.items():
-                    if value == self._baseline.get(key): continue
-                    if key == "sessions":
-                        old = {x["reading"]: x for x in self._baseline.get(key, [])}
-                        merged = {x["reading"]: x for x in latest.get(key, [])}
-                        for session in value:
-                            name = session["reading"]
-                            changed = {k: v for k, v in session.items() if v != old.get(name, {}).get(k)}
-                            merged.setdefault(name, {}).update(changed)
-                        latest[key] = list(merged.values())
-                    else:
-                        latest[key] = value
-            safe.write_json(self.folder / "book.json", latest)
-            self.data = latest
-            self._baseline = copy.deepcopy(latest)
+            self.data = Store().patch("book", self.folder.name, self.data, self._baseline)
+            safe.write_json(self.folder / "book.json", self.data)
+            self._baseline = copy.deepcopy(self.data)
 
     def _json(self, name: str) -> dict:
         path = self.folder / name
@@ -207,7 +192,9 @@ def shelf() -> list[Book]:
         path = folder / "book.json"
         if path.is_file():
             try:
-                out.append(Book(folder, json.loads(path.read_text(encoding="utf-8"))))
+                from .store import Store
+                data = Store().get("book", folder.name) or safe.read_json(path)
+                if data.get("title") and isinstance(data.get("chapters"), list): out.append(Book(folder, data))
             except json.JSONDecodeError:
                 continue
     return out
@@ -861,6 +848,7 @@ def prepare_next(client, book: Book, *, explain: str = "English", bedtime: bool 
     title = _title(book, segments, chinese)
     if mode == "text":
         lesson = _lesson(book, segments, title, explain)
+        lesson.manual = not aloud
         lesson.steps = _text_steps(client, book, lesson, explain, review, recap(client, book, explain, log=log),
                                    aloud, bedtime)
     elif mode == "excerpts":
@@ -893,6 +881,8 @@ def prepare_next(client, book: Book, *, explain: str = "English", bedtime: bool 
 
 
 def _store(book: Book, lesson: Lesson, mode: str, segments: list[Segment], kind: str = "read") -> Path:
+    from .jobs import checkpoint
+    checkpoint()
     current_data = safe.read_json(book.folder / "book.json")
     if current_data.get("status") == "paused" or current_data.get("mode", mode) != book.mode:
         raise ValueError("The book changed while preparing; this result was discarded")

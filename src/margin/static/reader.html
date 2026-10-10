@@ -16,7 +16,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
 #meta{float:right;font-weight:bold;letter-spacing:1px}
 #bar{height:5px;margin:0 12px;border:1px solid #000}
 #fill{height:5px;width:0;background:#000}
-#art{overflow:hidden;position:relative;padding:0 12px;margin-top:6px}
+#art{overflow:auto;position:relative;padding:0 12px;margin-top:6px}
 #col{width:64%}
 #art p{font-size:19px;line-height:1.6;margin:12px 0}
 #art h1{font-size:23px;line-height:1.25;margin:14px 0 2px}
@@ -50,7 +50,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
    under its sentence instead of in a side margin; a smaller caption. */
 .phone #col{width:100%}
 .phone #title{display:none}
-.phone #art p{font-size:18px;line-height:1.55}
+.phone #art p{font-size:var(--reading-font,18px);line-height:1.55}
 .phone .note{left:12px;right:12px;width:auto;box-shadow:0 2px 0 #000}
 .phone .lead{display:none}
 .phone #say{font-size:17px}
@@ -231,6 +231,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
   }
   function full(screen) {
     S = screen;
+    try { localStorage.setItem("biblio-last-screen", JSON.stringify(S)); } catch(e) {}
     renderLesson(S.lesson);
     redrawMarks();
     setFocus(S.focus);
@@ -238,6 +239,16 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
     setNote(S.note);
     renderCaption();
   }
+  window.addEventListener('message', function(e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.type === 'reading-preferences') {
+      document.body.className = (e.data.theme === 'dark' ? 'dark ' : '') + (PHONE ? 'phone' : '');
+      document.documentElement.style.setProperty('--reading-font', Math.max(16, Math.min(28, Number(e.data.font) || 18)) + 'px');
+      layout();
+    }
+    if (e.data.type === 'reading-anchor') scrollTo($(e.data.focus));
+  });
+  try { var cached = JSON.parse(localStorage.getItem('biblio-last-screen') || 'null'); if(cached) full(cached); } catch(e) {}
   function apply(ev) {
     var d = ev.data, k = ev.kind;
     if (k === 'lesson') { S = {lesson: d, focus: null, marks: [], note: null, figure: null, caption: '', answer: null, status: 'idle', progress: [0, d.steps]}; full(S); return; }

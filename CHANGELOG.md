@@ -2,7 +2,14 @@
 
 ## Unreleased
 
-Nothing yet.
+### 0.5.0a1 preview
+
+- Serialize reading handoff, restore checkpoints and context, merge stale book updates, and restrict protected answers to reached paragraphs.
+- Keep every captured reader utterance before answering, including comments, tangents and interrupted turns. Preserve a verbatim transcript plus automatically organized notes with original evidence. Do not archive microphone audio.
+- Add SQLite migration/backup, sourced and correctable memory, history retrieval, catalogue filtering/deduplication, explicit review evidence and learning plans.
+- Move slow Telegram work to durable jobs; add cancellation, uncertain recovery, time zones, health and opt-in macOS startup without dependency upgrades at launch.
+- Preserve the original magazine-like phone design. New capabilities primarily belong to the librarian's conversation.
+- This is a preview; device and seven-day usage acceptance are pending. See [acceptance](docs/longterm-acceptance.md).
 
 ## 0.4.0 — 2026-10-09
 

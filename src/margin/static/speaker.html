@@ -65,6 +65,7 @@ let debug = Q.has("debug");
 dbgEl.hidden = !debug;
 
 let AC = null, seq = 0, status = "idle", started = false;
+let readingRate = 1;
 let cur = null;          // the clip playing: {id, src, gain, t0, at, dur, done}
 let outAn = null, outBuf = null;
 async function netFetch(url, options = {}, format = "json", timeout = 6000) {
@@ -99,7 +100,7 @@ function decode(buf) {
 async function speak(d) {
   if (V.cap || (cur && cur.id === d.id && !cur.done)) return;
   stopClip();
-  const clip = {id: d.id, done: false, at: null, dur: d.seconds || 0};
+  const clip = {id: d.id, done: false, at: null, dur: d.seconds || 0, rate: d.rate || readingRate};
   cur = clip;
   try {
     const [buf, info] = await Promise.all([
@@ -111,7 +112,7 @@ async function speak(d) {
     if (d.lips && window.DotLips && info && info.timeline && info.timeline.length) clip.at = DotLips.track(info.timeline, {speechWindows: info.speech_windows});
     if (AC.state !== "running") { try { await AC.resume(); } catch (e) {} }
     if (AC.state !== "running") { needTap("tap to resume audio"); throw new Error("audio is suspended"); }
-    clip.src = AC.createBufferSource(); clip.src.buffer = buf;
+    clip.src = AC.createBufferSource(); clip.src.buffer = buf; clip.src.playbackRate.value = clip.rate;
     clip.gain = AC.createGain();
     clip.src.connect(clip.gain); clip.gain.connect(outAn);
     if (!MUTE) clip.gain.connect(AC.destination);
@@ -122,10 +123,10 @@ async function speak(d) {
     if (d.at) {
       const wait = (d.at - (Date.now() + clockOffset)) / 1000;
       if (wait >= 0) when = AC.currentTime + wait;
-      else if (MUTE || d.resume) skip = Math.min(-wait, Math.max(0, buf.duration - 0.01));
+      else if (MUTE || d.resume) skip = Math.min(-wait * clip.rate, Math.max(0, buf.duration - 0.01));
       // The audible device retains the full sentence if download was late.
     }
-    clip.t0 = when - skip;                     // where the start of the line falls on this device's clock
+    clip.t0 = when - skip / clip.rate;                     // where the start of the line falls on this device's clock
     clip.src.start(when, skip);
   } catch (e) {
     note("clip failed: " + e);
@@ -347,7 +348,7 @@ async function connect(first) {
       if (r.active_clip) speak(r.active_clip);
       // the tap that wakes the speaker also starts the reading (if it has not started yet)
       if (first && (status === "paused" || status === "idle")) post("/api/control", {action: "play"});
-      else if (first && status === "done") post("/api/control", {action: "restart"});
+
       return poll();
     } catch (e) { note("cannot reach the computer"); await sleep(2000); }
   }
@@ -368,7 +369,8 @@ async function poll() {
 }
 function apply(ev) {
   const d = ev.data;
-  if (ev.kind === "speak") speak(d);
+  if (ev.kind === "preferences") readingRate = d.rate || 1;
+  else if (ev.kind === "speak") speak(d);
   else if (ev.kind === "hush") stopClip(d.id);
   else if (ev.kind === "playback_error") {
     note(d.message);
@@ -418,7 +420,7 @@ function frame(now) {
       const heardTime = stamp && stamp.contextTime > 0
         ? stamp.contextTime + (performance.now() - stamp.performanceTime) / 1000
         : AC.currentTime - (AC.outputLatency || AC.baseLatency || 0);
-      state = cur.at((heardTime - cur.t0) * 1000);
+      state = cur.at((heardTime - cur.t0) * cur.rate * 1000);
     } else if (talking) state = loudnessPose(env, now);
     else state = REST_POSE;
     if (mc.width !== Math.round(width)) { mc.width = Math.round(width); mc.height = Math.round(width / 2); }

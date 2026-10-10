@@ -2,7 +2,7 @@
 
 ``biblio telegram`` runs one, so a link in the chat opens tonight's reading straight on the
 phone (or the Kindle shows whatever is open). It serves only this computer's local network:
-each reader runs their own librarian, and nobody else can reach it.
+other devices on that network can reach it; there is no per-user authentication.
 """
 
 from __future__ import annotations
@@ -24,9 +24,17 @@ class ReadingRoom:
         self.client, self.log = client, log or (lambda _msg: None)
         self.room = start(None, args, client=client)
         self.room.app.opener = self.open
+        from .actions import install
+        install(self.room.app)
         self.folder: Path | None = None
         self.ledger: Ledger | None = None
         self._lock = threading.Lock()
+        self.room.app.annotation = self.annotate
+        self.room.app.annotations = self.annotations
+        self.room.app.reading_id = lambda: self.folder.name if self.folder else None
+        from .navigation import Navigator
+        self.navigator = Navigator(self)
+        self.room.app.navigator = self.navigator
 
     @property
     def kindle(self) -> str:
@@ -44,6 +52,9 @@ class ReadingRoom:
             if folder == self.folder:
                 return True                                          # already open: leave it as it is
             lesson = Lesson.load(folder / "lesson.json")
+            from .adaptation import context
+            lesson.librarian_enabled = True
+            lesson.interaction_context = context
             if not (folder / "report.md").exists():
                 report.write(folder)
             self.ledger = Ledger(folder, lesson, client=self.client, log=self.log)
@@ -51,6 +62,17 @@ class ReadingRoom:
             self.folder = folder
         self.log(f"reading room: {lesson.title}")
         return True
+
+    def annotate(self, data):
+        from .annotations import save
+        with self._lock:
+            if self.folder is None or data.get("reading") != self.folder.name:
+                raise ValueError("The reading changed; select the sentence again")
+            return save(self.folder, Lesson.load(self.folder / "lesson.json"), data)
+
+    def annotations(self):
+        from .annotations import listing
+        return listing(self.folder) if self.folder else []
 
     def close(self) -> None:
         self.room.player.pause()

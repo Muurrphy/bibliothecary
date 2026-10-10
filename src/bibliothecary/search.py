@@ -183,7 +183,7 @@ def web(client, query: str, shelf: str = "science") -> list[dict]:
 
 def readable(url: str) -> bool:
     """Whether the whole piece can be read at this link, not just an abstract behind a paywall."""
-    from margin.ingest import load_article
+    from .collection import cached_article as load_article
 
     try:
         _title, text, _source = load_article(url)

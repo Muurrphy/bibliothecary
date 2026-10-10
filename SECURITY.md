@@ -14,6 +14,10 @@ Bibliothecary runs on your computer. Its Margin reading room is intended for a t
 
 Keeping the archive locally does not make model, speech or Telegram features offline. External services handle requests under their own policies. The project does not promise that no data leaves the machine or that third-party services retain nothing.
 
+## Records, backups and deletion
+
+In the 0.5 preview, SQLite is the primary record store; JSON, JSONL and Markdown files are readable exports or compatibility files. `biblio export` creates a consistent backup and `biblio restore` restores into a new directory. Deleting a reading folder alone does not remove its database records or existing backups. Forgetting a derived preference removes it from personalization but preserves the original conversation. See [upgrade and acceptance](docs/longterm-acceptance.md) for migration and recovery.
+
 ## Logs, recordings and credentials
 
 The reading archive keeps text rather than original microphone recordings by default. An explicitly configured filming/recording feature such as `MARGIN_RECORD_DIR` is separate. Optional speech caches contain generated audio, text and timing; `margin.log` can contain question text. Treat these files, backups and exported reports as private.

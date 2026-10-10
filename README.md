@@ -2,9 +2,13 @@
 
 **A personal librarian for books, articles and papers.** Choose reading material through Telegram, read or listen on a phone or optional Kindle, discuss it by voice, and return to saved progress and reading reports.
 
+Captured conversation is retained verbatim alongside source-linked notes. You can follow a topic into another reading and return to where you left off; the original black-and-white reading interface is preserved.
+
 The project is named **Bibliothecary**, an older English word for librarian. **图书管理员** and **The Librarian** are the descriptive labels used in the résumé and portfolio.
 
 [中文说明](README.zh-CN.md) · [Video](https://muurrphy.github.io/desktop-robot-murphy-demo/?project=margin) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+
+**Current version: 0.5.0a1 (preview).** SQLite storage, recoverable jobs, memory correction and learning plans are integrated. Device and seven-day acceptance are tracked in [upgrade and acceptance](docs/longterm-acceptance.md).
 
 ## Built from what a librarian does
 
@@ -25,14 +29,14 @@ The job has changed over the centuries. The early *bibliothecary* — at Alexand
 
 ## What works today, and what comes next
 
-Version 0.4 (2026-10-09) adds whole books, read three ways, and a list of public-domain books to start from; 0.3 did the reading, the instruction, the records and the daily chat. The knowledge map is specified in the [requirements](docs/requirements.md) and comes next. Every release is described in the [changelog](CHANGELOG.md).
+Version 0.5.0a1 continues the complete 0.4.0 baseline as a reliability and automatic-notes preview. See [acceptance](docs/longterm-acceptance.md) for implemented scope and pending checks, and the [changelog](CHANGELOG.md) for history.
 
 | | |
 |---|---|
 | **Works now** | `biblio prepare` turns an article into a three-part session: background, reading, review questions. `biblio read` reads it on the Kindle and phone, takes spoken questions, waits for your answers to the review questions, and files a reading report when it ends. |
 | **Also now** | `biblio telegram`: the librarian in a Telegram chat. Send it a link, a file or a voice message; it prepares the reading, asks you each day what you'd like to read tonight, and sends the reading report when you finish. |
 | **Also now** | Whole books: an EPUB, TXT or PDF read part by part, with your place kept, in three ways (the text itself, a digest, the best passages) and without spoilers. |
-| **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
+| **Next** | Device and seven-day acceptance; MCP, native apps and public access remain later work |
 
 ## Three parts: use them together or on their own
 
@@ -56,7 +60,7 @@ The Kindle is optional. Everything is a web page served by your own computer, so
 | Kindle + phone | Kindle: `http://<computer>:8765/` · phone: `https://<computer>:8765/speaker` |
 | Phone + iPad | one opens `/` (the article), the other `/speaker` (voice and mouth) |
 
-With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room only serves your home Wi-Fi, from your own computer: everyone runs their own librarian, and nobody else can reach yours. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
+With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room runs on your computer on the home network. It has no per-user authentication; other devices that can reach its port can access it. Keep it off the public Internet. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
 
 ## Quick start
 
@@ -118,7 +122,7 @@ Then, from anywhere:
 - **After the session**, the reading report arrives in the chat.
 - `/tonight`, `/records`, `/report` do what they say; `/profile` shows what it remembers about you.
 
-It talks like a librarian, not a search box: when you ask "what should I read tonight?" without saying much, it asks what has been on your mind and what the reading is for, then recommends with reasons that fit you. Every batch of search results is vetted by a second, strict pass, and only pieces that are really on topic and worth an evening reach the conversation; it would rather offer one good piece than three weak ones. What it learns about you is kept in `~/Bibliothecary/reader.json`.
+It talks like a librarian, not a search box: when you ask "what should I read tonight?" without saying much, it asks what has been on your mind and what the reading is for, then recommends with reasons that fit you. Every batch of search results is vetted by a second, strict pass, and only pieces that are really on topic and worth an evening reach the conversation; it would rather offer one good piece than three weak ones. Reader memory is stored in the local library database; `reader.json` is a compatibility export.
 
 Conversation and choosing need judgement, so they can use a stronger model than preparing does: set `BIBLIOTHECARY_CHAT_MODEL` in `.env` (or `--chat-model`). To try the librarian without Telegram, `biblio chat "what should I read tonight?"` talks in the terminal, shares the same memory, and prints every search with what was kept and why.
 
@@ -153,8 +157,12 @@ Each reading has its own folder, all on your computer:
   lesson.json      what is read aloud: preview, reading, review
   session.jsonl    every question and answer, verbatim, written the moment it is said
   summary.json     what a model made of the session (optional)
+  transcript.md    captured conversation, verbatim
+  notes.md         organized notes linked to source turns
   report.md        the reading report
 ```
+
+In 0.5, SQLite holds the primary records and these files remain readable exports. Captured comments, tangents and unanswered remarks are retained alongside completed answers; note summaries link to the original turns.
 
 The report is written in two stages. `biblio prepare` writes the guide (background and notes) before you read; after the session it adds every question and answer word for word, your review answers next to a good answer, and, with a model, what still seems unclear and which threads are worth following. Summaries never replace the verbatim record. The report is in the language of the explanation. Plain Markdown with a YAML header: open it in any notes app, keep it in git, or let an agent read it.
 
@@ -182,7 +190,7 @@ computer: reading + your question → answer → voice + character timing → re
 - **Voice questions use a realtime model.** The phone streams audio through the computer to OpenAI. A stalled turn can fall back to transcription and a text model.
 - **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
 - **The mouth uses speech timestamps and the audio clock.** Local waveform checks correct phrase edges when pauses match clearly and close the mouth during detected silence. Phoneme timing within each character is still estimated; this is not phoneme-accurate forced alignment. See [mouth timing](docs/lipsync.md#timing-checks-in-the-reading-companion).
-- **Nothing said is lost.** Each question and answer is appended to the reading's log as soon as it is spoken; the report is rebuilt from that log.
+- **Captured text is retained before answering.** Comments and tangents are archived as well as questions. Failed transcription is marked as a gap; summaries never replace the original turns.
 
 More: [requirements](docs/requirements.md), [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
 

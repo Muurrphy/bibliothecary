@@ -15,3 +15,7 @@ def _no_local_env(monkeypatch):
     from margin import cli
 
     monkeypatch.setattr(cli, "load_env", lambda path=".env": None)
+
+@pytest.fixture(autouse=True)
+def _isolated_library(tmp_path, monkeypatch):
+    monkeypatch.setenv('BIBLIOTHECARY_HOME', str(tmp_path / 'isolated-library'))

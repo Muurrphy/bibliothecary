@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 
 from margin import brain
-from margin.ingest import load_article
+from .collection import cached_article as load_article
 
 from . import library, report
 
@@ -27,12 +27,24 @@ def prepare(client, article: str, *, title: str | None = None, explain: str = "E
         raise ValueError(f"found almost no text at {article}")
     if log:
         log(f"preparing “{title or found_title}” ({len(text.split())} words)…")
+    from .collection import items
+    from .store import canonical
+    import hashlib
+    fingerprint = hashlib.sha256(' '.join(text.split()).encode()).hexdigest()
+    for item in items():
+        if item.get("fingerprint") == fingerprint or item.get("url") == canonical(source):
+            candidate = library.readings_dir() / item["id"]
+            if candidate.is_dir(): return candidate
+    from .adaptation import context
+    guide = context() + "\nStart with concrete source text. Allow detours and open discussion; do not treat literary discussion as a knowledge quiz."
     lesson = brain.build_lesson(client, title or found_title, text, explain_language=explain, source=source,
                                 language=language or guess_language(text), bedtime=bedtime,
-                                preview=preview, review=review)
+                                preview=preview, review=review, guide=guide)
     if log:
         for issue in lesson.problems():
             log(f"warning: {issue}")
+    from .jobs import checkpoint
+    checkpoint()
     folder = library.new_reading(lesson)
     report.write(folder)
     return folder
