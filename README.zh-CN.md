@@ -1,4 +1,6 @@
-# Margin（页边）
+# Bibliothecary — 早期阅览室与口型分支
+
+这里是 Margin 阶段的历史开发分支 `codex/multilingual-lipsync`。现行图书管理员、整本书阅读、Telegram 与读书记录功能请看 [main 主分支](https://github.com/Muurrphy/bibliothecary)。下文说明仅对应这个早期分支。
 
 **旧 Kindle 上的 AI 伴读，手机上有一张会说话的数码嘴。**
 
@@ -35,8 +37,8 @@ Kindle 不用越狱，也不用装任何东西。Kindle 和手机都只是打开
 需要 Python 3.11 或更新版本。
 
 ```bash
-git clone https://github.com/Muurrphy/margin.git
-cd margin
+git clone --branch codex/multilingual-lipsync https://github.com/Muurrphy/bibliothecary.git
+cd bibliothecary
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 

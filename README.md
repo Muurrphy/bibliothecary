@@ -1,4 +1,6 @@
-# Margin
+# Bibliothecary — earlier reading-room and mouth branch
+
+This is the historical `codex/multilingual-lipsync` branch, from the Margin stage. The current librarian, books, Telegram and reading-record features are maintained on [main](https://github.com/Muurrphy/bibliothecary). The instructions below describe this earlier branch.
 
 **An AI reading companion for an old Kindle, with a talking digital mouth on your phone.**
 
@@ -35,8 +37,8 @@ All devices need to be on the same Wi-Fi.
 Python 3.11 or newer.
 
 ```bash
-git clone https://github.com/Muurrphy/margin.git
-cd margin
+git clone --branch codex/multilingual-lipsync https://github.com/Muurrphy/bibliothecary.git
+cd bibliothecary
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
