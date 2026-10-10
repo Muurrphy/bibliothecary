@@ -1,26 +1,31 @@
 # Security and data handling
 
-## Current scope
+## Scope
 
-Margin is an experimental service for a trusted local network. Its reader and control endpoints do not implement user authentication. Do not expose it directly to the public Internet. HTTPS enables mobile microphone access; it does not add account authentication.
+Bibliothecary runs on your computer. Its Margin reading room is intended for a trusted local network: reader and control endpoints do not implement user authentication. HTTPS enables mobile microphone access; it does not add account authentication. Keep the reading-room port off the public Internet.
 
-## Where data goes
+## Local records and external services
 
-- Kindle: receives article text, highlights, notes and generated explanations.
-- Primary phone/iPad: plays speech and captures questions through its microphone.
-- Computer: receives microphone audio and runs the companion.
-- Configured model provider: receives question audio for realtime/transcription and article context for answers or lesson creation.
-- Configured voice provider: receives text to synthesize speech.
-- With `MARGIN_ALIGN=elevenlabs` and non-strict fallback, generated audio can be uploaded for forced alignment. The example uses `MARGIN_ALIGN=local` instead.
+- **Local archive:** source materials, reading progress, conversation text and reports are stored under `~/Bibliothecary` (or `$BIBLIOTHECARY_HOME`).
+- **Configured model provider:** receives source text and the relevant reading history or conversation context for preparation, answers, recommendations and report organization. Realtime/transcription requests can include microphone audio.
+- **Configured voice provider:** receives text to synthesize speech. With `MARGIN_ALIGN=elevenlabs` and non-strict fallback, generated audio can also be uploaded for alignment; the example configuration uses local alignment.
+- **Telegram:** receives messages, voice messages, submitted documents, reading links and reports exchanged through the bot. They are subject to Telegram's storage and service policies.
+- **Reading devices:** receive article text, highlights, notes, generated explanations and speech. The primary phone or tablet captures microphone input; the computer relays it to the configured speech/model service.
 
-Reading records are kept in `~/Bibliothecary` (or `$BIBLIOTHECARY_HOME`): each reading's lesson, a verbatim log of your questions and answers, and the reading report. They never leave the computer except as the context of a single model request (the summary at the end of a session sends the article, the talk and that session's questions and answers). Delete a reading's folder to delete its records.
+Keeping the archive locally does not make model, speech or Telegram features offline. External services handle requests under their own policies. The project does not promise that no data leaves the machine or that third-party services retain nothing.
 
-`margin.log` can contain question text. Optional speech caches contain generated audio, spoken text and timing. Store and delete them locally as appropriate; they are ignored by the repository.
+## Records, backups and deletion
 
-Keys come from environment variables, an ignored `.env`, or your own macOS Keychain entry. Local HTTPS keys are stored in `~/.margin/tls`. Do not commit keys, certificates, recordings or private articles.
+In the 0.5 preview, SQLite is the primary record store; JSON, JSONL and Markdown files are readable exports or compatibility files. `biblio export` creates a consistent backup and `biblio restore` restores into a new directory. Deleting a reading folder alone does not remove its database records or existing backups. Forgetting a derived preference removes it from personalization but preserves the original conversation. See [upgrade and acceptance](docs/longterm-acceptance.md) for migration and recovery.
 
-## Supported snapshot and reporting
+## Logs, recordings and credentials
 
-This is the experimental 0.3 series. Report non-sensitive security issues in the repository; for a sensitive vulnerability, use GitHub private vulnerability reporting if enabled. Do not post credentials or recordings in a public issue.
+The reading archive keeps text rather than original microphone recordings by default. An explicitly configured filming/recording feature such as `MARGIN_RECORD_DIR` is separate. Optional speech caches contain generated audio, text and timing; `margin.log` can contain question text. Treat these files, backups and exported reports as private.
 
-Optional OLED and serial tools do not supply a full actuator safety system. Robot-head and mechanical-arm control from the filming setup is not included.
+Keys come from environment variables, an ignored `.env`, or a user-configured macOS Keychain entry. Local HTTPS keys are stored in `~/.margin/tls`. Do not commit credentials, certificates, private source materials or reading records.
+
+## Reporting
+
+See the [README](README.md) and [changelog](CHANGELOG.md) for the current experimental release. Report non-sensitive security issues in the repository; use GitHub private vulnerability reporting for sensitive reports when available. Do not post credentials or private records in a public issue.
+
+Optional OLED and serial tools do not supply an actuator safety system. Robot-head and mechanical-arm control from the filming setup is not included.

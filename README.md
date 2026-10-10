@@ -1,12 +1,14 @@
 # Bibliothecary
 
-> **0.5.0a1 preview:** every captured reader utterance is retained as text, alongside separately organized, source-linked notes. No “save this” command is required and microphone audio is not archived. The original black-and-white reading design is preserved. SQLite, jobs, memory correction and learning plans are integrated; device and seven-day acceptance remain pending. [Upgrade and acceptance](docs/longterm-acceptance.md).
+**A personal librarian for books, articles and papers.** Choose reading material through Telegram, read or listen on a phone or optional Kindle, discuss it by voice, and return to saved progress and reading reports.
 
-**A personal librarian.** It prepares what you read at bedtime, reads it with you on an old Kindle or a phone, and files every question and answer in a reading report, so the next reading starts from what you already know.
+Captured conversation is retained verbatim alongside source-linked notes. You can follow a topic into another reading and return to where you left off; the original black-and-white reading interface is preserved.
 
-*Bibliothecary* is an older English word for librarian, in use since the 1610s, from Latin *bibliothecarius*. In Chinese the project is simply 图书管理员; in plain English, **The Librarian**.
+The project is named **Bibliothecary**, an older English word for librarian. **图书管理员** and **The Librarian** are the descriptive labels used in the résumé and portfolio.
 
-[中文说明](README.zh-CN.md) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+[中文说明](README.zh-CN.md) · [Video](https://muurrphy.github.io/desktop-robot-murphy-demo/?project=margin) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+
+**Current version: 0.5.0a1 (preview).** SQLite storage, recoverable jobs, memory correction and learning plans are integrated. Device and seven-day acceptance are tracked in [upgrade and acceptance](docs/longterm-acceptance.md).
 
 ## Built from what a librarian does
 
@@ -21,7 +23,7 @@ We started from what a good librarian does, not from what AI can do, and mapped 
 | **Circulation records** | Every evening's questions and answers are kept in full and written up as that day's reading report |
 | **Reader instruction**: teaching people to read and understand | A structured session: background first, then the text, then review with questions |
 | **Knowing the reader's level** | A knowledge map built from daytime chats and past reading reports: what you know, where the gaps are |
-| **Confidentiality** | A real librarian never discloses what you borrowed, so everything stays on your own machine |
+| **Confidentiality** | Reading records are stored locally; configured model, voice and Telegram services receive the data needed for the features you use |
 
 The job has changed over the centuries. The early *bibliothecary* — at Alexandria, in medieval monasteries, at the Bodleian in the 17th century — was above all a keeper: collecting, cataloguing, making sure no book was lost, sometimes chaining books to the shelves. In 1627 Gabriel Naudé advised collecting both the great old authors and the new ones. The modern librarian serves the reader: answering questions, recommending, teaching, and keeping what each person reads confidential. Bibliothecary takes from both: careful cataloguing and a collection chosen with taste, and service built around one person whose records stay private.
 
@@ -120,11 +122,11 @@ Then, from anywhere:
 - **After the session**, the reading report arrives in the chat.
 - `/tonight`, `/records`, `/report` do what they say; `/profile` shows what it remembers about you.
 
-It talks like a librarian, not a search box: when you ask "what should I read tonight?" without saying much, it asks what has been on your mind and what the reading is for, then recommends with reasons that fit you. Every batch of search results is vetted by a second, strict pass, and only pieces that are really on topic and worth an evening reach the conversation; it would rather offer one good piece than three weak ones. What it learns about you is kept in `~/Bibliothecary/reader.json`.
+It talks like a librarian, not a search box: when you ask "what should I read tonight?" without saying much, it asks what has been on your mind and what the reading is for, then recommends with reasons that fit you. Every batch of search results is vetted by a second, strict pass, and only pieces that are really on topic and worth an evening reach the conversation; it would rather offer one good piece than three weak ones. Reader memory is stored in the local library database; `reader.json` is a compatibility export.
 
 Conversation and choosing need judgement, so they can use a stronger model than preparing does: set `BIBLIOTHECARY_CHAT_MODEL` in `.env` (or `--chat-model`). To try the librarian without Telegram, `biblio chat "what should I read tonight?"` talks in the terminal, shares the same memory, and prints every search with what was kept and why.
 
-The computer has to be on for the bot to answer. Chat messages pass through Telegram's servers; the readings and records stay on your computer. Your chat with the librarian is kept locally in `~/Bibliothecary/chat.jsonl`.
+The computer has to be on for the bot to answer. Messages, submitted files and delivered reports pass through Telegram's servers. The local reading archive stays on your computer; model and voice requests send the relevant context described in [Privacy](#privacy). A local chat transcript is kept in `~/Bibliothecary/chat.jsonl`.
 
 ## Whole books
 
@@ -155,8 +157,12 @@ Each reading has its own folder, all on your computer:
   lesson.json      what is read aloud: preview, reading, review
   session.jsonl    every question and answer, verbatim, written the moment it is said
   summary.json     what a model made of the session (optional)
+  transcript.md    captured conversation, verbatim
+  notes.md         organized notes linked to source turns
   report.md        the reading report
 ```
+
+In 0.5, SQLite holds the primary records and these files remain readable exports. Captured comments, tangents and unanswered remarks are retained alongside completed answers; note summaries link to the original turns.
 
 The report is written in two stages. `biblio prepare` writes the guide (background and notes) before you read; after the session it adds every question and answer word for word, your review answers next to a good answer, and, with a model, what still seems unclear and which threads are worth following. Summaries never replace the verbatim record. The report is in the language of the explanation. Plain Markdown with a YAML header: open it in any notes app, keep it in git, or let an agent read it.
 
@@ -190,7 +196,7 @@ More: [requirements](docs/requirements.md), [architecture](docs/device-companion
 
 ## Privacy
 
-A real librarian never discloses what you borrowed, so everything stays on your own machine. Readings, logs and reports live in a local folder. Your configured model and voice services receive request context: source text, relevant retrieved history, speech for transcription and conversation turns for post-reading organization. The local archive is not published; this is not an offline-only model. See [SECURITY.md](SECURITY.md).
+Readings, conversation transcripts and reports are stored on your computer. Configured model services receive the source text, relevant retrieved history and conversation context needed for preparation, answers and note organization. Speech services receive audio for transcription or text for synthesis. Telegram receives messages, files and reports sent through the bot. Local storage does not mean offline processing; handling by external services follows their policies. See [SECURITY.md](SECURITY.md).
 
 ## The reading room and the mouth on their own
 
