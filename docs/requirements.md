@@ -1,6 +1,6 @@
 # Bibliothecary — requirements
 
-> Status: draft v0.2, 2026-10-08. v0.3 (records, three-part sessions), the rename and the Telegram chat of v0.5 are implemented; the rest is not yet.
+> Design specification, originally drafted on 2026-10-08. Its phase labels describe the plan, not package release numbers. For the implementation and current release status, see the [README](../README.md) and [changelog](../CHANGELOG.md).
 > [中文](requirements.zh-CN.md)
 
 ## 0. In one sentence
@@ -35,7 +35,7 @@ We start from what a good librarian does, not from what AI can do, and map each 
 | **Circulation records** | Every evening's questions and answers are kept in full and written up as that day's reading report |
 | **Reader instruction**: teaching people to read and understand | A structured session: background first, then the text, then review with questions |
 | **Knowing the reader's level** | A knowledge map built from daytime chats and past reading reports: what you know, where the gaps are |
-| **Confidentiality** | A real librarian never discloses what you borrowed, so everything stays on your own machine |
+| **Confidentiality** | Reading records are stored locally; configured model, voice and Telegram services receive the data needed for the features you use |
 
 ### How the librarian's job has changed
 
@@ -223,7 +223,7 @@ Requirements:
 
 ## 10. Privacy (confidentiality)
 
-A real librarian never discloses what you borrowed, so everything stays on your own machine.
+Reading records are stored locally; configured model, voice and Telegram services receive the data needed for the features you use.
 
 - R10.1 The collection, reports, knowledge map and chat history are stored in a local folder.
 - R10.2 Calls to language and voice services send only what that call needs, never the whole archive. The docs list what each external service receives.
