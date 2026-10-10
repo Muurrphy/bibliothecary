@@ -43,20 +43,18 @@ class ReadingRoom:
         with self._lock:
             if folder == self.folder:
                 return True                                          # already open: leave it as it is
-            previous, self.ledger = self.ledger, None
-            if previous is not None:                                 # file the last one without making anyone wait
-                threading.Thread(target=previous.close, daemon=True, name="bibliothecary-file").start()
             lesson = Lesson.load(folder / "lesson.json")
             if not (folder / "report.md").exists():
                 report.write(folder)
             self.ledger = Ledger(folder, lesson, client=self.client, log=self.log)
-            self.room.player.set_recorder(self.ledger.record)
-            self.room.player.load(lesson)
+            self.room.player.load(lesson, record=self.ledger.record)
             self.folder = folder
         self.log(f"reading room: {lesson.title}")
         return True
 
     def close(self) -> None:
+        self.room.player.pause()
+        self.room.player.wait_idle(5)
         if self.ledger is not None:
             self.ledger.close()
         self.room.close()

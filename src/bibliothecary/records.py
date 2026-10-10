@@ -15,7 +15,7 @@ from pathlib import Path
 
 from margin.lesson import Lesson
 
-from . import report
+from . import report, safe
 
 
 class Ledger:
@@ -26,6 +26,12 @@ class Ledger:
         self._lock = threading.Lock()
         self._writer: threading.Thread | None = None
         self._dirty = False
+
+    def restore(self) -> dict:
+        return safe.read_json(self.folder / "checkpoint.json")
+
+    def checkpoint(self, data: dict) -> None:
+        safe.write_json(self.folder / "checkpoint.json", data)
 
     def record(self, kind: str, **data) -> None:
         if kind == "start":

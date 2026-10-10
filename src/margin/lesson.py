@@ -184,6 +184,7 @@ class Lesson:
 
         lines = [f"# {self.title}"]
         for p, para in enumerate(self.paragraphs):
+            if upto is not None and p >= upto: break
             lines.append(" ".join(f"[p{p + 1}.s{s + 1}] {t}" for s, t in enumerate(para)))
         return "\n\n".join(lines)
 

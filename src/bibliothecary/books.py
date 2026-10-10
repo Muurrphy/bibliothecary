@@ -27,20 +27,22 @@ Three ways of reading (see docs/design/books.zh-CN.md):
 from __future__ import annotations
 
 import datetime as dt
+import copy
+from functools import wraps
 import json
 import os
 import re
 import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from margin import brain
 from margin.lesson import Lesson, Step
 
-from . import bookfile, library, report
+from . import bookfile, library, report, safe
 
 MODES = ("text", "digest", "excerpts")
 MODE_NAMES = {"text": ("读原文", "read the text"), "digest": ("拆书", "digest"),
@@ -111,6 +113,11 @@ class Book:
     folder: Path
     data: dict[str, Any]
 
+    _baseline: dict = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self):
+        self._baseline = copy.deepcopy(self.data)
+
     # ---- basics ----------------------------------------------------------------------
     @property
     def title(self) -> str:
@@ -147,18 +154,34 @@ class Book:
         return self.position[0] >= len(self.chapters)
 
     def save(self) -> None:
-        with _lock:
-            tmp = self.folder / "book.json.tmp"
-            tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            tmp.replace(self.folder / "book.json")
+        with safe.locked(self.folder / ".metadata.lock"):
+            latest = safe.read_json(self.folder / "book.json")
+            if not latest:
+                latest = copy.deepcopy(self.data)
+            else:
+                for key, value in self.data.items():
+                    if value == self._baseline.get(key): continue
+                    if key == "sessions":
+                        old = {x["reading"]: x for x in self._baseline.get(key, [])}
+                        merged = {x["reading"]: x for x in latest.get(key, [])}
+                        for session in value:
+                            name = session["reading"]
+                            changed = {k: v for k, v in session.items() if v != old.get(name, {}).get(k)}
+                            merged.setdefault(name, {}).update(changed)
+                        latest[key] = list(merged.values())
+                    else:
+                        latest[key] = value
+            safe.write_json(self.folder / "book.json", latest)
+            self.data = latest
+            self._baseline = copy.deepcopy(latest)
 
     def _json(self, name: str) -> dict:
         path = self.folder / name
-        return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        return safe.read_json(path)
 
     def _write_json(self, name: str, data: dict) -> None:
         with _lock:
-            (self.folder / name).write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            safe.write_json(self.folder / name, data)
 
     @property
     def summaries(self) -> dict[str, dict]:
@@ -785,6 +808,19 @@ def set_aside(book: Book, folder: Path) -> None:
         book.save()
 
 
+def _one_preparation(fn):
+    @wraps(fn)
+    def run(client, book, **kwargs):
+        with safe.locked(book.folder / ".prepare.lock"):
+            book.data = safe.read_json(book.folder / "book.json") or book.data
+            book._baseline = copy.deepcopy(book.data)
+            if book.data.get("status") == "paused":
+                raise ValueError("This book is paused")
+            return fn(client, book, **kwargs)
+    return run
+
+
+@_one_preparation
 def prepare_next(client, book: Book, *, explain: str = "English", bedtime: bool = False, review: int = 3,
                  mode: str | None = None, aloud: bool = False, again: bool = False, log=None) -> Path:
     """Prepare the next session of a book as a reading folder (or return the one still waiting).
@@ -857,6 +893,9 @@ def prepare_next(client, book: Book, *, explain: str = "English", bedtime: bool 
 
 
 def _store(book: Book, lesson: Lesson, mode: str, segments: list[Segment], kind: str = "read") -> Path:
+    current_data = safe.read_json(book.folder / "book.json")
+    if current_data.get("status") == "paused" or current_data.get("mode", mode) != book.mode:
+        raise ValueError("The book changed while preparing; this result was discarded")
     folder = library.new_reading(lesson)
     marker = {"book": book.folder.name, "title": book.title, "mode": mode, "kind": kind,
               "segments": [list(s) for s in segments]}
