@@ -1,23 +1,162 @@
-# Margin
+# Bibliothecary
 
-**An AI reading companion for an old Kindle, with a talking digital mouth on your phone.**
+**A personal librarian for books, articles and papers.** Choose reading material through Telegram, read or listen on a phone or optional Kindle, discuss it by voice, and return to saved progress and reading reports.
 
-The Kindle displays the article and highlights the current sentence. A phone or iPad plays the explanation, receives spoken questions and displays a mouth animated from speech timing. The companion selects Chinese or English; the standalone mouth tools also support Spanish.
+The project is named **Bibliothecary**, an older English word for librarian. **图书管理员** and **The Librarian** are the descriptive labels used in the résumé and portfolio.
 
-No Kindle jailbreak, no app to install. The Kindle and the phone just open web pages; a program on your computer does the thinking.
+[中文说明](README.zh-CN.md) · [Video](https://muurrphy.github.io/desktop-robot-murphy-demo/?project=margin) · [Requirements](docs/requirements.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
 
-[中文说明](README.zh-CN.md) · [Setup](docs/configuration.md) · [Known issues](docs/known-issues.md)
+## Built from what a librarian does
 
-## Two parts: use them together or on their own
+We started from what a good librarian does, not from what AI can do, and mapped each duty to a feature.
 
-| Part | What it is | Use it alone for |
+| A librarian's duty | What Bibliothecary does |
+|---|---|
+| **Collection development**: deciding what to collect and from where | A collection with taste: a curated list of trusted sources for papers, news and long-form journalism, books and essays. Only classics, or work that is both new and good |
+| **Reference interview**: finding out what the reader actually wants to know | Asks you once a day in the chat what you'd like to read tonight; learns your interests and goals the first time you use it |
+| **Readers' advisory**: recommending for a particular person, mixing classics with new work | Selection rules: classics alternate with new work, hard alternates with easy, a monthly rhythm, never a paper every night |
+| **Cataloguing**: every item recorded and findable | Each item is catalogued on entry: source, type, topic, difficulty, read or not, so nothing is suggested twice |
+| **Circulation records** | Every evening's questions and answers are kept in full and written up as that day's reading report |
+| **Reader instruction**: teaching people to read and understand | A structured session: background first, then the text, then review with questions |
+| **Knowing the reader's level** | A knowledge map built from daytime chats and past reading reports: what you know, where the gaps are |
+| **Confidentiality** | Reading records are stored locally; configured model, voice and Telegram services receive the data needed for the features you use |
+
+The job has changed over the centuries. The early *bibliothecary* — at Alexandria, in medieval monasteries, at the Bodleian in the 17th century — was above all a keeper: collecting, cataloguing, making sure no book was lost, sometimes chaining books to the shelves. In 1627 Gabriel Naudé advised collecting both the great old authors and the new ones. The modern librarian serves the reader: answering questions, recommending, teaching, and keeping what each person reads confidential. Bibliothecary takes from both: careful cataloguing and a collection chosen with taste, and service built around one person whose records stay private.
+
+## What works today, and what comes next
+
+Version 0.4 (2026-10-09) adds whole books, read three ways, and a list of public-domain books to start from; 0.3 did the reading, the instruction, the records and the daily chat. The knowledge map is specified in the [requirements](docs/requirements.md) and comes next. Every release is described in the [changelog](CHANGELOG.md).
+
+| | |
+|---|---|
+| **Works now** | `biblio prepare` turns an article into a three-part session: background, reading, review questions. `biblio read` reads it on the Kindle and phone, takes spoken questions, waits for your answers to the review questions, and files a reading report when it ends. |
+| **Also now** | `biblio telegram`: the librarian in a Telegram chat. Send it a link, a file or a voice message; it prepares the reading, asks you each day what you'd like to read tonight, and sends the reading report when you finish. |
+| **Also now** | Whole books: an EPUB, TXT or PDF read part by part, with your place kept, in three ways (the text itself, a digest, the best passages) and without spoilers. |
+| **Next** | v0.4 the collection (cataloguing, deduplication, default shelves) · v0.6 an MCP server for your own agent · v0.7 the knowledge map and spaced review |
+
+## Three parts: use them together or on their own
+
+| Part | What it is |
+|---|---|
+| **Bibliothecary** (`biblio`) | The librarian: prepares readings, keeps the records and writes the reading reports. |
+| **Margin** (`margin`) | The reading room: a Kindle page with highlights, circled words, margin notes and small diagrams; a prepared talk you can interrupt; spoken questions answered by a model. |
+| **Mouth** (`robot_lipsync`) | Turns speech timing into mouth shapes for Mandarin, English and Spanish, on a browser canvas or a 128×64 OLED (ESP32 firmware included). Optional. |
+
+Any combination of devices works: phone only; Kindle and computer; Kindle and phone; phone and iPad; extra screens as extra mouths.
+
+### With a phone only, or with a Kindle
+
+The Kindle is optional. Everything is a web page served by your own computer, so a phone alone is enough: `/phone` shows the article above and the voice, microphone and mouth below.
+
+<img src="assets/phone-reading.png" alt="The phone page: the article with the current sentence underlined, a note under it, what is being said, and the mouth" width="300">
+
+| How you read | Open |
+|---|---|
+| Phone only | `https://<computer>:8765/phone` |
+| Kindle + phone | Kindle: `http://<computer>:8765/` · phone: `https://<computer>:8765/speaker` |
+| Phone + iPad | one opens `/` (the article), the other `/speaker` (voice and mouth) |
+
+With `biblio telegram`, you don't type addresses: when a reading is ready, the chat shows a **📖 Read on this phone** button that opens it straight in the reading room, and the Kindle shows whatever is open. The reading room only serves your home Wi-Fi, from your own computer: everyone runs their own librarian, and nobody else can reach yours. (Microphone questions on the phone need the computer's certificate once; see [setup](docs/configuration.md#https-on-the-phone). Without it you can still listen and read.)
+
+## Quick start
+
+Python 3.11 or newer.
+
+```bash
+git clone https://github.com/Muurrphy/bibliothecary.git
+cd bibliothecary
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# no keys, no cost: tonight's sample reading about how octopuses sleep
+biblio read examples/octopus.lesson.json --voice silent --paused
+```
+
+Open the printed `http://<computer>:8765/` on the Kindle (Experimental Browser) and `http://localhost:8765/remote` on the computer to play, pause or type a question. When the session ends (or you press Ctrl+C), the reading report is filed:
+
+```bash
+biblio records          # every reading so far
+biblio report --show    # the latest reading report
+```
+
+`bibliothecary` is the same command as `biblio`.
+
+## Tonight's reading
+
+```bash
+cp .env.example .env      # add your OpenAI and ElevenLabs keys and a voice id
+biblio prepare https://example.com/article --explain "Simplified Chinese" --bedtime
+biblio read --paused
+```
+
+The voice is picked for you: with an ElevenLabs key and `MARGIN_ELEVEN_VOICE` (or `ELEVENLABS_VOICE_ID`) set, it speaks on the phone and the mouth moves; without them it reads silently and says so when it starts (`voice: SILENT…`). The same goes for the reading room that `biblio telegram` keeps open. Any ElevenLabs voice works, including one you cloned yourself; `--voice silent` keeps it quiet on purpose.
+
+`biblio read` without a name opens the oldest reading not finished yet. On the phone, open the printed `https://…:8765/speaker` address and tap the screen once. The phone needs the computer's local certificate for the microphone (steps in [setup](docs/configuration.md#https-on-the-phone)). In Safari, set **Website Settings → Microphone → Allow** for this address, or it asks again every time the page opens.
+
+A session has three parts:
+
+1. **Preview.** The background you need and may not have: terms, people, how something works. `biblio prepare --no-preview` leaves it out.
+2. **Reading.** The talk goes through the article in order: what it is about, the main points, why it matters. Interrupt with a question at any time.
+3. **Review.** A few questions (`biblio prepare --review N`, default 3). The librarian waits for your answer and tells you what you got right and what is missing. Say **继续 / go on** to skip one.
+
+Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**, **再问一遍 / ask me again** (back to the review questions, also after the end). Answering a review question you can pause to think. The device you tapped last is the one that listens; the others stay quiet mouths.
+
+## The librarian in Telegram
+
+If you have no personal agent of your own, the librarian can live in a Telegram chat.
+
+1. In Telegram, open **@BotFather**, send `/newbot`, pick a name. It gives you a token.
+2. Put it in `.env`: `TELEGRAM_BOT_TOKEN=...`
+3. Run `biblio telegram --explain "Simplified Chinese"` and send your new bot the `/start` code it prints. From then on it answers only you.
+
+Then, from anywhere:
+
+- **Send a link, a .txt/.md/.html/.pdf file, or a voice message.** It prepares the reading and sends back the guide: the background and the main points.
+- **Just talk.** "A classic paper on octopus sleep", "a good long read on black holes": it searches open-access papers (OpenAlex, arXiv; classic means well cited, new means the last year) or the collection's own shelves of sites (science writing and primary sources such as nobelprize.org, serious news, essays, full-text books; see `src/bibliothecary/shelves.toml`), suggests two or three with a reason each, and prepares the one you pick. Nothing from outside the collection gets through, and it only offers links it actually found. To change the collection, copy `shelves.toml` to `~/Bibliothecary/` and edit it. It knows what you have read and what was left unclear.
+- **When you pair**, it introduces itself (what it does, where it finds readings, how reading with it works) and asks **when you usually read** ("10 pm", "7:30 in the morning", "before bed"; change it later with `/time 21:30`).
+- **Every day, around your reading time**: about ten hours before, it asks what you'd like (a morning reader is asked the evening before); 45 minutes before, it sends the prepared reading with a “📖 Read on this phone” button, ready to open. If you didn't say what you wanted, it chooses one from what it knows about you and prepares it. Evening readers get "Good evening" and a good night at the end; morning readers get "Good morning". Until it knows your time, `--ask-at 12:00` and `--decide-at 19:00` apply.
+- **After the session**, the reading report arrives in the chat.
+- `/tonight`, `/records`, `/report` do what they say; `/profile` shows what it remembers about you.
+
+It talks like a librarian, not a search box: when you ask "what should I read tonight?" without saying much, it asks what has been on your mind and what the reading is for, then recommends with reasons that fit you. Every batch of search results is vetted by a second, strict pass, and only pieces that are really on topic and worth an evening reach the conversation; it would rather offer one good piece than three weak ones. What it learns about you is kept in `~/Bibliothecary/reader.json`.
+
+Conversation and choosing need judgement, so they can use a stronger model than preparing does: set `BIBLIOTHECARY_CHAT_MODEL` in `.env` (or `--chat-model`). To try the librarian without Telegram, `biblio chat "what should I read tonight?"` talks in the terminal, shares the same memory, and prints every search with what was kept and why.
+
+The computer has to be on for the bot to answer. Messages, submitted files and delivered reports pass through Telegram's servers. The local reading archive stays on your computer; model and voice requests send the relevant context described in [Privacy](#privacy). A local chat transcript is kept in `~/Bibliothecary/chat.jsonl`.
+
+## Whole books
+
+Send the librarian a book (EPUB, or a long TXT or PDF) in Telegram, or run `biblio book add <file>`. It goes on the shelf in `~/Bibliothecary/books/`, cut into chapters along the book's own contents, and the librarian keeps your place: each session is one part, and the next one starts where you stopped, with a short "previously".
+
+There are three ways to read a book. The librarian suggests one from the kind of book; `/mode` (or `--mode`) changes it.
+
+| Way | For | What happens |
 |---|---|---|
-| **Reading companion** (`margin`) | Kindle page with highlights, circled words, margin notes and small diagrams; a prepared talk you can interrupt; spoken questions answered by a model. | Reading with an e-reader and asking questions by text or voice, no mouth needed. |
-| **Mouth** (`robot_lipsync`) | Turns speech timing into mouth shapes for Mandarin, English and Spanish. Draws on a browser canvas or a 128×64 OLED (ESP32 firmware included). | Any robot, avatar or small screen that needs lips in step with a TTS voice. |
+| **Text** (读原文) | novels, essays, memoirs | You read the text yourself. The librarian stays quiet: notes only where a reader really gets stuck (an allusion, an old word, a name), the place moving on at reading pace, one or two open questions at the end with no right answer. |
+| **Digest** (拆书) | science, social science, idea books | The first session is a map of the whole book: the question it asks, its answer, how it is built, which chapters matter most. Then a chapter at a time, explained, so you don't need to read every sentence. |
+| **Best passages** (精华原文) | idea books, when you want the author's own words | The few passages of a chapter most worth reading, read closely; what lies between them is told in a sentence. Passages are whole paragraphs taken from the book by number, so nothing is ever misquoted. |
 
-Together, the mouth runs on the phone while the companion speaks, so the phone on your bedside table becomes a small face that reads to you.
+No spoilers: chapter notes are made only as far as you have read, the "previously" uses nothing beyond your place, and during the reading the librarian won't tell you what happens later even if it knows the book. A session counts once you finish it; then your place moves on. In Telegram: `/book` (the open book and your progress), `/books` (the shelf), `/mode`, `/next`, `/book pause`. While a book is open, the daily round prepares its next part instead of choosing an article. Session length follows `BIBLIOTHECARY_BOOK_MINUTES` (default 20). The map, the notes and the choice of passages use `BIBLIOTHECARY_BOOK_MODEL` (else `BIBLIOTHECARY_CHAT_MODEL`). Books with DRM (Kindle store, WeChat Read) can't be read; your own files and public-domain books (Standard Ebooks, Project Gutenberg, Wikisource) can. Design notes: [docs/design/books.zh-CN.md](docs/design/books.zh-CN.md).
 
-This repository used to be **robot-lipsync**. In October 2026 the mouth and the Kindle companion were merged here, because each makes most sense with the other. The full history of the mouth project is kept.
+### The library's own books
+
+No book at hand? The librarian keeps a short list of public-domain books worth reading ([`catalog.toml`](src/bibliothecary/catalog.toml)), on two shelves: life and mind (Darwin, Huxley, William James, Faraday) and civilization and essays (Montaigne, Emerson, Thoreau, Marcus Aurelius, Seneca, Tagore, Mill, Tocqueville, Plato, 王国维). `biblio book catalog` lists them and `biblio book get darwin-emotions` fetches one onto your shelf; in Telegram, `/library` and `/get darwin-emotions`. Books come only from three clean sources: [Standard Ebooks](https://standardebooks.org) (its own work dedicated to the public domain, CC0), [Project Gutenberg](https://www.gutenberg.org) (its trademarked header and licence are left out when shelved) and [Wikisource](https://zh.wikisource.org). Every book is public domain in the United States and its author and translator died more than 70 years ago, so it is free in life + 70 and life + 50 countries too; modern translations and annotated editions are left out. Add your own entries in `~/Bibliothecary/catalog.toml`.
+
+One short book ships with the project, so this works without fetching anything: Seneca's *On the Shortness of Life* (Aubrey Stewart's translation, 1900, from Standard Ebooks; about 8,000 words). `biblio book get sample`, or `/get sample`.
+
+## The reading report
+
+Each reading has its own folder, all on your computer:
+
+```text
+~/Bibliothecary/readings/2026-10-08-how-octopuses-sleep/     ($BIBLIOTHECARY_HOME to move it)
+  lesson.json      what is read aloud: preview, reading, review
+  session.jsonl    every question and answer, verbatim, written the moment it is said
+  summary.json     what a model made of the session (optional)
+  report.md        the reading report
+```
+
+The report is written in two stages. `biblio prepare` writes the guide (background and notes) before you read; after the session it adds every question and answer word for word, your review answers next to a good answer, and, with a model, what still seems unclear and which threads are worth following. Summaries never replace the verbatim record. The report is in the language of the explanation. Plain Markdown with a YAML header: open it in any notes app, keep it in git, or let an agent read it.
 
 ## What each device does
 
@@ -25,59 +164,15 @@ This repository used to be **robot-lipsync**. In October 2026 the mouth and the 
 |---|---|
 | Kindle (tested on 10th generation, firmware 5.16) | Shows the article, the underline, the notes. Does not record anything. |
 | Phone or iPad | Plays the voice, listens for your questions, shows the mouth. |
-| Computer | Runs the talk, calls the models, prepares voice and mouth timing. |
+| Computer | Prepares readings, calls the models, keeps the records. |
 | More phones or tablets (optional) | Extra mouths, all speaking at the same moment, without their own microphone. |
 
-All devices need to be on the same Wi-Fi.
-
-## Quick start
-
-Python 3.11 or newer.
-
-```bash
-git clone https://github.com/Muurrphy/margin.git
-cd margin
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-
-# no keys, no cost: open the reader with a sample lesson
-margin serve examples/village.lesson.json --voice silent --paused
-```
-
-Open the printed `http://<computer>:8765/` on the Kindle (Experimental Browser) and `http://localhost:8765/remote` on the computer to play, pause or type a question.
-
-Only the mouth:
-
-```bash
-robot-lipsync demo --text "你好，世界。" --language zh-CN --output build/mouth.html
-```
-
-This preview uses made-up timing; with a real voice the timing comes from the speech service. See the [mouth guide](docs/lipsync.md).
-
-## With voice and spoken questions
-
-```bash
-cp .env.example .env      # add your OpenAI and ElevenLabs keys and a voice id
-margin serve examples/octopus.lesson.json --voice elevenlabs --paused
-```
-
-On the phone, open the printed `https://…:8765/speaker` address and tap the screen once. The phone needs the computer's local certificate for the microphone (steps in [setup](docs/configuration.md#https-on-the-phone)). In Safari, set **Website Settings → Microphone → Allow** for this address, or it asks again every time the page opens.
-
-You can ask questions about the article by voice and resume the prepared explanation after the answer. Short playback commands are handled directly: **继续 / go on**, **等一下 / wait**, **再说一遍 / say that again**, **跳过 / skip**, **从头讲 / start over**, **刷新 / refresh**. The device you tapped last is the one that listens; the others stay quiet mouths.
-
-## Your own article
-
-```bash
-margin build https://example.com/article --explain "Simplified Chinese" --bedtime -o tonight.json
-margin serve tonight.json --voice elevenlabs --paused
-```
-
-The talk is prepared ahead (what the piece is about, the background, the main points in order, why it matters), so you get the whole story even if you never interrupt. Sample lessons: a village where everyone signs, how octopuses sleep, bumblebees playing with balls, and a short neutrino primer.
+All devices need to be on the same Wi-Fi, and the computer has to be on while you read.
 
 ## How it works
 
 ```text
-computer: lesson + your question → answer → voice + character timing
+computer: reading + your question → answer → voice + character timing → records
    ├─ Kindle: article, underline, notes      (one long-poll page, plain ES5)
    └─ phone:  voice + mouth (robot_lipsync)  microphone → realtime model
 ```
@@ -87,12 +182,29 @@ computer: lesson + your question → answer → voice + character timing
 - **Voice questions use a realtime model.** The phone streams audio through the computer to OpenAI. A stalled turn can fall back to transcription and a text model.
 - **The answer is spoken sentence by sentence**, so the first sentence starts while the rest is still being voiced.
 - **The mouth uses speech timestamps and the audio clock.** Local waveform checks correct phrase edges when pauses match clearly and close the mouth during detected silence. Phoneme timing within each character is still estimated; this is not phoneme-accurate forced alignment. See [mouth timing](docs/lipsync.md#timing-checks-in-the-reading-companion).
+- **Nothing said is lost.** Each question and answer is appended to the reading's log as soon as it is spoken; the report is rebuilt from that log.
 
-More: [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
+More: [requirements](docs/requirements.md), [architecture](docs/device-companion.md), [mouth module](docs/lipsync.md), [languages](docs/multilingual.md), [data handling](SECURITY.md).
+
+## Privacy
+
+Readings, conversation transcripts and reports are stored on your computer. Configured model services receive the source text, relevant retrieved history and conversation context needed for preparation, answers and note organization. Speech services receive audio for transcription or text for synthesis. Telegram receives messages, files and reports sent through the bot. Local storage does not mean offline processing; handling by external services follows their policies. See [SECURITY.md](SECURITY.md).
+
+## The reading room and the mouth on their own
+
+```bash
+margin serve examples/village.lesson.json --voice silent --paused     # reading room, no records
+margin build https://example.com/article -o tonight.json               # a lesson file, no folder
+robot-lipsync demo --text "你好，世界。" --language zh-CN --output build/mouth.html
+```
+
+See the [mouth guide](docs/lipsync.md).
 
 ## Status
 
-Early prototype, demonstrated on a Kindle (10th gen, firmware 5.16), iPhone and iPad. Version 0.2.2 updates connection recovery and microphone uploads. Long sessions on phones are still being tested. See [known issues](docs/known-issues.md).
+Early prototype, demonstrated on a Kindle (10th gen, firmware 5.16), iPhone and iPad. Long sessions on phones are still being tested. See [known issues](docs/known-issues.md).
+
+This repository began as **robot-lipsync**, became **Margin** when the mouth and the Kindle companion were merged in October 2026, and became **Bibliothecary** when the companion grew into a librarian. The full history is kept ([merge history](docs/migration.md)).
 
 ## Development
 
@@ -101,7 +213,7 @@ pip install -e ".[dev,elevenlabs,serial]"
 python -m pytest
 ```
 
-Tests run offline: no API keys, microphones or motors. [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [Merge history](docs/migration.md)
+Tests run offline: no API keys, microphones or motors. [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
 
 ## License
 

@@ -1,0 +1,71 @@
+"""Join the lines kept by MARGIN_RECORD_DIR into one track on the real timeline.
+
+    python -m margin.stitch <folder> [-o all.m4a]
+
+Silence fills the gaps, an interrupted line is cut where it stopped (otherwise a line plays in full, up to the next), and the track starts at
+the first line, so in a video editor it needs lining up once. Needs ffmpeg."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def lines(folder: Path) -> list[dict]:
+    out = []
+    for raw in (folder / "timeline.jsonl").read_text(encoding="utf-8").splitlines():
+        try:
+            item = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if (folder / item["file"]).is_file():
+            out.append(item)
+    return sorted(out, key=lambda x: x["start"])
+
+
+def stitch(folder: Path, output: Path, start: float | None = None) -> Path:
+    if not shutil.which("ffmpeg"):
+        raise SystemExit("ffmpeg is needed (brew install ffmpeg)")
+    found = lines(folder)
+    if not found:
+        raise SystemExit(f"nothing recorded in {folder}")
+    t0 = found[0]["start"] if start is None else start      # e.g. when the screen recording began
+    found = [x for x in found if x["start"] >= t0]
+    inputs, filters = [], []
+    for i, item in enumerate(found):
+        inputs += ["-i", str(folder / item["file"])]
+        # the server's "end" is not when the phone finished (it may return early), so a line plays
+        # in full unless it was interrupted, and never runs into the next one
+        length = item["end"] - item["start"] if item.get("cut") else 3600.0
+        if i + 1 < len(found):
+            length = min(length, found[i + 1]["start"] - item["start"])
+        length = max(0.05, length)
+        delay = int((item["start"] - t0) * 1000)
+        filters.append(f"[{i}:a]atrim=0:{length:.3f},adelay={delay}|{delay}[a{i}]")
+    mix = "".join(f"[a{i}]" for i in range(len(found)))
+    graph = ";".join(filters) + f";{mix}amix=inputs={len(found)}:normalize=0[out]"
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", *inputs, "-filter_complex", graph,
+                    "-map", "[out]", str(output)], check=True)
+    return output
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(prog="margin-stitch", description=__doc__.splitlines()[0])
+    p.add_argument("folder")
+    p.add_argument("-o", "--output", help="default: <folder>/all.m4a")
+    p.add_argument("--start", help="where the track begins, e.g. 2026-10-08T23:02:00-04:00 (default: the first line)")
+    args = p.parse_args(argv)
+    folder = Path(args.folder).expanduser()
+    import datetime as dt
+    start = dt.datetime.fromisoformat(args.start).timestamp() if args.start else None
+    out = stitch(folder, Path(args.output) if args.output else folder / "all.m4a", start)
+    print(out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

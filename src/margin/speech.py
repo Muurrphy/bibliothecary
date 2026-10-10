@@ -28,6 +28,52 @@ from .llm import OpenAICompatible
 from .speaker import Clip
 
 
+class Recorder:
+    """Keeps a copy of every line as it is played, for editing a video afterwards.
+
+    With ``MARGIN_RECORD_DIR`` set, each spoken line is saved there as an mp3 named by the
+    moment it started, and ``timeline.jsonl`` notes when it started and stopped (stopped
+    early means it was interrupted). ``margin-stitch`` (python -m margin.stitch) joins them
+    into one track on the real timeline."""
+
+    def __init__(self, folder: str | None = None) -> None:
+        self._folder = folder                # None: read MARGIN_RECORD_DIR when a line plays (after .env)
+        self._lock = threading.Lock()
+        self._n = 0
+
+    @property
+    def folder(self) -> Path | None:
+        folder = self._folder if self._folder is not None else os.environ.get("MARGIN_RECORD_DIR", "")
+        return Path(folder).expanduser() if folder else None
+
+    def play(self, audio: bytes, text: str, play, stop: threading.Event | None = None) -> object:
+        """Run ``play()`` (which sounds the line) and keep the line with its start and end."""
+        folder = self.folder
+        if folder is None:
+            return play()
+        start = time.time()
+        with self._lock:
+            self._n += 1
+            n = self._n
+        name = time.strftime("%Y%m%d-%H%M%S", time.localtime(start)) + f".{int(start % 1 * 1000):03d}_{n:04d}.mp3"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / name).write_bytes(audio)
+        except OSError as err:
+            _warn(f"could not keep a recording of the line: {err}")
+            return play()
+        try:
+            return play()
+        finally:
+            line = {"file": name, "start": round(start, 3), "end": round(time.time(), 3), "text": text,
+                    "cut": bool(stop is not None and stop.is_set())}     # interrupted: stopped at "end"
+            with self._lock, open(folder / "timeline.jsonl", "a", encoding="utf-8") as f:
+                f.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+
+RECORDER = Recorder()
+
+
 def _warn(msg: str) -> None:
     line = time.strftime("%H:%M:%S") + " " + msg
     print(line, flush=True)
@@ -107,7 +153,7 @@ class OpenAIVoice(_ProcessVoice):
         if stop.is_set() or not text.strip():
             return
         audio = self.client.speech(text, voice=self.voice, model=self.model, instructions=self.instructions)
-        if self.hub and self.hub.play(Clip(audio, text), stop, on_start=self.on_start):
+        if self.hub and RECORDER.play(audio, text, lambda: self.hub.play(Clip(audio, text), stop, on_start=self.on_start), stop):
             return
         if self.on_start:
             self.on_start()
@@ -362,7 +408,7 @@ class ElevenLabsVoice(_ProcessVoice):
             raise RuntimeError(f"Voice unavailable: {err}") from err
         if stop.is_set():
             return
-        if self.hub and self.hub.play(clip, stop, on_start=self.on_start):
+        if self.hub and RECORDER.play(clip.audio, text, lambda: self.hub.play(clip, stop, on_start=self.on_start), stop):
             return
         if self.on_start:
             self.on_start()
@@ -376,13 +422,33 @@ class ElevenLabsVoice(_ProcessVoice):
             os.unlink(path)
 
 
+def _eleven_voice_id() -> str:
+    return os.environ.get("MARGIN_ELEVEN_VOICE") or os.environ.get("ELEVENLABS_VOICE_ID") or ""
+
+
+def auto_voice(client: OpenAICompatible | None = None, **options) -> tuple[object, str]:
+    """The voice to use when none was asked for, and a line saying which and why.
+
+    An ElevenLabs voice when one is set up: it is the one that plays on the phone with the mouth
+    moving. Otherwise silence, said plainly, so a reader who hears nothing knows what to add."""
+    voice_id = options.get("voice") or _eleven_voice_id()
+    if voice_id:
+        try:
+            return ElevenLabsVoice(voice_id), f"ElevenLabs voice {voice_id}"
+        except Exception as err:                         # no key, no network: read on, without sound
+            return SilentVoice(options.get("speed", 1.0)), f"SILENT, the ElevenLabs voice did not start: {err}"
+    return SilentVoice(options.get("speed", 1.0)), ("SILENT: no voice is set up, so the phone stays quiet and "
+                                                    "the mouth still. Add an ElevenLabs key and MARGIN_ELEVEN_VOICE "
+                                                    "(see docs/configuration.md)")
+
+
 def make_voice(kind: str, client: OpenAICompatible | None = None, **options) -> object:
     if kind == "silent":
         return SilentVoice(options.get("speed", 1.0))
     if kind == "say":
         return SayVoice(options.get("voice"), options.get("rate"))
     if kind == "elevenlabs":
-        return ElevenLabsVoice(options.get("voice") or os.environ.get("MARGIN_ELEVEN_VOICE", ""))
+        return ElevenLabsVoice(options.get("voice") or _eleven_voice_id())
     if kind == "openai":
         if client is None:
             raise RuntimeError("the openai voice needs an API key (OPENAI_API_KEY)")

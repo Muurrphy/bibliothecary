@@ -15,3 +15,7 @@ Keep tests offline: no paid API calls, microphone recording or motor control. Pr
 Use your own credentials in an ignored `.env`. Remove personal speech, local paths and secrets from shared logs. New third-party code or data needs a compatible license and attribution.
 
 For mouth planning and optional hardware tools, preserve visible speech landmarks, the append-only event contract and the physical timing labels. See [mouth architecture](docs/architecture.md) and [research boundaries](docs/third-party.md).
+
+## Keeping the changelog
+
+Every change that a reader or user would notice goes into both [CHANGELOG.md](CHANGELOG.md) and [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md), under "Unreleased" ("未发布"), in plain words: what you can now do, or what was wrong and is fixed. A release moves those lines under its version number and date, and gets a git tag (`v0.4.0`).

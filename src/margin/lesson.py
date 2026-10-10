@@ -10,7 +10,8 @@ edited after generation::
       "steps": [
         {"say": "...", "focus": "p2.s1", "mark": "150", "note": "..."},
         ...
-      ],
+      ],                                               # "part": "preview" | "review" (else reading);
+                                                       # a review step asks "say" and "expect"s an answer
       "questions": [                                   # optional scripted answers
         {"match": ["word order", "语序"], "steps": [...]}
       ]
@@ -51,6 +52,7 @@ def split_sentences(text: str) -> list[str]:
 
 
 FIGURE_TYPES = ("compare", "flow", "timeline", "terms")
+PARTS = ("preview", "review")
 
 
 def clean_figure(fig: Any) -> dict[str, Any] | None:
@@ -105,6 +107,8 @@ class Step:
     pause: float = 0.0
     figure: dict[str, Any] | None = None
     cue: str | None = None        # tell other programs to do something now (open a video, move a robot)
+    part: str | None = None       # "preview" (background before reading), "review" (questions after), else reading
+    expect: str | None = None     # a review question: what a good answer says; the player waits for one
 
     @classmethod
     def from_dict(cls, data: dict[str, Any], current: str | None = None) -> Step:
@@ -121,11 +125,13 @@ class Step:
             pause=float(data.get("pause", 0.0)),
             figure=clean_figure(data.get("figure")),
             cue=(str(data["cue"]).strip()[:40] or None) if data.get("cue") else None,
+            part=data.get("part") if data.get("part") in PARTS else None,
+            expect=(str(data["expect"]).strip() or None) if data.get("expect") else None,
         )
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"say": self.say}
-        for key in ("focus", "mark", "note", "figure", "cue"):
+        for key in ("focus", "mark", "note", "figure", "cue", "part", "expect"):
             if getattr(self, key):
                 out[key] = getattr(self, key)
         if self.clear_note:
@@ -145,6 +151,7 @@ class Lesson:
     explain_language: str = "en"
     questions: list[dict[str, Any]] = field(default_factory=list)
     cues: dict[str, str] = field(default_factory=dict)   # name -> what it shows, for the model to choose
+    guide: str = ""              # extra context for answering (e.g. which book, what was read before, no spoilers)
 
     # ---- ids -------------------------------------------------------------------------
     def sentence_ids(self) -> list[str]:
@@ -177,6 +184,7 @@ class Lesson:
 
         lines = [f"# {self.title}"]
         for p, para in enumerate(self.paragraphs):
+            if upto is not None and p >= upto: break
             lines.append(" ".join(f"[p{p + 1}.s{s + 1}] {t}" for s, t in enumerate(para)))
         return "\n\n".join(lines)
 
@@ -225,6 +233,7 @@ class Lesson:
             explain_language=data.get("explain_language", data.get("language", "en")),
             questions=list(data.get("questions", [])),
             cues={str(k): str(v) for k, v in (data.get("cues") or {}).items()},
+            guide=str(data.get("guide") or ""),
         )
 
     @classmethod
@@ -241,6 +250,7 @@ class Lesson:
             "steps": [s.to_dict() for s in self.steps],
             "questions": self.questions,
             **({"cues": self.cues} if self.cues else {}),
+            **({"guide": self.guide} if self.guide else {}),
         }
 
     def save(self, path: str | Path) -> None:

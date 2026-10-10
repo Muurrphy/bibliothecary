@@ -46,6 +46,14 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
 #cb{overflow:hidden;position:relative}
 #q{font:bold 17px/1.4 Helvetica,Arial,sans-serif;margin:0 0 6px;display:none}
 #say{font-size:20px;line-height:1.5}
+/* ?phone=1: a phone screen, with the voice page below it. Full-width text; a note appears as a card
+   under its sentence instead of in a side margin; a smaller caption. */
+.phone #col{width:100%}
+.phone #title{display:none}
+.phone #art p{font-size:18px;line-height:1.55}
+.phone .note{left:12px;right:12px;width:auto;box-shadow:0 2px 0 #000}
+.phone .lead{display:none}
+.phone #say{font-size:17px}
 .dark,.dark #art,.dark #cap,.dark .note,.dark .mk{background:#000;color:#fff}
 .dark #cap,.dark #bar,.dark .note,.dark .fig,.dark .bx,.dark .mk{border-color:#fff}
 .dark #fill,.dark #logo,.dark .lbl,.dark .pill,.dark .bx.hi{background:#fff;color:#000}
@@ -60,16 +68,26 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
 (function () {
   var $ = function (id) { return document.getElementById(id); };
   var seq = 0, capPrev = '', S = null, focusEl = null, noteEl = null, leadEl = null, figEl = null, failures = 0;
+  var PHONE = /phone=1/.test(location.search);
   if (/dark=1/.test(location.search)) document.body.className = 'dark';
+  if (PHONE) document.body.className += ' phone';
 
   function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function layout() {
     var h = window.innerHeight || 800, d = document.documentElement.clientHeight;
     if (d && d < h) h = d;                       // what is really visible
-    var cap = Math.round(h * 0.25);
+    // The caption shows whole lines only (three on a phone): a window that ends mid-line leaves
+    // the last line cut in half under the edge.
+    var lh = 0;
+    try { lh = parseFloat(window.getComputedStyle($('say'), null).lineHeight); } catch (e) {}
+    if (!lh || isNaN(lh)) lh = PHONE ? 25.5 : 30;
+    var head = $('who').offsetHeight + 7;                  // the label row and its gap
+    var lines = PHONE ? 3 : Math.max(2, Math.floor((h * 0.25 - 9 - head) / lh));
+    var box = Math.ceil(lines * lh);
+    var cap = head + box + 6;                              // a little air under the last line
     $('cap').style.height = cap + 'px';
-    $('cb').style.height = (cap - 9 - 30) + 'px';
-    $('say').style.paddingBottom = (cap - 9 - 30) + 'px';   // room to bring the newest sentence to the top
+    $('cb').style.height = box + 'px';
+    $('say').style.paddingBottom = box + 'px';           // room to bring the newest sentence to the top
     $('art').style.height = (h - cap - 38 - 7 - 18) + 'px';
   }
   function sentenceHTML(s, marks) {
@@ -122,6 +140,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
     if (!noteEl) return;
     var anchor = (S.note && S.note.sentence && $(S.note.sentence)) || focusEl;
     var top = anchor ? anchor.offsetTop : $('art').scrollTop + 10;
+    if (PHONE && anchor) top = anchor.offsetTop + anchor.offsetHeight + 8;    // the card goes under the sentence
     noteEl.style.top = Math.max(0, top - 4) + 'px';
     leadEl.style.top = (Math.max(0, top - 4) + 12) + 'px';
   }
@@ -182,7 +201,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
       { art.scrollTop = Math.max(0, figEl.offsetTop + figEl.offsetHeight - art.clientHeight + 10); placeNote(); }
   }
   var WHO = {idle: 'MARGIN', reading: 'READING', paused: 'PAUSED', listening: 'LISTENING…',
-             thinking: 'THINKING…', answering: 'ANSWERING', done: 'THE END'};
+             thinking: 'THINKING…', answering: 'ANSWERING', waiting: 'YOUR TURN', done: 'THE END'};
   function renderCaption() {
     var a = S.answer;
     $('who').innerHTML = '<span class="pill">' + (a && S.status !== 'listening' ? 'YOU ASKED' : (WHO[S.status] || 'MARGIN')) + '</span>';
@@ -204,7 +223,7 @@ body{font-family:Georgia,"Times New Roman",serif;overflow:hidden}
       capPrev = text;
       var cb = $('cb'), nw = $('nw');
       var natural = cb.scrollHeight - cb.clientHeight;     // height without the extra room
-      cb.scrollTop = (kept && nw && natural > cb.clientHeight) ? Math.max(0, nw.offsetTop - 2) : 0;
+      cb.scrollTop = (kept && nw && natural > cb.clientHeight) ? Math.max(0, nw.offsetTop) : 0;
     }
     var p = S.progress || [0, 0];
     $('meta').innerHTML = p[1] ? p[0] + ' / ' + p[1] : '';

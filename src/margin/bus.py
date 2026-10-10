@@ -28,7 +28,7 @@ def empty_screen() -> dict[str, Any]:
         "figure": None,     # {"type", "title", ..., "sentence"} a small diagram
         "caption": "",      # what the companion is saying right now
         "answer": None,     # {"question", "text", "done"}
-        "status": "idle",   # idle | reading | paused | listening | thinking | answering | done
+        "status": "idle",   # idle | reading | paused | waiting (for a review answer) | listening | thinking | answering | done
         "progress": [0, 0],
     }
 

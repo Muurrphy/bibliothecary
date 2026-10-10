@@ -16,7 +16,7 @@ import time
 import traceback
 from collections.abc import Callable
 
-from .brain import quick_intent
+from .brain import needs_lookup, quick_intent
 from .bus import Bus
 from .lesson import Lesson, Step
 from .speaker import NoSpeaker
@@ -28,6 +28,10 @@ def _join(a: str, b: str) -> str:
         return b
     return a + ("" if a[-1] in "。！？；，、…」』）" or b[:1] in "。！？，" else " ") + b
 
+
+# record(kind, **data) hears what is worth keeping: "start" (lesson), "exchange" (question, answer, focus,
+# review, expect), "review_skipped" (review, expect), "end". See bibliothecary.records.
+Recorder = Callable[..., None]
 
 # answerer(lesson, question, focused sentence[, position in the plan]) returns a list of steps, or
 # {"steps": [...], "then": "continue" | "pause" | "back" | "skip" | "restart"}.
@@ -64,7 +68,7 @@ def default_fillers(explain_language: str) -> list[str]:
 
 class Player:
     def __init__(self, bus: Bus, voice, answerer: Answerer | None = None, *, autoplay: bool = False,
-                 log: Callable[[str], None] | None = None) -> None:
+                 log: Callable[[str], None] | None = None, record: Recorder | None = None) -> None:
         self.bus, self.voice, self.answerer = bus, voice, answerer
         self.lesson: Lesson | None = None
         self.index = 0
@@ -78,6 +82,11 @@ class Player:
         self._filler_turn = 0
         self._t_asked: float | None = None
         self.history: list[dict] = []        # recent questions and answers, for follow-ups
+        self.review: dict | None = None       # the review question waiting for an answer: {"question", "expect"}
+        self._generation = 0
+        self._active_generation = 0
+        self._started = False
+        self._record = record or (lambda *_a, **_k: None)
         self.forced = None                    # (lesson, question) -> steps that must be used, or None
         self._t_sound: float | None = None
         self._playback_failed = False
@@ -88,9 +97,28 @@ class Player:
         self._thread = threading.Thread(target=self._run, daemon=True, name="margin-player")
         self._thread.start()
 
+    def set_recorder(self, record: Recorder | None) -> None:
+        """Keep the next sessions somewhere else (the librarian switches this per reading)."""
+        self._record = record or (lambda *_a, **_k: None)
+
     # ---- commands (any thread) -------------------------------------------------------
-    def load(self, lesson: Lesson) -> None:
-        self._command("load", lesson)
+    def load(self, lesson: Lesson, *, record: Recorder | None = None) -> None:
+        self._generation += 1
+        self._command("load", lesson, record, self._generation, interrupt=True)
+
+    def checkpoint(self) -> dict:
+        return {"index": self.index, "focus": self.focus, "history": self.history,
+                "review": self.review, "started": self._started}
+
+    def _checkpoint(self) -> None:
+        owner = getattr(self._record, "__self__", None)
+        if self.lesson and hasattr(owner, "checkpoint"):
+            owner.checkpoint(self.checkpoint())
+
+    def _start_reading(self) -> None:
+        if not self._started and self.lesson:
+            self._started = True
+            self._note("start", lesson=self.lesson)
 
     def play(self) -> None:
         self._command("play")
@@ -155,7 +183,7 @@ class Player:
                 timeout = self._held_until - now
             elif self._held_until:
                 self._held_until = 0.0
-                self.bus.publish("status", state="reading" if self.playing else "paused")
+                self.bus.publish("status", state=self._state())
                 timeout = 0 if self._can_step() else None
             else:
                 timeout = 0 if self._can_step() else None
@@ -180,7 +208,20 @@ class Player:
                     self.bus.publish("status", state="paused")
                     self.playing = False
             finally:
+                try: self._checkpoint()
+                except Exception as err: self._log(f"checkpoint failed: {err}")
                 self._busy = False
+
+    def _state(self) -> str:
+        if self.playing:
+            return "reading"
+        return "waiting" if self.review else "paused"
+
+    def _note(self, kind: str, **data) -> None:
+        try:
+            self._record(kind, **data)
+        except Exception as err:          # keeping the records must never stop the reading
+            self._log(f"could not keep the record: {err}")
 
     def _can_step(self) -> bool:
         return self.playing and self.lesson is not None and self.index < len(self.lesson.steps)
@@ -188,7 +229,23 @@ class Player:
     def _handle(self, name: str, *args) -> None:
         self._stop.clear()
         if name == "load":
+            self._checkpoint()
+            previous = getattr(self._record, "__self__", None)
+            if len(args) > 1 and args[1] is not None:
+                self._record = args[1]
+                if previous is not getattr(self._record, "__self__", None) and hasattr(previous, "close"):
+                    threading.Thread(target=previous.close, daemon=True).start()
+            self._active_generation = args[2] if len(args) > 2 else self._generation
             self.lesson, self.index, self.focus, self._cut = args[0], 0, None, None
+            self.history, self.review, self._started = [], None, False
+            owner = getattr(self._record, "__self__", None)
+            saved = owner.restore() if hasattr(owner, "restore") else {}
+            self.index = max(0, min(len(self.lesson.steps), int(saved.get("index", 0))))
+            self.focus = saved.get("focus")
+            self.history = saved.get("history", [])[-3:]
+            self.review = saved.get("review")
+            self._started = bool(saved.get("started"))
+            self.playing = False if saved or len(args) > 1 and args[1] is not None else self.playing
             self.fillers = default_fillers(self.lesson.explain_language) if self._wants_fillers() else []
             self._prepare([Step(say=f) for f in self.fillers])
             # planned moments ("always" questions) are voiced ahead, so they start without a wait
@@ -196,10 +253,14 @@ class Player:
                        for st in q.get("steps", []) if st.get("say")]
             self._prepare(planned, answer=True)
             self.bus.publish("lesson", **self.lesson.reader_payload())
-            self.bus.publish("status", state="reading" if self.playing else "paused")
+            self.bus.publish("progress", step=self.index, of=len(self.lesson.steps))
+            if self.focus: self.bus.publish("focus", sentence=self.focus)
+            self.bus.publish("status", state="waiting" if self.review else "paused")
         elif name == "play":
+            self._start_reading()
             if self.lesson and self.index >= len(self.lesson.steps):
                 self.index = 0
+            self._skip_review()
             self.playing = True
             self.bus.publish("clear_answer")
             self.bus.publish("status", state="reading")
@@ -207,10 +268,12 @@ class Player:
             self.playing = False
             self.bus.publish("status", state="paused")
         elif name == "seek" and self.lesson:
+            self._skip_review()
             self.index = max(0, min(len(self.lesson.steps) - 1, self.index + args[0]))
             self._cut = None
             self.bus.publish("clear_answer")
         elif name == "restart" and self.lesson:
+            self._skip_review()
             self.index, self.focus, self._cut = 0, None, None
             self.bus.publish("lesson", **self.lesson.reader_payload())
             self.playing = True
@@ -219,17 +282,24 @@ class Player:
             self._held_until = 0.0
             self._answer(args[0], args[1] if len(args) > 1 else None, args[2] if len(args) > 2 else None)
         elif name == "resume_status":
-            self.bus.publish("status", state="reading" if self.playing else "paused")
+            self.bus.publish("status", state=self._state())
 
     def _step(self) -> None:
         assert self.lesson is not None
         self._busy = True
+        self._start_reading()
         try:
             self.bus.publish("progress", step=self.index + 1, of=len(self.lesson.steps))
             self._prepare(self.lesson.steps[self.index:self.index + 3])
-            if self._perform(self.lesson.steps[self.index]):
+            step = self.lesson.steps[self.index]
+            if self._perform(step):
                 self._cut = None
+                if step.expect:                   # a review question: wait for the answer ("go on" skips it)
+                    self.review = {"question": step.say, "expect": step.expect}
                 self._advance()
+                if self.review:
+                    self.playing = False
+                    self.bus.publish("status", state="waiting")
             else:
                 self._cut = self.index
         finally:
@@ -255,6 +325,8 @@ class Player:
 
     def _perform(self, step: Step, *, answer: dict | None = None) -> bool:
         """Show and say one step. False when it was interrupted."""
+        if self._active_generation != self._generation:
+            return False
         self._stop.clear()
         if step.focus and step.focus != self.focus:
             if self.focus is None or step.focus.split(".")[0] != self.focus.split(".")[0]:
@@ -278,6 +350,10 @@ class Player:
             if answer is not None:
                 answer["text"] = _join(answer["text"], step.say)
                 self.bus.publish("answer", question=answer["question"], text=answer["text"], done=False)
+            else:
+                # the lesson speaks again (say the next review question): the last exchange
+                # leaves the caption, or the screen would stay on it while the voice moves on
+                self.bus.publish("clear_answer")
             self.bus.publish("caption", text=step.say)
             for piece in (_sentences(step.say) if answer is not None else [step.say]):
                 if self._stop.is_set():
@@ -285,7 +361,7 @@ class Player:
                 self._say(piece)
         if step.pause and not self._stop.is_set():
             self._stop.wait(step.pause)
-        return not self._stop.is_set()
+        return not self._stop.is_set() and self._active_generation == self._generation
 
     def _say(self, text: str) -> None:
         """Speak one line. A hiccup (network, a page that reloaded) gets one more try; a line that
@@ -322,7 +398,14 @@ class Player:
         self.index += 1
         if self.index >= len(self.lesson.steps):
             self.playing = False
-            self.bus.publish("status", state="done")
+            if not self.review:
+                self.bus.publish("status", state="done")
+                self._note("end")
+
+    def _skip_review(self) -> None:
+        if self.review:
+            self._note("review_skipped", review=self.review["question"], expect=self.review.get("expect"))
+            self.review = None
 
     def _ask_answerer(self, question: str):
         if not self.answerer:
@@ -335,7 +418,15 @@ class Player:
         args = (self.lesson, question, self.focus) + ((self.index,) if takes_position else ())
         if len(params) >= 5:
             args += (list(self.history),)
+        if len(params) >= 6:
+            args += (self.review,)
         return self.answerer(*args)
+
+    def _said(self, what: str) -> str:
+        lang = (self.lesson.explain_language if self.lesson else "").lower()
+        zh = "chin" in lang or lang.startswith("zh") or "中文" in lang
+        lines = {"refresh": ("好，页面刷新了，我们接着来。", "Done, the page is refreshed. Let's go on.")}
+        return lines[what][0 if zh else 1]
 
     def _sorry(self) -> str:
         lang = (self.lesson.explain_language if self.lesson else "").lower()
@@ -383,6 +474,7 @@ class Player:
             return
         skip_cut = self._cut is not None and self._cut == self.index
         self._cut = None
+        pending_review = self.review is not None
         self._playback_failed = False
         resume_focus = self.focus
         t0 = since or time.monotonic()
@@ -416,6 +508,14 @@ class Player:
                 if intent:                        # "继续", "等一下", "从头讲": do it now, no model
                     live.cancel()
                     steps, stream, then, command_only = [], None, intent, True
+                elif heard and needs_lookup(heard) and self.answerer:
+                    # it needs the web: drop the realtime answer, look it up and answer from that
+                    live.cancel()
+                    retry = self._ask_answerer(heard)
+                    if hasattr(retry, "start"):
+                        stream = retry.start(on_step=lambda st: self._prepare([st], answer=True))
+                    else:
+                        steps, stream = list((retry or {}).get("steps") or []), None
                 elif planned:                     # a planned moment (e.g. for filming): use it as written
                     live.cancel()
                     steps, stream = list(planned), None
@@ -470,6 +570,11 @@ class Player:
                 self.bus.publish("answer", question=question, text=answer["text"], done=True)
                 if answer["text"]:
                     self.history = (self.history + [{"q": question, "a": answer["text"]}])[-3:]
+                    review, self.review = self.review, None
+                    self._note("exchange", question=question, answer=answer["text"],
+                               focus=None if review else resume_focus,
+                               review=review["question"] if review else None,
+                               expect=review.get("expect") if review else None)
             if t_first is not None:
                 sound = f"{self._t_sound - t0:.1f}s" if self._t_sound else "?"
                 model = ""
@@ -478,15 +583,28 @@ class Player:
                 self._log(f"answer timing ({'realtime' if live is not None else 'text'}): {model}"
                           f"first line written {t_first - t0:.1f}s, first sound {sound}"
                           f"{' (after a filler)' if filled else ''}")
+        if self._active_generation != self._generation:
+            return
         self._t_asked = None
         interrupted = self._stop.is_set()
         n = len(self.lesson.steps)
+        if self.review and then in ("continue", "skip", "restart", "back"):
+            self._skip_review()                      # "go on" instead of an answer
         if self._playback_failed:
             self.playing = False
             self.bus.publish("status", state="paused")
             return
         if then == "refresh":                        # "the page is stuck": every screen redraws
             self.bus.publish("refresh")
+            self._stop.wait(1.5)                     # let the pages come back before saying so
+            self._perform(Step(say=self._said("refresh")))
+            then = "continue"
+        if then == "review":                         # "ask me again": back to the first review question
+            first = next((i for i, st in enumerate(self.lesson.steps) if st.expect), None)
+            if first is not None:
+                self.review, self.focus, skip_cut = None, None, False
+                self.index = first
+                self.bus.publish("clear_answer")
             then = "continue"
         if then == "restart":
             self.index, self.focus = 0, None
@@ -512,7 +630,12 @@ class Player:
             self.bus.publish("clear_answer")
         if self.index >= n:
             self.playing = False
+        if self.review:
+            self.bus.publish("status", state="waiting")
+            return
         self.bus.publish("status", state="reading" if self.playing else ("done" if self.index >= n else "paused"))
+        if self.index >= n and pending_review:
+            self._note("end")                        # the last review question was answered or skipped
 
     def _next_paragraph(self, index: int) -> int:
         """First step at or after ``index`` that starts a new paragraph."""

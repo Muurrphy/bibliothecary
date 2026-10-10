@@ -3,15 +3,15 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "margin-reader"
-version = "0.2.2"
-description = "A reading companion across an old Kindle and a phone: articles, spoken questions and a multilingual digital mouth."
+name = "bibliothecary"
+version = "0.4.0"
+description = "A personal librarian: it helps choose what to read, reads it with you at bedtime on a Kindle or phone, and keeps a reading report of every question and answer."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{name = "Muurrphy"}]
-keywords = ["kindle", "e-ink", "reading", "voice", "lip-sync", "multilingual"]
-dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55"]
+keywords = ["librarian", "reading", "kindle", "e-ink", "voice", "reading-report", "lip-sync", "multilingual"]
+dependencies = ["cmudict>=1.0.32", "pypinyin>=0.55", "trafilatura>=2.0", "pypdf>=5.0"]
 
 [project.optional-dependencies]
 # Compatibility aliases; the mouth and its language front ends are included.
@@ -24,11 +24,13 @@ serial = ["pyserial>=3.5"]
 dev = ["pytest>=8.3", "jsonschema>=4.23", "build>=1.2"]
 
 [project.urls]
-Homepage = "https://github.com/Muurrphy/margin"
-Repository = "https://github.com/Muurrphy/margin"
-Issues = "https://github.com/Muurrphy/margin/issues"
+Homepage = "https://github.com/Muurrphy/bibliothecary"
+Repository = "https://github.com/Muurrphy/bibliothecary"
+Issues = "https://github.com/Muurrphy/bibliothecary/issues"
 
 [project.scripts]
+bibliothecary = "bibliothecary.cli:main"
+biblio = "bibliothecary.cli:main"
 margin = "margin.cli:main"
 robot-lipsync = "robot_lipsync.cli:main"
 
@@ -38,6 +40,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 margin = ["static/*"]
 robot_lipsync = ["data/*.json", "renderers/*.js"]
+bibliothecary = ["shelves.toml", "catalog.toml", "samples/*.epub"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

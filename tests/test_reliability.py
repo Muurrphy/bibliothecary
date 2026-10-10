@@ -248,3 +248,57 @@ def test_selected_voice_settings_cannot_silently_fall_back(monkeypatch):
     assert len(requests) == 1
     assert requests[0]['voice_settings'] == selected
     assert v.settings == selected
+
+
+def test_the_voice_is_chosen_for_you_and_silence_is_said_out_loud(monkeypatch):
+    from margin import speech
+
+    monkeypatch.delenv("MARGIN_ELEVEN_VOICE", raising=False)
+    monkeypatch.delenv("ELEVENLABS_VOICE_ID", raising=False)
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "silent" and "SILENT" in note and "MARGIN_ELEVEN_VOICE" in note
+
+    monkeypatch.setenv("ELEVENLABS_VOICE_ID", "v123")
+    monkeypatch.setattr(speech, "ElevenLabsVoice", lambda voice_id: type("V", (), {"name": "elevenlabs", "id": voice_id})())
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "elevenlabs" and voice.id == "v123" and "v123" in note
+
+    def broken(voice_id):
+        raise RuntimeError("no ElevenLabs key found")
+    monkeypatch.setattr(speech, "ElevenLabsVoice", broken)
+    voice, note = speech.auto_voice(None)
+    assert voice.name == "silent" and "no ElevenLabs key found" in note
+
+
+def test_serving_defaults_to_the_automatic_voice():
+    import argparse
+    from margin import cli
+
+    p = argparse.ArgumentParser()
+    cli.add_serve_options(p)
+    assert p.parse_args([]).voice == "auto"
+
+
+def test_played_lines_can_be_kept_for_editing(tmp_path):
+    import json
+    from margin import speech
+
+    rec = speech.Recorder(str(tmp_path / "rec"))
+    played = []
+    assert rec.play(b"ID3fake", "你好", lambda: played.append(1) or True) is True
+    files = [p.name for p in (tmp_path / "rec").glob("*.mp3")]
+    timeline = [json.loads(x) for x in (tmp_path / "rec" / "timeline.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert played == [1] and len(files) == 1 and timeline[0]["file"] == files[0] and timeline[0]["text"] == "你好"
+    assert timeline[0]["end"] >= timeline[0]["start"]
+    off = speech.Recorder("")
+    assert off.play(b"x", "y", lambda: "sounded") == "sounded" and off.folder is None
+
+
+def test_the_recording_folder_is_read_when_a_line_plays(tmp_path, monkeypatch):
+    from margin import speech
+
+    monkeypatch.delenv("MARGIN_RECORD_DIR", raising=False)
+    rec = speech.Recorder()                       # made at import, before .env is read
+    monkeypatch.setenv("MARGIN_RECORD_DIR", str(tmp_path / "later"))
+    rec.play(b"ID3", "hi", lambda: True)
+    assert (tmp_path / "later" / "timeline.jsonl").is_file()

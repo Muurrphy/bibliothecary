@@ -1,4 +1,6 @@
-# Roadmap and release gates
+# Mouth roadmap and release gates
+
+This is the roadmap of the mouth (`robot_lipsync`). The librarian's phases are in the [requirements](requirements.md#12-phases).
 
 ## v0.1 — independent engineering core
 

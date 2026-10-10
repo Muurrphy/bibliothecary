@@ -1,4 +1,4 @@
-include README.md README.zh-CN.md LICENSE CHANGELOG.md CONTRIBUTING.md SECURITY.md CITATION.cff .env.example
+include README.md README.zh-CN.md LICENSE CHANGELOG.md CHANGELOG.zh-CN.md CONTRIBUTING.md SECURITY.md CITATION.cff .env.example
 recursive-include docs *.md
 recursive-include examples *.py *.json *.jsonl *.md
 recursive-include schemas *.json
@@ -7,4 +7,5 @@ recursive-include firmware *.h *.ino *.md *.yaml
 recursive-include tools *.py
 recursive-include benchmarks *.py *.json *.md
 recursive-include tests *.py
+recursive-include src/bibliothecary *.toml *.epub *.md
 global-exclude *.py[cod] __pycache__ .DS_Store

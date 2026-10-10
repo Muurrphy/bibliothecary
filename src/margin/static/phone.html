@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Bibliothecary">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="/speaker-icon-180.png">
+<title>Bibliothecary · tonight</title>
+<style>
+/* one phone on its own: the article above, the voice, microphone and mouth below */
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#page{display:flex;flex-direction:column;height:100%;height:100dvh}
+iframe{border:0;display:block;width:100%}
+#text{flex:1 1 auto;background:#fff}
+#voice{flex:0 0 34%;min-height:190px}
+@media (orientation: landscape){#page{flex-direction:row}#voice{flex:0 0 36%;min-height:0;height:100%}#text{height:100%}}
+</style>
+</head>
+<body>
+<div id="page">
+  <iframe id="text" title="the article" src="/reader?phone=1"></iframe>
+  <iframe id="voice" title="voice and microphone" allow="microphone; autoplay" src="/speaker"></iframe>
+</div>
+<script>
+// pass the speaker's options on (?palette=..., ?listen=0, ?sens=...)
+var q = location.search;
+if (q) document.getElementById("voice").src = "/speaker" + q;
+</script>
+</body></html>

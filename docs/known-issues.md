@@ -1,6 +1,6 @@
 # Known issues — 2026-10-08 snapshot
 
-Margin is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.
+Bibliothecary is an early personal prototype. Versions 0.2.1 and 0.2.2 update connection recovery and microphone uploads. These changes have offline tests and desktop-browser checks; long phone sessions remain under testing.
 
 | Area | Current status |
 |---|---|
@@ -12,9 +12,15 @@ Margin is an early personal prototype. Versions 0.2.1 and 0.2.2 update connectio
 | Models | Timestamp availability and accepted settings depend on the voice model. Strict mode reports unsupported settings. |
 | Languages | The companion selects Chinese or English. Spanish is available through the language-tagged mouth API and CLI. |
 | Devices | Demonstrations used a Kindle 10th generation (firmware 5.16), iPhone and iPad. Phone capture has been intermittent. Android and other e-readers remain untested. |
+| Reading room answers | Questions about something recent, a fact (who, which, when, how many) or an explicit "look it up" are searched on the web first ("我上网查一下", about 5 s). Other questions are answered from the model's own knowledge, which can be wrong on details. |
+| Starting over | Reloading the page redraws it but does not restart the reading; each Telegram button opens its own reading, and switching readings files the previous one. There is no "start this reading again" command yet (say "再问一遍 / ask me again" to repeat the review). |
+| Filming on iPhone | iOS screen recording drops the sound of a page that holds the microphone. Set `MARGIN_RECORD_DIR` and join the lines with `python -m margin.stitch` (see the 2026-10-08 log). |
+| Librarian speed | Choosing a reading in Telegram can take one to two minutes: several searches, then every link is opened to check it can be read in full. |
 
 Use the computer's `/remote` page for text questions and playback controls when voice input is interrupted. Run the service in a foreground terminal to stop or restart it.
 
 Offline tests cover code paths, fixtures and packaging. Mobile speech detection, acoustic echo and everyday reliability require device testing. Historical mouth traces and the simulated benchmark adapter are recorded separately from Margin end-to-end tests.
+
+What went wrong while filming the first demo, and how each problem was fixed: [docs/logs/2026-10-08_第一次拍演示视频_问题全记录.md](logs/2026-10-08_第一次拍演示视频_问题全记录.md).
 
 To report a problem, include the device, browser, foreground or home-screen mode, relevant settings and a short reproduction. Remove credentials, personal speech, private article text and local certificates from shared logs.

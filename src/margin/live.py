@@ -380,6 +380,7 @@ class Ears:
                  instructions: Callable[[], str], log: Callable[[str], None]) -> None:
         self.player, self.link, self.transcriber = player, link, transcriber
         self.is_echo, self.instructions, self.log = is_echo, instructions, log
+        self.lookup: Callable[[str, str], dict] | None = None   # (query, what they said) -> answer
         self.qid: str | None = None
         self.pcm = bytearray()
         self.turn: LiveTurn | None = None
@@ -414,7 +415,11 @@ class Ears:
             from .brain import StreamedAnswer
 
             lesson = self.player.lesson
-            stream = StreamedAnswer(turn.pieces, lesson, self.player.focus)
+            lookup = None
+            if self.lookup is not None:
+                def lookup(query, turn=turn, look=self.lookup):
+                    return look(query, turn.transcript or query)
+            stream = StreamedAnswer(turn.pieces, lesson, self.player.focus, lookup=lookup)
             fallback = None
             if self.transcriber:
                 def fallback(pcm=pcm):
