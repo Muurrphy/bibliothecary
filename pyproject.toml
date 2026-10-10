@@ -21,7 +21,7 @@ mandarin = ["pypinyin>=0.55"]
 multilingual = ["cmudict>=1.0.32", "pypinyin>=0.55"]
 elevenlabs = ["requests>=2.32"]
 serial = ["pyserial>=3.5"]
-dev = ["pytest>=8.3", "jsonschema>=4.23", "build>=1.2"]
+dev = ["pytest>=8.3", "jsonschema>=4.23", "build>=1.2", "websockets>=12"]
 
 [project.urls]
 Homepage = "https://github.com/Muurrphy/bibliothecary"
